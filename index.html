@@ -54,6 +54,54 @@
   header nav a{color:var(--dim)}
   header nav a:hover{color:var(--text);text-decoration:none}
 
+  /* O botão de menu só existe na largura em que a barra de links não
+     cabe — abaixo, na consulta de 620px, ele aparece e a barra vira uma
+     folha que desce. Os três traços são feitos do próprio elemento e de
+     seus dois pseudos: um SVG a mais aqui seria mais linha de código
+     que desenho. */
+  .menu{display:none;margin-left:auto;width:40px;height:40px;
+    align-items:center;justify-content:center;background:transparent;
+    border:1px solid var(--line);border-radius:9px;color:var(--dim);
+    cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .menu:hover{color:var(--text);border-color:#39404D}
+  .menu i,.menu i::before,.menu i::after{display:block;width:17px;
+    height:1.6px;background:currentColor;border-radius:2px;
+    transition:transform .18s,background .18s}
+  .menu i{position:relative}
+  .menu i::before,.menu i::after{content:'';position:absolute;left:0}
+  .menu i::before{top:-5.5px}
+  .menu i::after{top:5.5px}
+  /* Aberto, os três traços viram um X. Sem isso o botão não diz se o
+     próximo toque abre ou fecha — e a folha cobre o topo da página. */
+  .menu[aria-expanded="true"] i{background:transparent}
+  .menu[aria-expanded="true"] i::before{transform:translateY(5.5px) rotate(45deg)}
+  .menu[aria-expanded="true"] i::after{transform:translateY(-5.5px) rotate(-45deg)}
+
+  /* O CORTE É 760px, E NÃO A LARGURA EM QUE A BARRA DEIXA DE CABER.
+     Ela cabe até 606px — mas de 620 a 760 chega espremida contra a
+     marca, que é o tablet em pé. O sanduíche entra antes do aperto, não
+     depois dele. Este é o único lugar onde o número existe: o JS pergunta
+     ao botão se ele sumiu, em vez de repetir 760 do outro lado. */
+  @media(max-width:760px){
+    .menu{display:flex}
+    /* A barra de links desce do cabeçalho em vez de sumir. Sumindo — e
+       era o que ela fazia — não havia como chegar em nenhuma seção do
+       celular a não ser rolando a página inteira. Ela é absoluta dentro
+       do <header>, que é sticky: acompanha a barra ao rolar. */
+    header nav{position:absolute;left:0;right:0;top:62px;margin-left:0;
+      display:block;background:var(--bg);border-bottom:1px solid var(--line);
+      padding:4px 24px 12px;font-size:16px;
+      /* Fechada, some do desenho E do caminho do teclado: opacidade
+         sozinha deixaria os seis links alcançáveis por tabulação atrás
+         de uma folha invisível. */
+      visibility:hidden;opacity:0;transform:translateY(-8px);
+      transition:opacity .18s,transform .18s,visibility .18s}
+    header nav.aberta{visibility:visible;opacity:1;transform:none}
+    header nav a{display:block;padding:12px 2px;color:var(--text);
+      border-bottom:1px solid var(--line)}
+    header nav a:last-child{border-bottom:0}
+  }
+
   /* O topo cabe numa tela. Ele ocupava a altura toda antes da imagem
      do programa aparecer — e a imagem é o que convence. */
   .hero{padding:40px 0 26px;text-align:center}
@@ -325,7 +373,6 @@
   footer p + p{margin-top:8px}
 
   @media(max-width:620px){
-    header nav{display:none}
     .hero{padding:52px 0 40px}
     .versao{flex-wrap:wrap;gap:6px}
     .versao .num,.versao .quando{flex:0 0 auto}
@@ -347,7 +394,7 @@
     <rect x="31" y="32" width="10" height="10" rx="2" fill="#2A2F3A"/>
   </svg>
   <div class="marca">LumiBridge</div>
-  <nav>
+  <nav id="nav">
     <a href="#oquee">O que é</a>
     <a href="#telas">Telas</a>
     <a href="#recursos">Recursos</a>
@@ -355,6 +402,8 @@
     <a href="#novidades">Novidades</a>
     <a href="#comprar">Comprar</a>
   </nav>
+  <button class="menu" id="btMenu" type="button"
+          aria-label="Abrir o menu" aria-controls="nav" aria-expanded="false"><i></i></button>
 </div></header>
 
 <div class="wrap hero">
@@ -1167,6 +1216,59 @@
       + '<div class="achou">Há uma versão nova disponível.'
       + '<b>' + (oque || 'Correções e melhorias.') + '</b></div>'
       + '<div class="bt2 forte">Baixar e instalar</div>';
+  }
+
+  // ------------------------------------------------------ o menu
+  //
+  // No celular a barra de links é uma folha que desce do cabeçalho. Todo
+  // o desenho está no CSS; aqui só se liga e desliga a classe, e o
+  // aria-expanded do botão — que é o que o CSS lê para virar os traços
+  // em X, e o que um leitor de tela lê para dizer aberto ou fechado.
+  var btMenu = document.getElementById('btMenu');
+  var nav    = document.getElementById('nav');
+
+  if (btMenu && nav) {
+    function menu(abrir){
+      nav.classList.toggle('aberta', abrir);
+      btMenu.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+      btMenu.setAttribute('aria-label', abrir ? 'Fechar o menu' : 'Abrir o menu');
+    }
+
+    btMenu.addEventListener('click', function(e){
+      e.stopPropagation();
+      menu(nav.className.indexOf('aberta') < 0);
+    });
+
+    // Tocar num link tem de fechar. Os seis levam a âncoras da MESMA
+    // página: sem isto a folha ficaria aberta por cima da seção que a
+    // pessoa acabou de pedir.
+    nav.addEventListener('click', function(e){
+      if (e.target.tagName === 'A') menu(false);
+    });
+
+    document.addEventListener('click', function(e){
+      if (!e.target.closest || !e.target.closest('header')) menu(false);
+    });
+
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && nav.className.indexOf('aberta') >= 0) {
+        menu(false);
+        btMenu.focus();
+      }
+    });
+
+    // Girar o tablet ou alargar a janela some com o botão, mas não com
+    // a classe: a barra voltaria ao topo já "aberta", e a próxima vez
+    // que o botão aparecesse ele estaria mentindo sobre o estado.
+    //
+    // QUEM SABE A LARGURA DE CORTE É O CSS. Se o botão sumiu, passou do
+    // corte — e é só isso que se pergunta aqui. Um matchMedia('760px')
+    // seria o mesmo número escrito duas vezes, e no dia em que a consulta
+    // mudasse lá em cima este trecho continuaria com o valor velho.
+    window.addEventListener('resize', function(){
+      if (nav.className.indexOf('aberta') >= 0 &&
+          getComputedStyle(btMenu).display === 'none') menu(false);
+    });
   }
 
 })();
