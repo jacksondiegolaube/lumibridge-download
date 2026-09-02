@@ -1,3 +1,4 @@
+-- LumiBridge 1.0.1  (compilado em 2026-09-02 13:04)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -48,8 +49,8 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 1
-Version.CORRECAO = 0
+Version.MENOR    = 0
+Version.CORRECAO = 1
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -66,7 +67,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 12:46"
+Version.COMPILACAO = "2026-09-02 13:04"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4389,6 +4390,20 @@ end
 --  @param destino  o arquivo a substituir
 --  @param versao   a que o manifesto prometeu, para conferir
 --  @return boolean, mensagem
+--- A versão declarada dentro de um programa LumiBridge.
+--
+--  Lê os três números de core/version.lua — embutido no arquivo único —
+--  e os remonta. Devolve nil quando não os encontra, e quem chama trata
+--  isso como "não sei dizer", que é diferente de "está errado".
+function Atualizacao.versaoDe(conteudo)
+  if type(conteudo) ~= 'string' then return nil end
+  local M = conteudo:match('Version%.MAIOR%s*=%s*(%d+)')
+  local N = conteudo:match('Version%.MENOR%s*=%s*(%d+)')
+  local C = conteudo:match('Version%.CORRECAO%s*=%s*(%d+)')
+  if not (M and N and C) then return nil end
+  return ('%s.%s.%s'):format(M, N, C)
+end
+
 function Atualizacao.instalar(url, destino, versao)
   if not url or url == '' then return false, 'sem endereço para baixar' end
 
@@ -4412,9 +4427,27 @@ function Atualizacao.instalar(url, destino, versao)
 
   -- E É A VERSÃO PROMETIDA? Protege do servidor com um arquivo velho no
   -- lugar: sem isto, "atualizar" poderia instalar a versão anterior.
-  if versao and not conteudo:find(versao, 1, true) then
-    return false, 'o arquivo baixado não parece ser a versão '
-                  .. versao .. ' — nada foi alterado'
+  --
+  -- ELE PROCURAVA A STRING "1.1.0" DENTRO DO ARQUIVO, e ela nunca esteve
+  -- lá: o programa guarda a versão em três números separados
+  -- (Version.MAIOR/MENOR/CORRECAO). A conferência portanto NUNCA passou,
+  -- em versão nenhuma — a atualização automática existia, achava a
+  -- versão nova, baixava, e recusava a instalação com a mensagem de um
+  -- servidor adulterado. O defeito ficou escondido porque testar não
+  -- atualiza, e porque a parte que ACHA a versão nova funcionava.
+  --
+  -- Agora os três números são lidos do arquivo baixado e remontados. É a
+  -- mesma fonte que o programa usa para se dizer qual versão é.
+  if versao then
+    local achada = Atualizacao.versaoDe(conteudo)
+    if not achada then
+      return false, 'não consegui ler a versão do arquivo baixado '
+                    .. '— nada foi alterado'
+    end
+    if achada ~= versao then
+      return false, ('o arquivo baixado é a versão %s, e não a %s '
+                     .. '— nada foi alterado'):format(achada, versao)
+    end
   end
 
   -- GUARDA O ANTERIOR antes de trocar. Se a versão nova tiver um defeito
