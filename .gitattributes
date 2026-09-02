@@ -1,0 +1,4 @@
+# Esta pasta é distribuição, não código: nada aqui deve ter as quebras
+# de linha traduzidas. O instalador e o manual em PDF são binários, e
+# uma "correção" de CRLF os corrompe em silêncio.
+* -text

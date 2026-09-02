@@ -1,0 +1,787 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R 22 0 R 24 0 R 26 0 R 28 0 R 30 0 R 32 0 R 34 0 R 36 0 R 38 0 R 40 0 R 42 0 R 44 0 R] /Count 19 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Title <FEFF004C0075006D0069004200720069006400670065002020140020004D0061006E00750061006C00200064006F002000750073007500E100720069006F> /Producer (LumiBridge) >>
+endobj
+7 0 obj
+<< /Length 1231 >>
+stream
+0.16 0.18 0.23 rg 64.00 690.00 15.29 15.29 re f
+0.96 0.65 0.14 rg 84.67 690.00 15.29 15.29 re f
+0.16 0.18 0.23 rg 105.33 690.00 15.29 15.29 re f
+0.96 0.65 0.14 rg 64.00 669.33 15.29 15.29 re f
+0.16 0.18 0.23 rg 84.67 669.33 15.29 15.29 re f
+0.24 0.55 0.99 rg 105.33 669.33 15.29 15.29 re f
+0.16 0.18 0.23 rg 64.00 648.67 15.29 15.29 re f
+0.24 0.55 0.99 rg 84.67 648.67 15.29 15.29 re f
+0.16 0.18 0.23 rg 105.33 648.67 15.29 15.29 re f
+0.15 0.16 0.18 rg BT /F2 44.00 Tf 1 0 0 1 64.00 600.00 Tm (LumiBridge) Tj ET
+0.42 0.45 0.50 rg BT /F1 19.00 Tf 1 0 0 1 64.00 566.00 Tm (Manual do usuário) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 544.00 m 154.00 544.00 l S
+0.15 0.16 0.18 rg BT /F1 12.00 Tf 1 0 0 1 64.00 500.00 Tm (Automação de luz entre o REAPER e o Lumikit Show,) Tj ET
+0.15 0.16 0.18 rg BT /F1 12.00 Tf 1 0 0 1 64.00 482.00 Tm (pela sua própria Janela Personalizada.) Tj ET
+0.15 0.16 0.18 rg BT /F2 11.00 Tf 1 0 0 1 64.00 190.00 Tm (Versão 1.1.0) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 172.00 Tm (02/09/2026) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 140.00 Tm (Jackson Diego Laube) Tj ET
+0.18 0.42 0.78 rg BT /F1 11.00 Tf 1 0 0 1 64.00 122.00 Tm (jacksondiegolaube.github.io/lumibridge-download) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 7 0 R >>
+endobj
+9 0 obj
+<< /Length 4840 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Sumário) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 724.00 Tm (1.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 724.00 Tm (O que é o LumiBridge) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 524.88 724.00 Tm (3) Tj ET
+0.85 0.87 0.90 RG 0.50 w 199.00 727.00 m 516.88 727.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 702.00 Tm (2.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 702.00 Tm (Antes de começar) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 524.88 702.00 Tm (4) Tj ET
+0.85 0.87 0.90 RG 0.50 w 180.65 705.00 m 516.88 705.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 680.00 Tm (3.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 680.00 Tm (Instalação) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 524.88 680.00 Tm (5) Tj ET
+0.85 0.87 0.90 RG 0.50 w 142.14 683.00 m 516.88 683.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 658.00 Tm (4.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 658.00 Tm (Ativação) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 524.88 658.00 Tm (6) Tj ET
+0.85 0.87 0.90 RG 0.50 w 134.19 661.00 m 516.88 661.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 636.00 Tm (5.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 636.00 Tm (Primeiros ajustes) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 524.88 636.00 Tm (7) Tj ET
+0.85 0.87 0.90 RG 0.50 w 176.35 639.00 m 516.88 639.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 614.00 Tm (6.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 614.00 Tm (A janela) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 524.88 614.00 Tm (8) Tj ET
+0.85 0.87 0.90 RG 0.50 w 131.74 617.00 m 516.88 617.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 592.00 Tm (7.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 592.00 Tm (Preparar uma música) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 592.00 Tm (10) Tj ET
+0.85 0.87 0.90 RG 0.50 w 197.14 595.00 m 510.77 595.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 570.00 Tm (8.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 570.00 Tm (Gravar) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 570.00 Tm (11) Tj ET
+0.85 0.87 0.90 RG 0.50 w 125.62 573.00 m 510.77 573.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 548.00 Tm (9.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 548.00 Tm (Editar a programação) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 548.00 Tm (12) Tj ET
+0.85 0.87 0.90 RG 0.50 w 197.76 551.00 m 510.77 551.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 526.00 Tm (10.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 526.00 Tm (Faders e Control Change) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 526.00 Tm (13) Tj ET
+0.85 0.87 0.90 RG 0.50 w 215.50 529.00 m 510.77 529.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 504.00 Tm (11.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 504.00 Tm (Configurações, aba por aba) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 504.00 Tm (14) Tj ET
+0.85 0.87 0.90 RG 0.50 w 227.74 507.00 m 510.77 507.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 482.00 Tm (12.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 482.00 Tm (Atalhos e teclas) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 482.00 Tm (15) Tj ET
+0.85 0.87 0.90 RG 0.50 w 169.65 485.00 m 510.77 485.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 460.00 Tm (13.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 460.00 Tm (No show) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 460.00 Tm (16) Tj ET
+0.85 0.87 0.90 RG 0.50 w 134.79 463.00 m 510.77 463.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 438.00 Tm (14.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 438.00 Tm (Atualizações) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 438.00 Tm (17) Tj ET
+0.85 0.87 0.90 RG 0.50 w 154.36 441.00 m 510.77 441.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 416.00 Tm (15.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 416.00 Tm (Problemas comuns) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 416.00 Tm (18) Tj ET
+0.85 0.87 0.90 RG 0.50 w 186.14 419.00 m 510.77 419.00 l S
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 394.00 Tm (16.) Tj ET
+0.15 0.16 0.18 rg BT /F1 11.00 Tf 1 0 0 1 86.00 394.00 Tm (Licença e suporte) Tj ET
+0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 394.00 Tm (19) Tj ET
+0.85 0.87 0.90 RG 0.50 w 178.82 397.00 m 510.77 397.00 l S
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (2) Tj ET
+endstream
+endobj
+10 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 9 0 R >>
+endobj
+11 0 obj
+<< /Length 3728 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (O que é o LumiBridge) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (O LumiBridge é uma ferramenta de) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 231.49 734.00 Tm (criação) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 268.26 734.00 Tm (. Ele existe para o momento em que você monta a luz) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 719.00 Tm (de uma música — e sai de cena quando o espetáculo começa.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 696.00 Tm (Você já monta a sua Janela Personalizada no Lumikit Show: os botões de cor, os efeitos, os faders,) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 681.00 Tm (do jeito que o seu projeto usa. O LumiBridge lê esse arquivo) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 348.22 681.00 Tm (.form) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 377.39 681.00 Tm (e redesenha a mesma tela) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 666.00 Tm (dentro do REAPER, alinhada ao áudio. Aí você toca a música e opera a luz como operaria ao vivo:) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 651.00 Tm (cada clique vira MIDI gravado na linha do tempo, no compasso exato. Depois dá para ajustar nota) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 636.00 Tm (por nota.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 613.00 Tm (Serve para qualquer projeto em que a luz precise andar junto com o áudio: o show de uma banda,) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 598.00 Tm (um espetáculo de teatro, uma peça cênica, um evento com trilha marcada.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 567.00 Tm (Quem faz o quê) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 548.00 Tm (LumiBridge) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 548.00 Tm (na criação: lê o seu .form e grava a automação MIDI na linha do) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 533.00 Tm (tempo do REAPER.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 512.00 Tm (REAPER) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 512.00 Tm (no show: toca o projeto e envia o MIDI pela porta que você já usa.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 491.00 Tm (Lumikit Show) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 491.00 Tm (no palco: recebe o MIDI e aciona a iluminação, como sempre fez.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 462.00 Tm (Repare no que isso quer dizer:) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 210.49 462.00 Tm (no show, o LumiBridge não precisa estar aberto) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 450.88 462.00 Tm (. Terminada a) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 447.00 Tm (criação, a automação é um item MIDI do seu projeto do REAPER e não depende mais dele para) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 432.00 Tm (nada.) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 407.00 Tm (O LumiBridge é um projeto independente. Não há vínculo, sociedade nem representação da Lumikit,) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 392.50 Tm (da Cockos \(REAPER\) ou de qualquer outra empresa. Você precisa ter as suas próprias licenças do) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 378.00 Tm (REAPER e do Lumikit Show.) Tj ET
+0.72 0.50 0.05 RG 2.00 w 67.00 420.00 m 67.00 375.50 l S
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (3) Tj ET
+endstream
+endobj
+12 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 11 0 R >>
+endobj
+13 0 obj
+<< /Length 3240 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Antes de começar) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Sistema) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 734.00 Tm (Windows 10 ou 11.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 713.00 Tm (REAPER) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 713.00 Tm (versão 6 ou mais nova, com a sua licença.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 692.00 Tm (Lumikit Show) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 692.00 Tm (com a Janela Personalizada montada e exportada em .form.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 671.00 Tm (Porta MIDI) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 671.00 Tm (uma porta virtual entre o REAPER e o Lumikit. O loopMIDI resolve,) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 656.00 Tm (e é grátis.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 635.00 Tm (Internet) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 635.00 Tm (só para baixar e para receber atualização. O programa funciona) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 620.00 Tm (sem rede, inclusive na ativação.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 583.00 Tm (A porta virtual) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 564.00 Tm (O REAPER e o Lumikit são dois programas separados no mesmo computador, e o MIDI precisa de) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 549.00 Tm (um caminho entre eles. Esse caminho é uma porta virtual: instale o loopMIDI, crie uma porta \(o) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 534.00 Tm (nome é seu, "LumiBridge" serve\), e mande o Lumikit escutar essa porta. É a mesma porta que você) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 519.00 Tm (vai escolher no passo 2 do assistente.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 488.00 Tm (O arquivo .form) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 469.00 Tm (É a sua Janela Personalizada, salva. No Lumikit Show, monte a janela como quiser e salve o) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 454.00 Tm (arquivo num lugar que você ache depois — a pasta do projeto do REAPER é um bom lugar, porque) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 439.00 Tm (projeto e tela andam juntos.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 416.00 Tm (Tudo o que o LumiBridge mostra vem dele: os botões, os nomes, as cores, os grupos de "apenas) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 401.00 Tm (um ativo", os ícones e os comandos MIDI de cada controle. Mudou a sua tela no Lumikit? Exporte) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 386.00 Tm (de novo e use) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 132.88 386.00 Tm (Recarregar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 191.24 386.00 Tm (em Configurações › Arquivo.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (4) Tj ET
+endstream
+endobj
+14 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 13 0 R >>
+endobj
+15 0 obj
+<< /Length 2646 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Instalação) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 734.00 Tm (1) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 734.00 Tm (Baixe o instalador) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 719.00 Tm (No site, o botão "Baixar o instalador". O arquivo chama LumiBridge-instalador.exe.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 696.00 Tm (2) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 696.00 Tm (Execute e siga) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 681.00 Tm (Feche o REAPER antes. O instalador copia o programa para a pasta de scripts do REAPER,) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 666.00 Tm (instala junto a biblioteca ReaImGui \(necessária para a janela\) e registra a ação.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 643.00 Tm (3) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 643.00 Tm (Deixe marcada a opção do botão) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 628.00 Tm (Ela põe o LumiBridge na barra de ferramentas do REAPER, com o ícone do programa. É por ali) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 613.00 Tm (que você vai abrir todo dia.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 590.00 Tm (4) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 590.00 Tm (Abra o REAPER) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 575.00 Tm (O botão está na barra de ferramentas. Um clique abre a janela.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 550.00 Tm (Se preferir abrir pelo menu:) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 194.71 550.00 Tm (Actions › Show action list) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 322.49 550.00 Tm (, e procure por) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 393.69 550.00 Tm (LumiBridge) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 452.03 550.00 Tm (. A ação chama) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 535.00 Tm ("Custom: LumiBridge".) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 510.00 Tm (A biblioteca ReaImGui é distribuída junto, sob a licença LGPL-3.0, como arquivo separado. Ela não é) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 495.50 Tm (nossa e não foi modificada.) Tj ET
+0.72 0.50 0.05 RG 2.00 w 67.00 523.00 m 67.00 493.00 l S
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (5) Tj ET
+endstream
+endobj
+16 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 15 0 R >>
+endobj
+17 0 obj
+<< /Length 2411 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Ativação) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (O LumiBridge é um programa licenciado. Na primeira abertura ele mostra a tela de ativação no) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 719.00 Tm (lugar do programa.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 696.00 Tm (1) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 696.00 Tm (Copie o código da máquina) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 681.00 Tm (É um código no formato LB-XXXX-XXXX, calculado neste computador. O botão) Tj ET
+0.42 0.45 0.50 rg BT /F2 10.50 Tf 1 0 0 1 453.52 681.00 Tm (Copiar código) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 666.00 Tm (põe no clipboard — não vale a pena ditar por telefone.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 643.00 Tm (2) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 643.00 Tm (Mande para quem lhe vendeu) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 628.00 Tm (Pelo WhatsApp mesmo.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 605.00 Tm (3) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 605.00 Tm (Digite a chave que voltar) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 590.00 Tm (Quatro grupos de quatro caracteres. Clique em) Tj ET
+0.42 0.45 0.50 rg BT /F2 10.50 Tf 1 0 0 1 302.35 590.00 Tm (Ativar) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 332.10 590.00 Tm (.) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 563.00 Tm (A chave vale) Tj ET
+0.42 0.45 0.50 rg BT /F2 10.00 Tf 1 0 0 1 140.03 563.00 Tm (só nesta máquina) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 224.50 563.00 Tm (, para sempre, e nunca precisa de internet. Copiar a pasta de) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 548.50 Tm (configurações do REAPER para outro computador não leva a licença junto: lá a chave não vale. Se) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 534.00 Tm (você formatar o computador ou trocar de máquina, peça outra chave.) Tj ET
+0.72 0.50 0.05 RG 2.00 w 67.00 576.00 m 67.00 531.50 l S
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (6) Tj ET
+endstream
+endobj
+18 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 17 0 R >>
+endobj
+19 0 obj
+<< /Length 4118 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Primeiros ajustes) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (O programa precisa de quatro respostas para funcionar, e o assistente as pede uma por tela. Ele) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 719.00 Tm (abre sozinho na primeira vez, e volta quando você quiser pelo botão) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 385.00 719.00 Tm (Assistente) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 438.09 719.00 Tm (, no topo das) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 704.00 Tm (Configurações.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 681.00 Tm (1) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 681.00 Tm (A sua Tela Personalizada) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 666.00 Tm (Escolha o arquivo .form exportado do Lumikit Show. Sem ele a janela abre vazia.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 643.00 Tm (2) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 643.00 Tm (A porta por onde o MIDI sai) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 628.00 Tm (A porta virtual que o Lumikit escuta. O botão) Tj ET
+0.42 0.45 0.50 rg BT /F2 10.50 Tf 1 0 0 1 290.11 628.00 Tm (Testar) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 324.53 628.00 Tm (dispara uma nota: se o Lumikit reagir,) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 613.00 Tm (chegou.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 590.00 Tm (3) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 590.00 Tm (A track onde a luz é gravada) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 575.00 Tm (Uma track MIDI do seu projeto, separada do áudio. Não tem nenhuma? O botão) Tj ET
+0.42 0.45 0.50 rg BT /F2 10.50 Tf 1 0 0 1 456.44 575.00 Tm (Criar uma) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 508.37 575.00 Tm (faz) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 560.00 Tm (uma chamada LUZ e já a escolhe. Logo abaixo há o botão que aponta a saída dessa track para) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 545.00 Tm (a porta — é o passo que ninguém descobre sozinho, e sem ele a automação toca e nada sai do) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 530.00 Tm (computador.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 507.00 Tm (4) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 507.00 Tm (A track que desenha a onda) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 492.00 Tm (De qual track sai a forma de onda mostrada na timeline. Aponte a que tem a) Tj ET
+0.42 0.45 0.50 rg BT /F2 10.50 Tf 1 0 0 1 438.34 492.00 Tm (guia) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 462.85 492.00 Tm (da música: é) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 477.00 Tm (ela que deixa a batida à vista enquanto você programa. Este passo é opcional — em) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 462.00 Tm ("automática" ele usa a primeira track com áudio.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 437.00 Tm (A última tela confere os quatro itens e avisa se o projeto ainda não tem regiões.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 406.00 Tm (As regiões são as músicas) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 387.00 Tm (O LumiBridge não tem lista de músicas própria: ele usa as) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 338.86 387.00 Tm (regiões) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 379.13 387.00 Tm (do seu projeto do REAPER.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 372.00 Tm (Cada música, faixa ou cena é uma região, e é ela que aparece no campo de busca da barra. Sem) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 357.00 Tm (nenhuma região, não há o que escolher e a janela parece vazia.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (7) Tj ET
+endstream
+endobj
+20 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 19 0 R >>
+endobj
+21 0 obj
+<< /Length 5357 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (A janela) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 726.00 Tm (A barra de transporte) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 707.00 Tm (Play / Stop) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 707.00 Tm (toca e para. Também pelo Espaço.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 686.00 Tm (Pause) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 686.00 Tm (pausa onde está.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 665.00 Tm (Stop) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 665.00 Tm (para e volta.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 644.00 Tm (Ao começo) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 644.00 Tm (leva o cursor ao início da música. Também pela seta esquerda.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 623.00 Tm (REC) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 623.00 Tm (grava. Ctrl+R. A dica do botão lista o que está marcado para a) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 608.00 Tm (abertura.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 587.00 Tm (Zoom) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 587.00 Tm (a lupa volta para a música inteira quando há zoom. O zoom em si é) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 572.00 Tm (a roda do mouse sobre a onda ou sobre a programação.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 551.00 Tm (Busca) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 551.00 Tm (o campo do meio. Comece a digitar — sem clicar nele antes — e a) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 536.00 Tm (lista de músicas filtra enquanto você escreve.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 515.00 Tm (Preparar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 515.00 Tm (cria o item MIDI da região com o Release All e o estado inicial. Ver) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 500.00 Tm (o capítulo próprio.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 479.00 Tm (Apagar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 479.00 Tm (a lixeira: remove a programação desta música. Pergunta antes, e) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 464.00 Tm (dá para desfazer com Ctrl+Z.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 443.00 Tm (Desfazer / Refazer) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 443.00 Tm (Ctrl+Z e Ctrl+Shift+Z.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 422.00 Tm (Release) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 422.00 Tm (apaga tudo agora, mesmo com o transporte parado. É o botão de) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 407.00 Tm (pânico do ensaio.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 386.00 Tm (Programação MIDI) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 386.00 Tm (abre e fecha a lista de faixas.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 365.00 Tm (Configurações) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 365.00 Tm (a engrenagem, no fim da barra.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 328.00 Tm (A Tela Personalizada) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 309.00 Tm (É o seu .form redesenhado: os mesmos botões, nos mesmos lugares, com as mesmas cores. Clicar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 294.00 Tm (acende, clicar de novo apaga — os controles do Lumikit são interruptores, e o LumiBridge se) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 279.00 Tm (comporta igual. Botões momentâneos, grupos de "apenas um ativo" e faders seguem as regras que) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 264.00 Tm (você definiu lá.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 241.00 Tm (Com o) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 97.84 241.00 Tm (Enviar MIDI ao Lumikit) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 213.37 241.00 Tm (ligado, cada clique já chega à mesa: você vê a luz enquanto monta.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 210.00 Tm (A forma de onda) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 191.00 Tm (O desenho do áudio da track de referência, com a régua de tempo e o cursor. É por ela que você) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 176.00 Tm (enxerga a batida. A roda do mouse aproxima e afasta.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 145.00 Tm (A Programação MIDI) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 126.00 Tm (Uma linha por controle, com o nome e a cor do .form, alinhada à onda logo acima. Os blocos são o) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 111.00 Tm (tempo em que cada controle fica ligado. A marca escura no fim de um bloco é o pulso que desliga.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 88.00 Tm (A lista pode ficar embaixo da tela, ao lado dela ou ocupando a janela inteira — três ícones, um por) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (8) Tj ET
+endstream
+endobj
+22 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 21 0 R >>
+endobj
+23 0 obj
+<< /Length 315 >>
+stream
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 772.00 Tm (lugar, e só um acende.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (9) Tj ET
+endstream
+endobj
+24 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 23 0 R >>
+endobj
+25 0 obj
+<< /Length 2180 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Preparar uma música) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Escolha a região e aperte) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 186.57 734.00 Tm (Preparar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 229.75 734.00 Tm (. Ele faz três coisas de uma vez:) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 711.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 711.00 Tm (cria o item MIDI do tamanho exato da região;) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 693.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 693.00 Tm (escreve o) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 128.44 693.00 Tm (Release All) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 187.38 693.00 Tm (no primeiro quadradinho, para a música não começar com o que sobrou) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 678.00 Tm (acesa da anterior;) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 660.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 660.00 Tm (põe os botões marcados e os faders no ponto em que a música deve abrir.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 634.00 Tm (O que os faders recebem sai de Configurações › Preparo: em 100% a música abre com tudo no) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 619.00 Tm (máximo; na posição atual ela abre como os faders estão na tela — deixe o GERAL em zero antes) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 604.00 Tm (de preparar e a música nasce apagada.) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 579.00 Tm (Preparar duas vezes a mesma música não duplica nada: a escrita substitui o que já estava naquele) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 564.50 Tm (ponto.) Tj ET
+0.72 0.50 0.05 RG 2.00 w 67.00 592.00 m 67.00 562.00 l S
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (10) Tj ET
+endstream
+endobj
+26 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 25 0 R >>
+endobj
+27 0 obj
+<< /Length 2884 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Gravar) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 734.00 Tm (1) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 734.00 Tm (Escolha a música) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 719.00 Tm (pelo campo de busca da barra.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 696.00 Tm (2) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 696.00 Tm (Prepare, se for do zero) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 681.00 Tm (o botão Preparar.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 658.00 Tm (3) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 658.00 Tm (Aperte REC) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 643.00 Tm (e dê play. O botão fica vermelho e a janela avisa que está gravando.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 620.00 Tm (4) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 620.00 Tm (Opere a luz) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 605.00 Tm (clique nos botões como faria ao vivo. Cada clique vira MIDI na linha do tempo, no compasso em) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 590.00 Tm (que você clicou.) Tj ET
+0.18 0.42 0.78 rg BT /F2 11.00 Tf 1 0 0 1 66.00 567.00 Tm (5) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 567.00 Tm (Pare) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.50 Tf 1 0 0 1 80.00 552.00 Tm (e ouça de novo. O que ficou torto se conserta na mão, sem regravar tudo.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 527.00 Tm (O REC não escreve nada por conta própria: no meio de uma música já pronta, ele apenas ouve.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 512.00 Tm (Quem cria o começo da música é o) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 232.06 512.00 Tm (Preparar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 275.25 512.00 Tm (.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 481.00 Tm (O atraso de reação) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 462.00 Tm (Entre ouvir a batida e clicar existe um atraso — o seu. Em Configurações › MIDI há o ajuste de) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 447.00 Tm (compensação e um) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 158.54 447.00 Tm (Calibrar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 198.22 447.00 Tm (: dê play, marque o tempo junto com a batida algumas vezes e aplique.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 432.00 Tm (O programa passa a escrever os cliques onde você quis, e não onde a mão chegou.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (11) Tj ET
+endstream
+endobj
+28 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 27 0 R >>
+endobj
+29 0 obj
+<< /Length 4069 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Editar a programação) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 734.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 734.00 Tm (Arraste a) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 125.52 734.00 Tm (borda) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 157.61 734.00 Tm (de um bloco para mudar onde ele começa ou termina.) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 716.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 716.00 Tm (Pegue pelo) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 136.04 716.00 Tm (meio) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 163.46 716.00 Tm (para mover o trecho inteiro, mantendo a duração.) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 698.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 698.00 Tm (Duplo clique) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 145.93 698.00 Tm (numa linha vazia cria um bloco ali.) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 680.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 680.00 Tm (Del) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 99.26 680.00 Tm (apaga o que estiver selecionado.) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 662.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 80.00 662.00 Tm (Ctrl+J) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 112.97 662.00 Tm (junta dois trechos vizinhos.) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 644.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 644.00 Tm (O) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 91.09 644.00 Tm (ímã) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 112.10 644.00 Tm (casa tempos que ficaram a milissegundos um do outro. Liga e desliga em Configurações) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 629.00 Tm (› Geral.) Tj ET
+0.18 0.42 0.78 rg BT /F1 10.50 Tf 1 0 0 1 68.00 611.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 611.00 Tm (O menu do botão direito sobre um bloco tem) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 290.68 611.00 Tm (Começar aqui) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 363.04 611.00 Tm (e) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 371.80 611.00 Tm (Terminar aqui) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 441.23 611.00 Tm (, para quando a) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 80.00 596.00 Tm (borda está colada na margem e é difícil pegar.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 562.00 Tm (Selecionar vários) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 543.00 Tm (Arraste com o) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 132.27 543.00 Tm (botão direito) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 198.78 543.00 Tm (sobre as faixas e marque quantos blocos quiser, em quantas linhas) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 528.00 Tm (quiser — é o mesmo gesto do editor MIDI do REAPER. Com a seleção feita, mover, esticar ou) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 513.00 Tm (apagar vale para todos de uma vez.) Tj ET
+0.15 0.16 0.18 rg BT /F2 12.50 Tf 1 0 0 1 64.00 482.00 Tm (Desfazer) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 463.00 Tm (O LumiBridge guarda a própria pilha de desfazer, com os últimos sessenta passos.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 453.83 463.00 Tm (Cada gesto é) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 448.00 Tm (um passo) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 113.01 448.00 Tm (: mover três blocos é um, esticar uma nota é outro. Ctrl+Z devolve o último — e não a) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 433.00 Tm (gravação inteira. Ctrl+Shift+Z refaz.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (12) Tj ET
+endstream
+endobj
+30 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 29 0 R >>
+endobj
+31 0 obj
+<< /Length 1582 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Faders e Control Change) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Os faders da sua tela viram) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 195.30 734.00 Tm (Control Change) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 276.97 734.00 Tm (na linha do tempo, com curva suave: o que sobe) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 719.00 Tm (devagar sobe devagar de verdade, em vez de virar uma escada de pontos.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 696.00 Tm (A roda do mouse sobre um fader anda o valor; com Shift, o passo é sempre fino. O tamanho do) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 681.00 Tm (passo está em Configurações › Gravação.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 658.00 Tm (As faixas de fader podem ser escondidas para sobrar espaço: as teclas) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 400.16 658.00 Tm (+) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 409.21 658.00 Tm (e) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 417.97 658.00 Tm (?) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 427.30 658.00 Tm (do teclado numérico) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 643.00 Tm (mostram e escondem.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (13) Tj ET
+endstream
+endobj
+32 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 31 0 R >>
+endobj
+33 0 obj
+<< /Length 2915 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Configurações, aba por aba) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Arquivo) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 734.00 Tm (abrir e recarregar a Tela Personalizada, e a track de referência de) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 719.00 Tm (onde sai a forma de onda.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 698.00 Tm (Geral) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 698.00 Tm (como a janela se comporta: sempre visível, detalhes, dicas; o que) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 683.00 Tm (aparece na barra de transporte; o ímã, o virar de página e o zoom) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 668.00 Tm (no ponteiro da Programação MIDI; e as teclas da Tela) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 653.00 Tm (Personalizada.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 632.00 Tm (MIDI) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 632.00 Tm (a porta de saída, o teste, o botão que aponta a saída da track para) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 617.00 Tm (a porta, e a compensação de atraso com o Calibrar.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 596.00 Tm (Gravação) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 596.00 Tm (a track de destino, o passo da roda do mouse nos faders, o seguir) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 581.00 Tm (play e o espelho.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 560.00 Tm (Preparo) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 560.00 Tm (o que o botão Preparar escreve: o Release no primeiro tempo e os) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 545.00 Tm (pontos de fader no começo e no fim.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 524.00 Tm (Atalhos) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 524.00 Tm (o que cada tecla F1 a F12 faz.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 503.00 Tm (Grupos) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 503.00 Tm (os grupos de faders, quando você quiser tratar vários como um.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 482.00 Tm (Registro) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 482.00 Tm (o diagnóstico detalhado, para quando algo não se explica.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 461.00 Tm (Sobre) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 461.00 Tm (a versão instalada e o botão de procurar atualizações.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (14) Tj ET
+endstream
+endobj
+34 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 33 0 R >>
+endobj
+35 0 obj
+<< /Length 2625 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Atalhos e teclas) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Espaço) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 734.00 Tm (play / stop.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 713.00 Tm (Seta esquerda) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 713.00 Tm (ao começo da música.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 692.00 Tm (Ctrl+R) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 692.00 Tm (gravar.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 671.00 Tm (Ctrl+Z) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 671.00 Tm (desfazer o último passo.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 650.00 Tm (Ctrl+Shift+Z) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 650.00 Tm (refazer.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 629.00 Tm (Del) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 629.00 Tm (apagar o que está selecionado.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 608.00 Tm (Ctrl+J) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 608.00 Tm (juntar dois trechos.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 587.00 Tm (F1 a F12) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 587.00 Tm (seus, para mapear em Configurações › Atalhos.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 566.00 Tm (A-Z, 0-9) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 566.00 Tm (são da sua Tela Personalizada — as teclas que você definiu no) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 551.00 Tm (Lumikit valem aqui, iguais.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 530.00 Tm (+ e ? \(numérico\)) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 530.00 Tm (mostram e escondem as faixas de fader.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 509.00 Tm (Roda do mouse) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 509.00 Tm (sobre a onda ou a programação, aproxima no tempo; com Ctrl,) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 494.00 Tm (muda a altura das faixas.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 473.00 Tm (ESC) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 473.00 Tm (fecha as configurações.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (15) Tj ET
+endstream
+endobj
+36 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 35 0 R >>
+endobj
+37 0 obj
+<< /Length 1175 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (No show) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Terminada a criação,) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 165.53 734.00 Tm (feche o LumiBridge) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 263.55 734.00 Tm (. A automação é um item MIDI do seu projeto: quem) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 719.00 Tm (envia é o REAPER, pela saída da track que você apontou, e quem recebe é o Lumikit. Exatamente) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 704.00 Tm (como se você tivesse desenhado tudo à mão no editor MIDI.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 681.00 Tm (Isso quer dizer que uma falha do LumiBridge no meio da temporada não derruba o show: ele não) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 666.00 Tm (está no caminho.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (16) Tj ET
+endstream
+endobj
+38 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 37 0 R >>
+endobj
+39 0 obj
+<< /Length 1558 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Atualizações) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Em Configurações › Sobre há o botão) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 243.17 734.00 Tm (Procurar atualizações) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 352.30 734.00 Tm (. Ele pergunta ao site se saiu versão) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 719.00 Tm (nova; se saiu, mostra o que mudou antes de qualquer coisa, e instala com um clique.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 696.00 Tm (O programa confere o arquivo baixado antes de trocar \(tamanho, se compila, e se a versão bate\) e) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 681.00 Tm (guarda a versão anterior ao lado da nova. Se algo sair errado, ela está lá.) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 656.00 Tm (Atualize) Tj ET
+0.42 0.45 0.50 rg BT /F2 10.00 Tf 1 0 0 1 118.35 656.00 Tm (entre) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 145.58 656.00 Tm (temporadas, não na véspera de um show. Nenhuma versão nova é urgente o bastante) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 641.50 Tm (para arriscar a noite.) Tj ET
+0.72 0.50 0.05 RG 2.00 w 67.00 669.00 m 67.00 639.00 l S
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (17) Tj ET
+endstream
+endobj
+40 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 39 0 R >>
+endobj
+41 0 obj
+<< /Length 3619 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Problemas comuns) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 734.00 Tm (A janela abre vazia) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 734.00 Tm (falta a Tela Personalizada. Configurações › Arquivo › Abrir tela, ou) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 719.00 Tm (o assistente.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 698.00 Tm (Não há música para) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 683.00 Tm (escolher) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 698.00 Tm (o projeto não tem regiões. Crie uma região por música no) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 683.00 Tm (REAPER.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 662.00 Tm (Clico e o Lumikit não) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 647.00 Tm (acende) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 662.00 Tm (confira a porta em Configurações › MIDI e use o) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 441.01 662.00 Tm (Testar) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 472.52 662.00 Tm (. Confira) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 647.00 Tm (também se o Lumikit está escutando a mesma porta.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 626.00 Tm (Gravo e nada é escrito) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 626.00 Tm (falta a track de destino em Configurações › Gravação. A barra avisa) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 611.00 Tm (o que está faltando.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 590.00 Tm (Toca no REAPER e a luz) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 575.00 Tm (não anda) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 590.00 Tm (a saída MIDI da track não está apontada para a porta.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 575.00 Tm (Configurações › MIDI › "Apontar a saída para...", ou o passo 3 do) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 560.00 Tm (assistente.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 539.00 Tm (Os botões piscam e voltam) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 539.00 Tm (o MIDI está chegando duas vezes: pela track e pelo espelho.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 524.00 Tm (Desligue) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 257.76 524.00 Tm (Espelho envia MIDI) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 356.38 524.00 Tm (em Configurações › Gravação.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 503.00 Tm (A luz entra atrasada) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 503.00 Tm (calibre o atraso de reação em Configurações › MIDI.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 482.00 Tm (A janela abriu minúscula) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 482.00 Tm (arraste a borda uma vez. O tamanho fica guardado.) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 461.00 Tm (A chave não é aceita) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 461.00 Tm (confira se o código enviado foi o que aparece na tela de ativação) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 446.00 Tm (deste computador. A chave de outra máquina não vale aqui.) Tj ET
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (18) Tj ET
+endstream
+endobj
+42 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 41 0 R >>
+endobj
+43 0 obj
+<< /Length 1475 >>
+stream
+0.15 0.16 0.18 rg BT /F2 20.00 Tf 1 0 0 1 64.00 772.00 Tm (Licença e suporte) Tj ET
+0.18 0.42 0.78 RG 2.00 w 64.00 760.00 m 110.00 760.00 l S
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 734.00 Tm (Cada licença vale para) Tj ET
+0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 173.71 734.00 Tm (um computador) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 253.05 734.00 Tm (, para sempre. Não há mensalidade e não há servidor: o) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 719.00 Tm (programa funciona sem internet, inclusive na ativação.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 696.00 Tm (Trocou de computador ou formatou? Peça outra chave — o código da máquina muda, e a antiga) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 681.00 Tm (deixa de valer.) Tj ET
+0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 658.00 Tm (Suporte, dúvidas e chaves pelo WhatsApp, com quem lhe vendeu.) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 633.00 Tm (REAPER é marca da Cockos Incorporated. Lumikit Show é marca da Lumikit. Este manual e este) Tj ET
+0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 618.50 Tm (programa não são afiliados a nenhuma das duas.) Tj ET
+0.72 0.50 0.05 RG 2.00 w 67.00 646.00 m 67.00 616.00 l S
+0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.1.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (19) Tj ET
+endstream
+endobj
+44 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R /F3 5 0 R >> >> /Contents 43 0 R >>
+endobj
+xref
+0 45
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000242 00000 n 
+0000000339 00000 n 
+0000000441 00000 n 
+0000000546 00000 n 
+0000000724 00000 n 
+0000002006 00000 n 
+0000002152 00000 n 
+0000007043 00000 n 
+0000007190 00000 n 
+0000010970 00000 n 
+0000011118 00000 n 
+0000014410 00000 n 
+0000014558 00000 n 
+0000017256 00000 n 
+0000017404 00000 n 
+0000019867 00000 n 
+0000020015 00000 n 
+0000024185 00000 n 
+0000024333 00000 n 
+0000029742 00000 n 
+0000029890 00000 n 
+0000030256 00000 n 
+0000030404 00000 n 
+0000032636 00000 n 
+0000032784 00000 n 
+0000035720 00000 n 
+0000035868 00000 n 
+0000039989 00000 n 
+0000040137 00000 n 
+0000041771 00000 n 
+0000041919 00000 n 
+0000044886 00000 n 
+0000045034 00000 n 
+0000047711 00000 n 
+0000047859 00000 n 
+0000049086 00000 n 
+0000049234 00000 n 
+0000050844 00000 n 
+0000050992 00000 n 
+0000054663 00000 n 
+0000054811 00000 n 
+0000056338 00000 n 
+trailer
+<< /Size 45 /Root 1 0 R /Info 6 0 R >>
+startxref
+56486
+%%EOF

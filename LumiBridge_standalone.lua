@@ -48,7 +48,7 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 0
+Version.MENOR    = 1
 Version.CORRECAO = 0
 
 Version.NOME  = 'LumiBridge'
@@ -66,7 +66,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 09:09"
+Version.COMPILACAO = "2026-09-02 12:43"
 
 --- Onde o programa procura por versão nova.
 --
@@ -14817,11 +14817,18 @@ local function drawAbaAtual()
     ImGui.Dummy(ctx, 1, 6)
     grupo('FORMA DE ONDA')
 
-    -- Track da música, escolhida pelo usuário.
+    -- Track de REFERÊNCIA, escolhida pelo usuário.
     --
     -- Estava fixa em "VS" no código, o que só servia para quem usasse
     -- esse nome. Agora é a lista das tracks do projeto.
-    ajuste('Track da música', nil, 230)
+    --
+    -- O nome era "Track da música", e isso fazia pensar que era ali que
+    -- se escolhia a música — logo abaixo de "TELA PERSONALIZADA", numa
+    -- aba onde tudo o mais é sobre qual arquivo abrir. O que se aponta
+    -- aqui é de onde SAI O DESENHO DA ONDA, e o melhor candidato é a
+    -- track com a guia: é ela que deixa a batida visível enquanto se
+    -- programa.
+    ajuste('Track de referência', 'para gerar a onda', 230)
     ImGui.SetNextItemWidth(ctx, 230)
     local ondaRotulo = (waveTrack ~= '' and waveTrack) or 'automática'
     if ImGui.BeginCombo(ctx, '##trackonda', ondaRotulo) then
@@ -14841,7 +14848,10 @@ local function drawAbaAtual()
       end
       ImGui.EndCombo(ctx)
     end
-    dica('De qual track vem a forma de onda mostrada na timeline.\n'
+    dica('De qual track sai a forma de onda desenhada na timeline.\n\n'
+      .. 'Recomendável apontar a track que contém a GUIA da música —\n'
+      .. 'é a referência que deixa a batida à vista enquanto você\n'
+      .. 'programa a luz.\n\n'
       .. 'Em "automática", usa a primeira track com áudio no trecho.')
 
     ImGui.Dummy(ctx, 1, 6)
@@ -17522,6 +17532,24 @@ local function drawSettingsPanel(x, y, availW, availH)
         math.floor(cabY + (CAB_H - alturaTitulo) * 0.5))
       ImGui.Text(ctx, 'Configurações')
 
+      -- O ASSISTENTE NO TOPO, e não escondido numa aba: quem precisa
+      -- dele é justamente quem ainda não sabe que existem abas.
+      do
+        local larguraTitulo = ImGui.CalcTextSize(ctx, 'Configurações')
+        ImGui.SetCursorScreenPos(ctx,
+          math.floor(cabX + larguraTitulo + 18), cabY + 1)
+        if ImGui.Button(ctx, 'Assistente', 96, 24) then
+          painel.assist.aberto = true
+          painel.assist.passo  = 1
+          painel.assist.recado = nil
+          refreshDevices()
+          refreshTracks()
+        end
+        dica('Refaz os primeiros ajustes, um por tela: a Tela\n'
+          .. 'Personalizada, a porta MIDI, a track de gravação e a\n'
+          .. 'track de referência da onda.')
+      end
+
       -- O MESMO × da barra de título, e não um botão escrito "Fechar":
       -- duas formas diferentes de fechar coisas, na mesma tela, eram
       -- ruído — fechar é fechar.
@@ -17689,6 +17717,407 @@ function painel.trabalharAtualizacao()
   log('atualização: ' .. tostring(msg))
 end
 
+-- ---------------------------------------------------------- assistente
+--
+-- POR QUE ELE EXISTE
+--   O programa precisa de quatro coisas para funcionar, e as quatro
+--   moram em abas DIFERENTES das configurações: a Tela Personalizada, a
+--   porta MIDI, a track onde a automação é gravada e a track de onde sai
+--   a forma de onda. Quem acabou de instalar não tem como adivinhar
+--   isso — abre, vê uma janela vazia, e conclui que o programa não
+--   funciona. Foi o primeiro relato de todo mundo que instalou.
+--
+--   O assistente é essa lista, um item por tela, na ordem em que um
+--   depende do outro. Ele NÃO é um modo à parte do programa: cada passo
+--   mexe nos MESMOS ajustes das configurações, com as mesmas funções.
+--   Fechar no meio não desfaz nada e não deixa nada pela metade — o que
+--   já foi respondido fica respondido.
+--
+--   Métodos de `painel`, e não funções locais: o corpo deste módulo está
+--   no teto de 200 locais do Lua (ver test_integridade).
+
+painel.assist = { aberto = false, passo = 1, recado = nil }
+painel.ASSIST_TOTAL = 5
+
+--- O passo `n` já está resolvido?
+--
+--  O passo 4 é sempre "sim": sem track escolhida a onda cai em
+--  "automática", que serve. Perguntar não custa, mas travar o assistente
+--  por causa dela custaria.
+function painel.assistOk(n)
+  if n == 1 then return layout ~= nil end
+  if n == 2 then return MidiOut.isReady() end
+  if n == 3 then return Timeline.isReady() end
+  if n == 4 then return true end
+  return painel.assistOk(1) and painel.assistOk(2) and painel.assistOk(3)
+end
+
+--- Fecha o assistente e marca que ele já foi visto.
+function painel.assistFechar()
+  painel.assist.aberto = false
+  painel.assist.recado = nil
+  reaper.SetExtState(EXT_SECTION, 'assistente_visto', '1', true)
+end
+
+--- Cria uma track MIDI para a luz e a escolhe como destino.
+--
+--  "Escolha a track" não ajuda quem ainda não tem nenhuma, e criar uma
+--  na mão significa sair do programa, achar o menu do REAPER e voltar —
+--  exatamente o tipo de desvio que faz alguém desistir na primeira noite.
+--
+--  O NOME É ÚNICO de propósito: a track de gravação é lembrada entre
+--  sessões PELO NOME (ver restoreTrack), e duas "LUZ" no mesmo projeto
+--  fariam a gravação voltar na track errada depois de fechar o REAPER.
+function painel.assistCriarTrack()
+  local usados = {}
+  for _, t in ipairs(Timeline.listTracks()) do usados[t.name] = true end
+  local nome = 'LUZ'
+  local n = 2
+  while usados[nome] do nome = ('LUZ %d'):format(n); n = n + 1 end
+
+  local onde = reaper.CountTracks(0)
+  reaper.Undo_BeginBlock()
+  reaper.InsertTrackAtIndex(onde, true)
+  local tr = reaper.GetTrack(0, onde)
+  if tr then
+    reaper.GetSetMediaTrackInfo_String(tr, 'P_NAME', nome, true)
+  end
+  reaper.Undo_EndBlock('LumiBridge: criar a track da luz', -1)
+
+  refreshTracks()
+  Timeline.setTrack(onde, nome)
+  reaper.SetExtState(EXT_SECTION, EXT_TRACK, nome, true)
+  painel.assist.recado = ('Track "%s" criada e escolhida.'):format(nome)
+  log('assistente: track ' .. nome .. ' criada')
+end
+
+--- O assistente, no lugar do programa.
+--
+--  Desenhado como a tela de ativação: um cartão centrado. Texto solto no
+--  canto de uma janela vazia parece um erro; um cartão no meio parece
+--  uma etapa — e é uma etapa.
+function painel.telaDoAssistente()
+  local a  = painel.assist
+  local dl = ImGui.GetWindowDrawList(ctx)
+  local bx, by = ImGui.GetCursorScreenPos(ctx)
+  bx, by = math.floor(bx), math.floor(by)
+
+  local janelaW, janelaH = ImGui.GetWindowSize(ctx)
+  local CARTAO, ALTURA = 560, 456
+  local cx = bx + math.max(16, math.floor(((janelaW or 900) - CARTAO) * 0.5))
+  local cy = by + math.max(12, math.floor(((janelaH or 600) - ALTURA) * 0.20))
+
+  ImGui.DrawList_AddRectFilled(dl, cx, cy, cx + CARTAO, cy + ALTURA,
+                               Theme.UI.panel, 12)
+  ImGui.DrawList_AddRect(dl, cx, cy, cx + CARTAO, cy + ALTURA,
+                         0x3F4654FF, 12, 0, 1)
+
+  local px = cx + 30
+  local pw = CARTAO - 60          -- largura útil dentro do cartão
+  local y  = cy + 24
+
+  -- ---------------------------------------------------------- cabeçalho
+  desenharIconeApp(dl, px, y, 32)
+  ImGui.SetCursorScreenPos(ctx, px + 46, y - 3)
+  local f1 = Theme.pushFont(ImGui, ctx, state.fonts, 22)
+  ImGui.TextColored(ctx, Theme.UI.text, 'Primeiros ajustes')
+  if f1 then ImGui.PopFont(ctx) end
+  ImGui.SetCursorScreenPos(ctx, px + 46, y + 23)
+  ImGui.TextColored(ctx, 0x777F8CFF,
+    'Quatro respostas e o LumiBridge fica pronto para gravar.')
+
+  y = y + 52
+  ImGui.DrawList_AddLine(dl, px, y, px + pw, y, 0x2A2E37FF, 1)
+  y = y + 20
+
+  -- ------------------------------------------------------- as bolinhas
+  --
+  -- Saber QUANTO FALTA é o que faz alguém seguir até o fim em vez de
+  -- fechar no segundo passo achando que aquilo não acaba nunca.
+  for i = 1, painel.ASSIST_TOTAL do
+    local px2 = px + (i - 1) * 22
+    local cor = (i < a.passo) and 0x46D07AFF
+             or (i == a.passo) and Theme.UI.accent
+             or 0x333944FF
+    ImGui.DrawList_AddCircleFilled(dl, px2 + 6, y + 6, 5.5, cor)
+  end
+  ImGui.SetCursorScreenPos(ctx, px + pw - 90, y - 1)
+  ImGui.TextColored(ctx, 0x5F6672FF,
+    ('passo %d de %d'):format(a.passo, painel.ASSIST_TOTAL))
+  y = y + 28
+
+  --- Título e explicação do passo, sempre na mesma altura.
+  local function cabecalhoDoPasso(titulo, texto)
+    ImGui.SetCursorScreenPos(ctx, px, y)
+    local f = Theme.pushFont(ImGui, ctx, state.fonts, 17)
+    ImGui.TextColored(ctx, Theme.UI.text, titulo)
+    if f then ImGui.PopFont(ctx) end
+    ImGui.SetCursorScreenPos(ctx, px, y + 26)
+    ImGui.TextColored(ctx, 0x9199A6FF, texto)
+  end
+
+  -- A área dos controles começa SEMPRE na mesma altura, independente do
+  -- tamanho do texto acima. Botões que dançam de lugar entre um passo e
+  -- outro fazem a mão errar o alvo.
+  local yc = y + 96
+
+  -- ------------------------------------------------------------ passo 1
+  if a.passo == 1 then
+    cabecalhoDoPasso('A sua Tela Personalizada',
+      'Tudo começa no arquivo .form que você exporta do Lumikit Show.\n'
+      .. 'Dele saem os botões, as cores, os grupos e os comandos MIDI —\n'
+      .. 'o LumiBridge não inventa nada, ele redesenha a SUA tela.')
+
+    ImGui.SetCursorScreenPos(ctx, px, yc)
+    if ImGui.Button(ctx, 'Escolher o arquivo .form', 210, 32) then
+      browseForm()
+    end
+    dica('Abre o seletor de arquivos do REAPER.')
+
+    ImGui.SetCursorScreenPos(ctx, px, yc + 46)
+    if layout then
+      ImGui.TextColored(ctx, 0x46D07AFF, 'Carregada: ' .. tostring(statusText))
+    else
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        'Nenhuma tela carregada ainda.\n\n'
+        .. 'No Lumikit Show: Janela Personalizada > Salvar como, e guarde\n'
+        .. 'o .form onde você achar depois.')
+    end
+
+  -- ------------------------------------------------------------ passo 2
+  elseif a.passo == 2 then
+    cabecalhoDoPasso('A porta por onde o MIDI sai',
+      'Escolha a porta virtual que o Lumikit já escuta — em geral uma\n'
+      .. 'porta do loopMIDI. É por ela que os comandos vão, tanto agora\n'
+      .. 'quanto no show, quando só o REAPER estiver tocando.')
+
+    ImGui.SetCursorScreenPos(ctx, px, yc)
+    ImGui.SetNextItemWidth(ctx, 300)
+    local preview = MidiOut.deviceName or 'selecione a porta de saída'
+    if ImGui.BeginCombo(ctx, '##assistporta', preview) then
+      if #devices == 0 then
+        ImGui.Selectable(ctx, 'nenhuma porta de saída encontrada', false)
+      end
+      for _, dev in ipairs(devices) do
+        if ImGui.Selectable(ctx, dev.name, dev.index == MidiOut.deviceIndex) then
+          chooseDevice(dev)
+        end
+      end
+      ImGui.EndCombo(ctx)
+    end
+
+    ImGui.SetCursorScreenPos(ctx, px + 312, yc - 2)
+    if ImGui.Button(ctx, 'Reler', 74, 26) then refreshDevices() end
+    dica('Relê a lista de portas MIDI do sistema.')
+    ImGui.SetCursorScreenPos(ctx, px + 392, yc - 2)
+    if ImGui.Button(ctx, 'Testar', 74, 26) then MidiOut.sendTestNote() end
+    dica('Dispara uma nota de teste. Se o Lumikit acender algo, chegou.')
+
+    ImGui.SetCursorScreenPos(ctx, px, yc + 44)
+    if #devices == 0 then
+      ImGui.TextColored(ctx, Theme.UI.warn,
+        'Nenhuma porta MIDI encontrada neste computador.')
+      ImGui.SetCursorScreenPos(ctx, px, yc + 62)
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        'Instale o loopMIDI (é grátis), crie uma porta, e aponte o\n'
+        .. 'Lumikit para ela. Depois volte aqui e clique em Reler.')
+    elseif MidiOut.lastError then
+      ImGui.TextColored(ctx, Theme.UI.warn, MidiOut.lastError)
+    elseif MidiOut.lastMessage then
+      ImGui.TextColored(ctx, 0x46D07AFF,
+        ('Enviadas %d mensagens de teste por %s.')
+          :format(MidiOut.sentCount, MidiOut.deviceName or '?'))
+    elseif MidiOut.isReady() then
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        'Clique em Testar para conferir se o Lumikit está recebendo.')
+    end
+
+  -- ------------------------------------------------------------ passo 3
+  elseif a.passo == 3 then
+    cabecalhoDoPasso('A track onde a luz é gravada',
+      'A automação vai para uma track MIDI do seu projeto, separada do\n'
+      .. 'áudio. É essa track que, no show, entrega o MIDI ao Lumikit —\n'
+      .. 'com ou sem o LumiBridge aberto.')
+
+    ImGui.SetCursorScreenPos(ctx, px, yc)
+    ImGui.SetNextItemWidth(ctx, 300)
+    local pt = Timeline.trackName or 'selecione a track de destino'
+    if ImGui.BeginCombo(ctx, '##assisttrack', pt) then
+      if #tracks == 0 then
+        ImGui.Selectable(ctx, 'nenhuma track no projeto', false)
+      end
+      for _, t in ipairs(tracks) do
+        if ImGui.Selectable(ctx, t.name, t.index == Timeline.trackIndex) then
+          Timeline.setTrack(t.index, t.name)
+          reaper.SetExtState(EXT_SECTION, EXT_TRACK, t.name, true)
+          painel.assist.recado = nil
+        end
+      end
+      ImGui.EndCombo(ctx)
+    end
+
+    ImGui.SetCursorScreenPos(ctx, px + 312, yc - 2)
+    if ImGui.Button(ctx, 'Reler', 74, 26) then refreshTracks() end
+    dica('Relê a lista de tracks do projeto.')
+    ImGui.SetCursorScreenPos(ctx, px + 392, yc - 2)
+    if ImGui.Button(ctx, 'Criar uma', 74, 26) then
+      painel.assistCriarTrack()
+    end
+    dica('Cria uma track MIDI chamada LUZ no fim do projeto e a escolhe.')
+
+    -- APONTAR A SAÍDA DA TRACK, que é o passo que ninguém descobre
+    -- sozinho: sem ele a automação existe e não sai da máquina.
+    ImGui.SetCursorScreenPos(ctx, px, yc + 42)
+    if Timeline.isReady() and MidiOut.deviceIndex then
+      if ImGui.Button(ctx, ('Mandar esta track para %s')
+           :format(MidiOut.deviceName or 'a porta escolhida'), 300, 30) then
+        Timeline.setMidiHardwareOut(MidiOut.deviceIndex, 0)
+        Timeline.armForVirtualKeyboard()
+        painel.assist.recado = 'Saída da track apontada para '
+          .. tostring(MidiOut.deviceName) .. '.'
+        log('assistente: ' .. painel.assist.recado)
+      end
+      dica('Liga a saída MIDI da track na porta que o Lumikit escuta.\n'
+        .. 'Sem isto, o REAPER toca a automação e nada sai do computador.')
+    end
+
+    ImGui.SetCursorScreenPos(ctx, px, yc + 82)
+    if painel.assist.recado then
+      ImGui.TextColored(ctx, 0x46D07AFF, painel.assist.recado)
+    elseif not Timeline.isReady() then
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        'Nenhuma track escolhida. Se o projeto ainda não tem uma track\n'
+        .. 'para a luz, o botão "Criar uma" resolve.')
+    else
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        'Gravando em "' .. tostring(Timeline.trackName) .. '".')
+    end
+
+  -- ------------------------------------------------------------ passo 4
+  elseif a.passo == 4 then
+    cabecalhoDoPasso('A track que desenha a onda',
+      'Para você enxergar a batida enquanto programa, o LumiBridge\n'
+      .. 'desenha a forma de onda de uma track. Aponte a que tem a GUIA\n'
+      .. 'da música. Este passo é opcional.')
+
+    ImGui.SetCursorScreenPos(ctx, px, yc)
+    ImGui.SetNextItemWidth(ctx, 300)
+    local ondaRotulo = (waveTrack ~= '' and waveTrack) or 'automática'
+    if ImGui.BeginCombo(ctx, '##assistonda', ondaRotulo) then
+      if ImGui.Selectable(ctx, 'automática', waveTrack == '') then
+        waveTrack = ''
+        Waveform.setTrack('', nil)
+        Waveform.reset()
+        reaper.SetExtState(EXT_SECTION, 'wave_track', '', true)
+      end
+      for _, t in ipairs(tracks) do
+        -- MARCA QUEM TEM ÁUDIO. Numa lista de vinte tracks, a que serve
+        -- é justamente a que tem som, e o nome nem sempre diz.
+        local rotulo = Waveform.hasAudio(t.index) and (t.name .. '   ♪')
+                       or t.name
+        if ImGui.Selectable(ctx, rotulo, t.name == waveTrack) then
+          waveTrack = t.name
+          Waveform.setTrack(t.name, t.index)
+          Waveform.reset()
+          reaper.SetExtState(EXT_SECTION, 'wave_track', waveTrack, true)
+        end
+      end
+      ImGui.EndCombo(ctx)
+    end
+
+    ImGui.SetCursorScreenPos(ctx, px, yc + 44)
+    ImGui.TextColored(ctx, 0x777F8CFF,
+      'Em "automática" ele usa a primeira track com áudio no trecho —\n'
+      .. 'o que quase sempre acerta. Aponte na mão quando o projeto tiver\n'
+      .. 'várias tracks de áudio e você quiser ver uma delas em especial.')
+
+  -- ------------------------------------------------------------ passo 5
+  else
+    cabecalhoDoPasso('Pronto',
+      'É isto que o programa precisa saber. Se algo ficou vermelho,\n'
+      .. 'volte — sem esses três itens ele abre, mas não grava.')
+
+    --- Uma linha da conferência.
+    local function conferir(yy, ok, certo, errado)
+      local cor = ok and 0x46D07AFF or Theme.UI.warn
+      ImGui.DrawList_AddCircleFilled(dl, px + 5, yy + 8, 4, cor)
+      ImGui.SetCursorScreenPos(ctx, px + 18, yy)
+      ImGui.TextColored(ctx, ok and 0xB9C0CCFF or Theme.UI.warn,
+                        ok and certo or errado)
+    end
+
+    conferir(yc, painel.assistOk(1),
+      'Tela Personalizada carregada.',
+      'Falta a Tela Personalizada (.form).')
+    conferir(yc + 24, painel.assistOk(2),
+      'Porta de saída: ' .. tostring(MidiOut.deviceName),
+      'Falta escolher a porta MIDI.')
+    conferir(yc + 48, painel.assistOk(3),
+      'Gravando em: ' .. tostring(Timeline.trackName),
+      'Falta escolher a track de gravação.')
+    conferir(yc + 72, true,
+      'Onda: ' .. ((waveTrack ~= '' and waveTrack) or 'automática'),
+      '')
+
+    -- AS REGIÕES não são ajuste nenhum — são do projeto do REAPER —,
+    -- mas sem elas a janela abre sem nenhuma música para escolher, e o
+    -- programa parece quebrado pelo mesmo motivo de antes.
+    ImGui.SetCursorScreenPos(ctx, px, yc + 106)
+    if #regions == 0 then
+      ImGui.TextColored(ctx, Theme.UI.warn,
+        'Este projeto ainda não tem regiões.')
+      ImGui.SetCursorScreenPos(ctx, px, yc + 124)
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        'Cada música é uma REGIÃO do REAPER. Crie uma por música e elas\n'
+        .. 'aparecem no campo de busca da barra, prontas para gravar.')
+    else
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        ('%d região(ões) no projeto — cada uma é uma música na barra.')
+          :format(#regions))
+    end
+  end
+
+  -- ------------------------------------------------------------- rodapé
+  local yr = cy + ALTURA - 60
+  ImGui.DrawList_AddLine(dl, px, yr, px + pw, yr, 0x2A2E37FF, 1)
+
+  ImGui.SetCursorScreenPos(ctx, px, yr + 16)
+  if ImGui.Button(ctx, a.passo == painel.ASSIST_TOTAL and 'Fechar'
+                       or 'Pular por agora', 130, 30) then
+    painel.assistFechar()
+  end
+  dica('Fecha o assistente. O que você já respondeu fica guardado, e\n'
+    .. 'ele volta pelo botão no topo das configurações.')
+
+  if a.passo > 1 then
+    ImGui.SetCursorScreenPos(ctx, px + pw - 224, yr + 16)
+    if ImGui.Button(ctx, 'Voltar', 100, 30) then
+      a.passo = a.passo - 1
+      a.recado = nil
+    end
+  end
+
+  ImGui.SetCursorScreenPos(ctx, px + pw - 116, yr + 16)
+  if a.passo < painel.ASSIST_TOTAL then
+    if ImGui.Button(ctx, 'Continuar', 116, 30) then
+      a.passo = a.passo + 1
+      a.recado = nil
+      -- Relê as listas ao ENTRAR no passo que as usa: quem abriu o
+      -- assistente e foi criar a porta ou a track no meio do caminho
+      -- encontraria a lista de antes.
+      if a.passo == 2 then refreshDevices() end
+      if a.passo == 3 or a.passo == 4 then refreshTracks() end
+    end
+  else
+    if ImGui.Button(ctx, 'Concluir', 116, 30) then painel.assistFechar() end
+  end
+
+  -- O cursor de layout sai de baixo do cartão: o que vier depois desenha
+  -- a partir dele, e não por cima.
+  ImGui.SetCursorScreenPos(ctx, bx, cy + ALTURA + 20)
+  ImGui.Dummy(ctx, 1, 1)
+end
+
 local function frame()
   -- ZERADO NO COMEÇO DO QUADRO, e não em handleShortcuts.
   --
@@ -17745,6 +18174,16 @@ local function frame()
   -- retângulo preso na tela.
   if not chrome.lic.ativa then
     chrome.telaDeAtivacao()
+    return
+  end
+
+  -- O ASSISTENTE, no lugar do programa enquanto estiver aberto.
+  --
+  -- Aqui e não flutuando por cima: com a janela vazia atrás, um cartão
+  -- translúcido sobre nada parece um erro de desenho. E o assistente é
+  -- justamente para quem tem a janela vazia.
+  if painel.assist.aberto then
+    painel.telaDoAssistente()
     return
   end
 
@@ -18910,6 +19349,16 @@ function Window.__licencaAtiva() return chrome.lic.ativa end
 function Window.__codigoDaMaquina() return chrome.lic.codigo end
 function Window.__digitarChave(v) chrome.lic.digitada = v end
 function Window.__setMinimizado(v) chrome.minimizado = v end
+--- O assistente de primeiros ajustes, para os testes.
+--  Sem argumento, só conta o estado.
+function Window.__assistente(abrir, passo)
+  if abrir ~= nil then
+    painel.assist.aberto = abrir
+    painel.assist.passo  = passo or 1
+    painel.assist.recado = nil
+  end
+  return painel.assist.aberto, painel.assist.passo
+end
 
 --- Simula uma leitura de gesto de fader, como o arrasto faz.
 --  Existe para tests/test_window_record.lua poder parar a gravação com
@@ -19309,6 +19758,25 @@ function Window.start()
   restoreDevice()
   restoreTrack()
   state.fonts = Theme.createFonts(ImGui, ctx)
+
+  -- NA PRIMEIRA ABERTURA, o assistente na frente.
+  --
+  -- Depois de restoreDevice/restoreTrack de propósito: quem já tinha
+  -- tudo configurado antes desta versão não merece um assistente na
+  -- cara — a marca ainda não existe na máquina dele, mas as respostas
+  -- sim, e o assistente abre no passo que falta.
+  -- E SÓ SE FALTAR ALGUMA COISA. Quem já usava o programa antes desta
+  -- versão não tem a marca na máquina, mas tem as respostas — abrir um
+  -- assistente na cara dele seria trocar um problema por outro.
+  if reaper.GetExtState(EXT_SECTION, 'assistente_visto') ~= '1'
+     and not painel.assistOk(painel.ASSIST_TOTAL) then
+    painel.assist.aberto = true
+    for n = 1, painel.ASSIST_TOTAL do
+      if not painel.assistOk(n) then painel.assist.passo = n break end
+      painel.assist.passo = painel.ASSIST_TOTAL
+    end
+    refreshDevices()
+  end
 
   -- Reabre o último arquivo usado, se ainda existir.
   local last = reaper.GetExtState(EXT_SECTION, EXT_LASTFILE)

@@ -3,8 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LumiBridge — programação de luz dentro do REAPER</title>
-<meta name="description" content="Programe a iluminação da sua banda dentro do REAPER, usando a mesma tela do Lumikit Show. A luz acompanha a música, compasso a compasso.">
+<title>LumiBridge — automação de luz entre REAPER e Lumikit Show</title>
+<meta name="description" content="Script para REAPER que usa a Janela Personalizada do Lumikit Show para criar a automação MIDI da iluminação — shows, teatro, cena, qualquer projeto que precise sincronizar áudio e luz.">
+
+<!-- O ícone da aba: a mesma grade 3x3 do programa, em SVG embutido.
+     Embutido e não como arquivo à parte porque a página inteira é um
+     arquivo só — e um favicon que falta é a única falha visual que
+     aparece em TODAS as abas ao mesmo tempo. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='10' fill='%2314161A'/%3E%3Crect x='7' y='8' width='10' height='10' rx='2' fill='%232A2F3A'/%3E%3Crect x='19' y='8' width='10' height='10' rx='2' fill='%23F5A524'/%3E%3Crect x='31' y='8' width='10' height='10' rx='2' fill='%232A2F3A'/%3E%3Crect x='7' y='20' width='10' height='10' rx='2' fill='%23F5A524'/%3E%3Crect x='19' y='20' width='10' height='10' rx='2' fill='%232A2F3A'/%3E%3Crect x='31' y='20' width='10' height='10' rx='2' fill='%233D8BFD'/%3E%3Crect x='7' y='32' width='10' height='10' rx='2' fill='%232A2F3A'/%3E%3Crect x='19' y='32' width='10' height='10' rx='2' fill='%233D8BFD'/%3E%3Crect x='31' y='32' width='10' height='10' rx='2' fill='%232A2F3A'/%3E%3C/svg%3E">
 
 <!--
   ====================================================================
@@ -14,96 +20,315 @@
     WhatsApp:  5547991868073
 
   Se algum dia mudar, procure por esses dois valores NOS LINKS lá
-  embaixo (href=...), e não neste comentário: é o link que o navegador
-  abre; o comentário é só recado para gente.
+  embaixo (href=...), e não neste comentário.
+
+  AS NOVIDADES SE ESCREVEM SOZINHAS. Não edite a lista de versões à
+  mão: tools/publicar.lua acrescenta cada lançamento logo abaixo da
+  marca NOVIDADES. Editando à mão, a próxima publicação atropela.
   ====================================================================
 -->
 
 <style>
   :root{
-    --bg:#14161A; --panel:#1C1F26; --panel2:#20242C;
-    --line:#2A2E37; --text:#D8DCE4; --dim:#7A8290;
-    --accent:#3D8BFD; --amber:#F5A524; --ok:#46A758;
+    --bg:#14161A; --panel:#1C1F26;
+    --line:#2A2E37; --text:#D8DCE4; --dim:#7A8290; --fraco:#5F6672;
+    --accent:#3D8BFD; --amber:#F5A524;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{
-    background:var(--bg);color:var(--text);
+  body{background:var(--bg);color:var(--text);
     font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    -webkit-font-smoothing:antialiased;
-  }
-  .wrap{max-width:940px;margin:0 auto;padding:0 24px}
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
   a{color:var(--accent);text-decoration:none}
   a:hover{text-decoration:underline}
+  code{font:13px/1.4 ui-monospace,Consolas,monospace;color:#B9C0CC;
+    background:#101216;padding:2px 6px;border-radius:4px}
 
-  /* Fundo sólido, sem backdrop-filter: o desfoque cria uma camada de
-     composição que em alguns navegadores repinta o cabeçalho fixo no
-     lugar errado ao rolar. Numa página que precisa abrir certo em
-     qualquer máquina de cliente, não vale o efeito. */
   header{border-bottom:1px solid var(--line);position:sticky;top:0;
     background:var(--bg);z-index:9}
   header .wrap{display:flex;align-items:center;gap:12px;height:62px}
-  .marca{font-weight:600;letter-spacing:-.01em;font-size:17px}
+  .marca{font-weight:600;font-size:17px;letter-spacing:-.01em}
   .marca span{color:var(--dim);font-weight:400;font-size:13px;margin-left:6px}
-  header nav{margin-left:auto;display:flex;gap:24px;font-size:14px}
+  header nav{margin-left:auto;display:flex;gap:22px;font-size:14px}
   header nav a{color:var(--dim)}
   header nav a:hover{color:var(--text);text-decoration:none}
 
-  .hero{padding:88px 0 72px;text-align:center}
-  .hero h1{font-size:clamp(32px,6vw,52px);line-height:1.12;letter-spacing:-.02em;
-    font-weight:600;max-width:16ch;margin:0 auto 22px}
+  /* O topo cabe numa tela. Ele ocupava a altura toda antes da imagem
+     do programa aparecer — e a imagem é o que convence. */
+  .hero{padding:40px 0 26px;text-align:center}
+  .hero h1{font-size:clamp(26px,3.8vw,38px);line-height:1.16;font-weight:600;
+    letter-spacing:-.02em;max-width:26ch;margin:0 auto 14px}
   .hero h1 em{font-style:normal;color:var(--accent)}
-  .hero p{font-size:19px;color:var(--dim);max-width:56ch;margin:0 auto 36px}
+  .hero p{font-size:16px;color:var(--dim);max-width:62ch;margin:0 auto 22px}
+  .hero .botao{padding:12px 24px}
 
   .botao{display:inline-block;background:var(--accent);color:#fff;
-    padding:15px 30px;border-radius:9px;font-weight:600;font-size:16px;
-    transition:background .15s}
+    padding:14px 28px;border-radius:9px;font-weight:600;transition:background .15s}
   .botao:hover{background:#5599FF;text-decoration:none}
   .botao.fantasma{background:transparent;color:var(--text);
     border:1px solid var(--line)}
   .botao.fantasma:hover{background:var(--panel)}
-  .abaixo{margin-top:16px;font-size:13px;color:var(--dim)}
+  .abaixo{margin-top:14px;font-size:13px;color:var(--fraco)}
 
-  section{padding:64px 0;border-top:1px solid var(--line)}
+  .janela{background:#101216;border:1px solid #2A2E37;border-radius:12px;
+    overflow:hidden;box-shadow:0 18px 60px rgba(0,0,0,.55)}
+  .titulo-janela{display:flex;align-items:center;gap:8px;padding:8px 12px;
+    background:#16181D;border-bottom:1px solid #22252C;font-size:12px}
+  .titulo-janela span{font-weight:600;color:#C7CDD8}
+  .titulo-janela small{color:#454B57}
+  .botoezinhos{margin-left:auto;display:flex;gap:7px}
+  .botoezinhos i{width:9px;height:9px;border-radius:50%;background:#2A2E37;
+    display:block}
+  .miolo{padding:10px 12px 12px}
+  .lado{display:grid;grid-template-columns:1.5fr 1fr;gap:10px;
+    align-items:start}
+  @media(max-width:820px){.lado{grid-template-columns:1fr}}
+
+  .recurso{display:grid;grid-template-columns:1fr 1.15fr;gap:30px;
+    align-items:center;padding:26px 0;border-bottom:1px solid var(--line)}
+  .recurso:last-of-type{border-bottom:0}
+  .recurso.invertido > :first-child{order:2}
+  .tela.mini{padding:10px}
+  @media(max-width:760px){
+    .recurso{grid-template-columns:1fr;gap:16px}
+    .recurso.invertido > :first-child{order:0}
+  }
+
+  section{padding:60px 0;border-top:1px solid var(--line)}
   h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;
-    color:var(--dim);font-weight:600;margin-bottom:28px}
+    color:var(--dim);font-weight:600;margin-bottom:26px}
   h3{font-size:18px;font-weight:600;margin-bottom:8px;letter-spacing:-.01em}
+  .lede{font-size:17px;margin-bottom:18px}
+  .corpo{color:var(--dim)}
+  .corpo + .corpo{margin-top:14px}
 
-  .grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-    gap:20px}
+  .grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:18px}
   .cartao{background:var(--panel);border:1px solid var(--line);
-    border-radius:12px;padding:24px}
+    border-radius:12px;padding:22px}
   .cartao p{color:var(--dim);font-size:15px}
-  .cartao .ico{width:34px;height:34px;margin-bottom:14px;display:block}
+  .cartao h3{font-size:16px}
 
-  ol.passos{list-style:none;counter-reset:p}
-  ol.passos li{counter-increment:p;display:flex;gap:18px;padding:18px 0;
-    border-bottom:1px solid var(--line)}
-  ol.passos li:last-child{border-bottom:0}
-  ol.passos li::before{content:counter(p);flex:0 0 30px;height:30px;
-    background:#22304A;color:var(--accent);border-radius:50%;
-    display:grid;place-items:center;font-size:14px;font-weight:600}
-  ol.passos p{color:var(--dim);font-size:15px;margin-top:3px}
+  .fluxo{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;
+    align-items:stretch;gap:14px}
+  .etapa{background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:20px;text-align:center}
+  .etapa .quem{font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--fraco);margin-bottom:8px}
+  .etapa strong{display:block;font-size:16px;font-weight:600;margin-bottom:6px}
+  .etapa span{font-size:14px;color:var(--dim)}
+  .seta{color:var(--fraco);font-size:20px;align-self:center}
+  @media(max-width:760px){
+    .fluxo{grid-template-columns:1fr;gap:8px}
+    .seta{transform:rotate(90deg);text-align:center}
+  }
+
+  .tela{background:#101216;border:1px solid var(--line);border-radius:12px;
+    padding:12px;overflow-x:auto}
+  .legenda{color:var(--fraco);font-size:14px;margin:10px 2px 0}
+  .barra{display:flex;align-items:center;gap:6px;padding:6px 4px 12px}
+  .bt{width:28px;height:28px;border-radius:7px;background:#1C1F26;
+    border:1px solid #24272F;flex:0 0 auto;display:grid;place-items:center}
+  .bt img{width:20px;height:20px;image-rendering:auto}
+  .bt.rec{background:#2A1418;border-color:#3A1D22}
+  .barra .vao{flex:1}
+  .barra .campo{flex:0 1 210px;height:28px;border-radius:7px;
+    background:#1C1F26;border:1px solid #24272F;font-size:11px;color:#9AA3B2;
+    display:flex;align-items:center;padding:0 10px;overflow:hidden;
+    white-space:nowrap}
+  .onda{height:34px;background:#1A1D23;border-radius:4px;position:relative;
+    overflow:hidden;margin-bottom:8px}
+  .onda i{position:absolute;bottom:0;width:2px;background:#39404E}
+  .onda b{position:absolute;top:0;bottom:0;width:2px;background:#33DD99;left:47%}
+  .faixas{position:relative}
+  .faixa{display:flex;align-items:stretch;gap:0;height:19px;margin-bottom:2px}
+  .faixa .nome{width:150px;flex:0 0 auto;font-size:11px;color:#C7CDD8;
+    background:#1A1D23;border-radius:3px 0 0 3px;display:flex;
+    align-items:center;gap:6px;padding:0 7px;white-space:nowrap;overflow:hidden}
+  .faixa .chip{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
+  .faixa .nome b{font-weight:400;overflow:hidden;text-overflow:ellipsis}
+  .faixa .nome i{margin-left:auto;font-style:normal;font-size:10px;
+    color:#5F6672}
+  .faixa .trilha{flex:1;background:#16181D;position:relative;
+    border-radius:0 3px 3px 0;border-left:1px solid #2A2E37}
+  .faixa .bloco{position:absolute;top:2px;bottom:2px;border-radius:2px}
+  .faixa .bloco.marcado{outline:1.5px solid #3D8BFD;outline-offset:2px}
+  .faixa .bloco.pega::before,.faixa .bloco.pega::after{content:"";
+    position:absolute;top:-1px;bottom:-1px;width:3px;background:#fff;
+    border-radius:1px}
+  .faixa .bloco.pega::before{left:-1px}
+  .faixa .bloco.pega::after{right:-1px}
+  .faixa .fecho{position:absolute;top:2px;bottom:2px;width:3px;
+    background:#0E1013;opacity:.75}
+  .cursor{position:absolute;top:0;bottom:0;width:2px;background:#33DD99;
+    left:calc(150px + (100% - 150px) * .47);pointer-events:none}
+
+  /* A Tela Personalizada nao e uma grade de quatro caixas iguais: cada
+     grupo tem a largura que os botoes dele pedem. A largura vem do
+     proprio grupo (--larg, em doze colunas), como no editor do Lumikit. */
+  .painel{display:grid;grid-template-columns:repeat(12,1fr);gap:8px;
+    align-items:start}
+  .painel .grupo{grid-column:span var(--larg,12);border:1px solid #2A2E37;
+    border-radius:6px;padding:7px}
+  .painel .titulo{font-size:9px;letter-spacing:.09em;color:#6B7280;
+    text-align:center;padding-bottom:6px}
+  .painel .botoes{display:grid;grid-template-columns:repeat(2,1fr);gap:4px}
+  .painel .b{background:#232732;border:1px solid #2C313D;border-radius:3px;
+    padding:5px 3px 6px;text-align:center;overflow:hidden}
+  .painel .b.aceso{border-color:#C7CDD8;background:#2B3242}
+  .painel .b em{display:block;width:11px;height:11px;border-radius:50%;
+    margin:0 auto 4px}
+  .painel .b.cena em{border-radius:2px;width:13px;height:9px}
+  .painel .b span{display:block;font-size:8px;line-height:1.15;color:#9AA3B2;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* Os masters sao faders de verdade na tela do Lumikit, e e por eles
+     que se puxa a intensidade geral. Desenhados como botoes, sumiriam. */
+  .painel .faders{display:flex;gap:5px}
+  .painel .fader{flex:1;min-width:0;text-align:center}
+  .painel .trilho{height:78px;background:#1B1E26;border:1px solid #2C313D;
+    border-radius:3px;position:relative;overflow:hidden}
+  .painel .nivel{position:absolute;left:0;right:0;bottom:0;
+    background:linear-gradient(180deg,#5C8CE0,#2E5E8A)}
+  .painel .nivel::after{content:"";position:absolute;left:-1px;right:-1px;
+    top:-2px;height:3px;background:#C7CDD8;border-radius:1px}
+  .painel .rot{font-size:7px;color:#9AA3B2;margin-top:3px;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+
+  @media(max-width:820px){
+    .painel .grupo{grid-column:span 12}
+    .painel .botoes{grid-template-columns:repeat(2,1fr)}
+  }
+
+  /* A tela de Configurações: as abas de um lado, os ajustes do outro. */
+  .cfg{display:grid;grid-template-columns:96px 1fr;gap:10px}
+  .cfg .abas{display:flex;flex-direction:column;gap:2px}
+  .cfg .aba{font-size:9.5px;color:#9AA3B2;padding:5px 8px;border-radius:4px}
+  .cfg .aba.viva{background:#232732;color:#E6E9EF;
+    box-shadow:inset 2px 0 0 #3D8BFD}
+  .cfg .lista{display:flex;flex-direction:column;gap:3px}
+  .cfg .secao{font-size:7.5px;letter-spacing:.11em;color:#5F6672;
+    margin:7px 0 1px}
+  .cfg .secao:first-child{margin-top:0}
+  .cfg .item{display:flex;align-items:center;gap:8px;background:#16181D;
+    border:1px solid #22262E;border-radius:4px;padding:5px 8px}
+  .cfg .item span{font-size:9.5px;color:#C7CDD8;flex:1;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .cfg .chave{display:block;width:20px;height:11px;border-radius:6px;background:#2C313D;
+    position:relative;flex:0 0 auto}
+  .cfg .chave::after{content:"";position:absolute;top:1.5px;left:1.5px;
+    width:8px;height:8px;border-radius:50%;background:#6B7280}
+  .cfg .chave.on{background:#2E5E8A}
+  .cfg .chave.on::after{left:10.5px;background:#E6E9EF}
+  @media(max-width:520px){.cfg{grid-template-columns:1fr}
+    .cfg .abas{flex-direction:row;flex-wrap:wrap}}
+
+  /* O manual: uma faixa, e não mais um cartão no meio dos recursos. */
+  .manualcx{display:flex;gap:28px;align-items:center;background:var(--panel);
+    border:1px solid var(--line);border-radius:14px;padding:26px 28px}
+  .manualcx .corpo{margin-top:8px;font-size:15px}
+  .manualcx .botao{flex:0 0 auto}
+  .manualcx .quando{margin-top:10px;font-size:13px;color:var(--fraco)}
+  @media(max-width:640px){
+    .manualcx{flex-direction:column;align-items:flex-start;gap:18px}
+  }
+
+  /* Um cartão sem desenho é um parágrafo com borda — por isso não há
+     mais cartões: cada recurso é uma linha com texto e tela, como as
+     outras. Estes quatro desenhos são de partes do programa que não
+     aparecem na Programação MIDI. */
+
+  /* O DESFAZER: a pilha de passos, que é o que o programa guarda. */
+  .hist{display:flex;flex-direction:column;gap:3px}
+  .hist .passo{display:flex;align-items:center;gap:8px;background:#16181D;
+    border:1px solid #22262E;border-radius:4px;padding:6px 9px;
+    font-size:10px;color:#8A919E}
+  .hist .passo b{font-weight:400;color:#C7CDD8;flex:1;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis}
+  .hist .passo.topo{border-color:#3D8BFD;background:#191E28;color:#C7CDD8}
+  .hist .passo.topo b{color:#E6E9EF}
+  .hist .zap{font-size:8px;letter-spacing:.08em;color:#3D8BFD;
+    border:1px solid #2A3A56;border-radius:3px;padding:1px 5px}
+  .hist .quando{font-size:9px;color:#5F6672}
+
+  /* A BUSCA: o campo da barra filtrando as regiões enquanto se digita. */
+  .busca .caixa{display:flex;align-items:center;gap:7px;background:#1C1F26;
+    border:1px solid #3D8BFD;border-radius:7px;padding:7px 10px;
+    font-size:11px;color:#E6E9EF}
+  .busca .caixa i{width:6px;height:13px;background:#3D8BFD;
+    display:inline-block;border-radius:1px;animation:pisca 1.1s steps(1) infinite}
+  @keyframes pisca{50%{opacity:0}}
+  .busca .lista{margin-top:5px;border:1px solid #22262E;border-radius:6px;
+    overflow:hidden}
+  .busca .linha{display:flex;align-items:center;gap:8px;padding:6px 10px;
+    font-size:10.5px;color:#9AA3B2;border-bottom:1px solid #1B1E24}
+  .busca .linha:last-child{border-bottom:0}
+  .busca .linha.viva{background:#1E2430;color:#E6E9EF}
+  .busca .linha em{font-style:normal;color:#3D8BFD}
+  .busca .linha .dur{margin-left:auto;font-size:9px;color:#5F6672}
+
+  /* AS TECLAS: as F do LumiBridge e as letras que são do .form. */
+  .teclas{display:flex;flex-direction:column;gap:8px}
+  .teclas .fila{display:flex;gap:4px}
+  .teclas .k{flex:1;min-width:0;background:#1C1F26;border:1px solid #2C313D;
+    border-bottom-width:2px;border-radius:4px;padding:5px 2px;
+    text-align:center}
+  .teclas .k b{display:block;font-size:9px;font-weight:600;color:#C7CDD8}
+  .teclas .k span{display:block;font-size:7px;color:#5F6672;margin-top:2px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .teclas .k.mapeada{border-color:#2E5E8A}
+  .teclas .k.mapeada span{color:#7FA8D8}
+  .teclas .k.dofor{border-color:#5A4A22}
+  .teclas .k.dofor span{color:#C89B3C}
+  .teclas .nota{font-size:9px;color:#5F6672}
+  .teclas .nota em{font-style:normal;color:#C89B3C}
+
+  /* O SOBRE: onde a atualização chega. */
+  .sobre .par{display:flex;font-size:10.5px;padding:5px 0;
+    border-bottom:1px solid #1E2128}
+  .sobre .par span{color:#5F6672;width:120px;flex:0 0 auto}
+  .sobre .par b{font-weight:400;color:#C7CDD8}
+  .sobre .bt2{display:inline-block;margin-top:10px;font-size:10px;
+    background:#1C1F26;border:1px solid #2C313D;border-radius:6px;
+    padding:6px 12px;color:#C7CDD8}
+  .sobre .achou{margin-top:11px;background:#16211B;border:1px solid #24402F;
+    border-radius:6px;padding:9px 11px;font-size:10.5px;color:#8FD8A0}
+  .sobre .achou b{display:block;color:#C7CDD8;font-weight:400;margin-top:3px}
+  .sobre .bt2.forte{background:#2E5E8A;border-color:#3D8BFD;color:#fff}
+
+  .versao{border-bottom:1px solid var(--line);padding:16px 0;display:flex;
+    gap:20px;align-items:baseline}
+  .versao:last-child{border-bottom:0}
+  .versao .num{flex:0 0 74px;font-weight:600;font-size:15px}
+  .versao .quando{flex:0 0 108px;color:var(--fraco);font-size:13px}
+  .versao .oque{color:var(--dim);font-size:15px}
 
   table.req{width:100%;border-collapse:collapse;font-size:15px}
-  table.req td{padding:13px 0;border-bottom:1px solid var(--line);
-    vertical-align:top}
-  table.req td:first-child{color:var(--dim);width:190px}
+  table.req td{padding:12px 0;border-bottom:1px solid var(--line);vertical-align:top}
+  table.req td:first-child{color:var(--dim);width:200px}
   table.req tr:last-child td{border-bottom:0}
 
-  .cta{background:var(--panel);border:1px solid var(--line);
-    border-radius:14px;padding:38px;text-align:center}
-  .cta h3{font-size:22px;margin-bottom:10px}
-  .cta p{color:var(--dim);margin-bottom:26px;font-size:15px}
+  .aviso{background:#191B21;border:1px solid var(--line);
+    border-left:3px solid var(--amber);border-radius:0 10px 10px 0;
+    padding:22px 26px;color:var(--dim);font-size:15px}
+  .aviso strong{color:var(--text)}
+  .aviso p + p{margin-top:12px}
 
-  footer{border-top:1px solid var(--line);padding:34px 0;
-    color:var(--dim);font-size:13px;
-    display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between}
+  .cta{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:36px;text-align:center}
+  .cta h3{font-size:22px;margin-bottom:10px}
+  .cta p{color:var(--dim);margin-bottom:24px;font-size:15px}
+
+  footer{border-top:1px solid var(--line);padding:30px 0 44px;
+    color:var(--fraco);font-size:13px}
+  footer p + p{margin-top:8px}
 
   @media(max-width:620px){
     header nav{display:none}
-    .hero{padding:60px 0 48px}
-    .cta{padding:28px 20px}
+    .hero{padding:52px 0 40px}
+    .versao{flex-wrap:wrap;gap:6px}
+    .versao .num,.versao .quando{flex:0 0 auto}
   }
 </style>
 </head>
@@ -121,78 +346,315 @@
     <rect x="19" y="32" width="10" height="10" rx="2" fill="#3D8BFD"/>
     <rect x="31" y="32" width="10" height="10" rx="2" fill="#2A2F3A"/>
   </svg>
-  <div class="marca">LumiBridge<span>1.0.0</span></div>
+  <div class="marca">LumiBridge</div>
   <nav>
-    <a href="#recursos">O que faz</a>
-    <a href="#instalar">Instalação</a>
+    <a href="#oquee">O que é</a>
+    <a href="#telas">Telas</a>
+    <a href="#recursos">Recursos</a>
+    <a href="#manual">Manual</a>
+    <a href="#novidades">Novidades</a>
     <a href="#comprar">Comprar</a>
   </nav>
 </div></header>
 
 <div class="wrap hero">
-  <h1>A luz acompanha a <em>música</em>, compasso a compasso.</h1>
-  <p>Programe a iluminação da sua banda dentro do REAPER, usando a mesma
-     Janela Personalizada do Lumikit Show que você já conhece.</p>
-  <!-- TROQUE jacksondiegolaube -->
-  <a class="botao" href="https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-instalador.exe">Baixar para Windows</a>
-  <div class="abaixo">Instalador único · requer REAPER e Lumikit Show</div>
+  <h1>Toda noite, a luz entra <em>no mesmo compasso</em>.</h1>
+  <p>Monte a automação MIDI da iluminação dentro do REAPER, usando a sua
+     Janela Personalizada do Lumikit Show. Você clica como clicaria ao
+     vivo — e depois ajusta com calma, nota por nota.</p>
+  <a class="botao" href="https://wa.me/5547991868073?text=Ol%C3%A1!%20Quero%20uma%20licen%C3%A7a%20do%20LumiBridge." target="_blank" rel="noopener">Quero uma licença</a>
+  <a class="botao fantasma" style="margin-left:10px" href="https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-instalador.exe" target="_blank" rel="noopener">Baixar o instalador</a>
+  <div class="abaixo">Programa licenciado. O instalador baixa livremente, mas
+       <strong>só abre com a chave</strong> que vem com a compra.</div>
+  <div class="abaixo" style="margin-top:6px">Shows · teatro · cena ·
+       qualquer projeto que precise de áudio e luz no mesmo tempo</div>
 </div>
 
+<div class="wrap" style="padding-bottom:10px">
+  <div class="janela">
+    <div class="titulo-janela">
+      <svg width="14" height="14" viewBox="0 0 48 48" aria-hidden="true">
+        <rect x="7"  y="8"  width="10" height="10" rx="2" fill="#2A2F3A"/>
+        <rect x="19" y="8"  width="10" height="10" rx="2" fill="#F5A524"/>
+        <rect x="31" y="8"  width="10" height="10" rx="2" fill="#2A2F3A"/>
+        <rect x="7"  y="20" width="10" height="10" rx="2" fill="#F5A524"/>
+        <rect x="19" y="20" width="10" height="10" rx="2" fill="#2A2F3A"/>
+        <rect x="31" y="20" width="10" height="10" rx="2" fill="#3D8BFD"/>
+        <rect x="7"  y="32" width="10" height="10" rx="2" fill="#2A2F3A"/>
+        <rect x="19" y="32" width="10" height="10" rx="2" fill="#3D8BFD"/>
+        <rect x="31" y="32" width="10" height="10" rx="2" fill="#2A2F3A"/>
+      </svg>
+      <span>LumiBridge</span>
+      <div class="botoezinhos"><i></i><i></i><i></i></div>
+    </div>
+    <div class="miolo">
+      <div id="heroBarra"></div>
+      <div class="onda" id="ondaHero"><b></b></div>
+      <div class="lado">
+        <div class="faixas" id="faixasHero"><div class="cursor"></div></div>
+        <div class="painel" id="painelHero"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="oquee"><div class="wrap">
+  <h2>O que é</h2>
+  <p class="lede">O LumiBridge é uma ferramenta de <strong>criação</strong>.
+     Ele existe para o momento em que você monta a luz de uma música — e
+     sai de cena quando o show começa.</p>
+  <p class="corpo">Serve para qualquer projeto em que a luz precise andar
+     junto com o áudio: o show de uma banda, um espetáculo de teatro, uma
+     peça cênica, um evento com trilha marcada. Onde há uma linha do tempo
+     e uma iluminação que a acompanha, ele se encaixa.</p>
+  <p class="corpo">Você já monta a sua Janela Personalizada no Lumikit Show:
+     os botões de cor, os efeitos, os faders, do jeito que o seu projeto
+     usa. O LumiBridge lê esse arquivo <code>.form</code> e redesenha a
+     mesma tela dentro do REAPER, alinhada ao áudio.</p>
+  <p class="corpo">Aí você toca e opera a luz como operaria ao vivo. Cada
+     clique vira MIDI gravado na linha do tempo, no compasso exato. Depois
+     dá para ajustar nota por nota: arrastar, esticar, mover, apagar — com
+     desfazer a cada passo.</p>
+  <p class="corpo">Terminado esse trabalho, <strong>a automação é um item
+     MIDI do seu projeto do REAPER</strong>. Ela não depende mais do
+     LumiBridge para nada.</p>
+</div></section>
+
+<section id="comofunciona"><div class="wrap">
+  <h2>Quem faz o quê</h2>
+  <div class="fluxo">
+    <div class="etapa">
+      <div class="quem">na criação</div>
+      <strong>LumiBridge</strong>
+      <span>lê o seu <code>.form</code> e grava a automação MIDI na linha
+            do tempo</span>
+    </div>
+    <div class="seta">&rarr;</div>
+    <div class="etapa">
+      <div class="quem">no show</div>
+      <strong>REAPER</strong>
+      <span>toca o projeto e envia o MIDI pela porta que você já usa</span>
+    </div>
+    <div class="seta">&rarr;</div>
+    <div class="etapa">
+      <div class="quem">no palco</div>
+      <strong>Lumikit Show</strong>
+      <span>recebe o MIDI e aciona a iluminação, como sempre fez</span>
+    </div>
+  </div>
+  <p class="corpo" style="margin-top:22px">Repare no que isso quer dizer:
+     <strong>no show, o LumiBridge nem precisa estar aberto.</strong> Quem
+     envia é o REAPER e quem recebe é o Lumikit, exatamente como se você
+     tivesse desenhado a automação à mão. O script é a ferramenta que
+     construiu — não uma peça do caminho.</p>
+</div></section>
+
+<section id="telas"><div class="wrap">
+  <h2>Como é por dentro</h2>
+
+  <div class="tela">
+    <!-- BARRA -->
+<div class="barra">
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvr+bp74Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e//5unv/+bp78/m6e9A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7//m6e//5unv/+bp7//m6e+f5unvEObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unv/+bp7//m6e//5unv/+bp7//m6e/v5unvYObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvv+bp7zDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8Q5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp79/m6e9A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+f5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp75/m6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp79/m6e9A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvEObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+/5unvMObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unv/+bp7//m6e//5unv/+bp7//m6e/v5unvYObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e//5unv/+bp7//m6e//5unvn+bp7xDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7//m6e//5unvz+bp70Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvr+bp74Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDBj6AUmajSKQAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp72Dm6e+A5unvgObp72Dm6e8A5unvAObp7wDm6e8A5unvYObp74Dm6e+A5unvYObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e9g5unv/+bp7//m6e//5unv/+bp72Dm6e8A5unvAObp72Dm6e//5unv/+bp7//m6e//5unvYObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e9g5unv/+bp7//m6e//5unv/+bp72Dm6e8A5unvAObp72Dm6e//5unv/+bp7//m6e//5unvYObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e9g5unvgObp74Dm6e9g5unvAObp7wDm6e8A5unvAObp72Dm6e+A5unvgObp72Dm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wBgR9UE6jBMsQAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8g5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvIObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvIObp7+/m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e/v5unvIObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8g5unv7+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7+/m6e8g5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8g5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvIObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wB28QuPVXCuTQAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp74Dm6e+/5unvr+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvEObp74/m6e9Q5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp70Dm6e/f5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e+P5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvAObp7wDm6e8A5unvAObp7wDm6e8w5unvz+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e8A5unvAObp7wDm6e8A5unvcObp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp7wDm6e8A5unvIObp77/m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvAObp7zDm6e/v5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e8A5unvMObp7+/m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp7wDm6e8A5unvIObp77/m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvAObp7wDm6e8A5unvAObp73Dm6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e8A5unvAObp7wDm6e8A5unvAObp7zDm6e/P5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e9A5unv3+bp7//m6e+A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8Q5unvj+bp71Dm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp74Dm6e+/5unvr+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wCtZaWBMtGf4AAAAABJRU5ErkJggg=="></div>
+  <div class="bt rec"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQAA5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAADlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0AAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNMOVITXDlSE2A5UhNgOVITXDlSE0w5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQAA5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNMOVITb/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE2/5UhNMOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAADlSE0A5UhNAOVITQDlSE0A5UhNAOVITTDlSE3v5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3v5UhNMOVITQDlSE0A5UhNAOVITQDlSE0AAOVITQDlSE0A5UhNAOVITQDlSE0w5UhN7+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3v5UhNMOVITQDlSE0A5UhNAOVITQAA5UhNAOVITQDlSE0A5UhNAOVITb/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE2/5UhNAOVITQDlSE0A5UhNAADlSE0A5UhNAOVITQDlSE0w5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE0w5UhNAOVITQDlSE0AAOVITQDlSE0A5UhNAOVITXDlSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITXDlSE0A5UhNAOVITQAA5UhNAOVITQDlSE0A5UhNgOVITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhNgOVITQDlSE0A5UhNAADlSE0A5UhNAOVITQDlSE2A5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE2A5UhNAOVITQDlSE0AAOVITQDlSE0A5UhNAOVITXDlSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITXDlSE0A5UhNAOVITQAA5UhNAOVITQDlSE0A5UhNMOVITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhNMOVITQDlSE0A5UhNAADlSE0A5UhNAOVITQDlSE0A5UhNv+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITb/lSE0A5UhNAOVITQDlSE0AAOVITQDlSE0A5UhNAOVITQDlSE0w5UhN7+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3v5UhNMOVITQDlSE0A5UhNAOVITQAA5UhNAOVITQDlSE0A5UhNAOVITQDlSE0w5UhN7+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITf/lSE3/5UhN7+VITTDlSE0A5UhNAOVITQDlSE0A5UhNAADlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0w5UhNv+VITf/lSE3/5UhN/+VITf/lSE3/5UhN/+VITb/lSE0w5UhNAOVITQDlSE0A5UhNAOVITQDlSE0AAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNMOVITXDlSE2A5UhNgOVITXDlSE0w5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQAA5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAADlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0AAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDlSE0A5UhNAOVITQDvwX7qWdJt0QAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e9w5unvv+bp77/m6e+/5unvgObp7yDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e9Q5unv7+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvUObp7//m6e//5unvgObp7yDm6e8A5unvEObp72Dm6e/v5unv/+bp74Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7xDm6e/v5unv/+bp7zDm6e8A5unvAObp7wDm6e8A5unvAObp7yDm6e/v5unv/+bp70Dm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvcObp7//m6e+A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp71Dm6e//5unvn+bp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+/5unv/+bp7yDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7+/m6e/v5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp77/m6e//5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvv+bp7//m6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvv+bp7//m6e8Q5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e/f5unv7+bp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e+A5unv/+bp72Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvQObp7//m6e+v5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7yDm6e//5unv7+bp7yDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e/P5unv/+bp71Dm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp74Dm6e//5unv7+bp71Dm6e8A5unvAObp7wDm6e9A5unvz+bp7//m6e//5unvz+bp7xDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7+/m6e+/5unv3+bp7//m6e//5unvv+bp7//m6e//5unvz+bp7xDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp70Dm6e+f5unv7+bp7//m6e/v5unvr+bp70Dm6e8A5unvYObp7//m6e//5unvz+bp7xDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvYObp7//m6e//5unvz+bp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvYObp7//m6e+P5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvEObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wCVXXoeFSklnQAAAABJRU5ErkJggg=="></div>
+  <div class="campo">Pesquisar música</div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e9g5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e9g5unvAObp7wDm6e8AAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wAA5unvAObp7wDm6e+/5unv/+bp73Dm6e9A5unvQObp70Dm6e9A5unvQObp70Dm6e9A5unvQObp70Dm6e9A5unvQObp70Dm6e9w5unv/+bp77/m6e8A5unvAADm6e8A5unvAObp77/m6e//5unvAObp7xDm6e9w5unvgObp70Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e//5unvv+bp7wDm6e8AAObp7wDm6e8A5unvv+bp7//m6e8A5unvgObp7//m6e//5unv/+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7//m6e+/5unvAObp7wAA5unvAObp7wDm6e+/5unv/+bp7wDm6e+A5unv/+bp7//m6e//5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unv/+bp77/m6e8A5unvAADm6e8A5unvAObp77/m6e//5unvAObp74Dm6e//5unv/+bp7//m6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e//5unvv+bp7wDm6e8AAObp7wDm6e8A5unvv+bp7//m6e8A5unvgObp7//m6e//5unv/+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7//m6e+/5unvAObp7wAA5unvAObp7wDm6e+/5unv/+bp7wDm6e8Q5unvcObp74Dm6e9A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unv/+bp77/m6e8A5unvAADm6e8A5unvAObp77/m6e//5unvcObp70Dm6e9A5unvQObp70Dm6e9A5unvQObp70Dm6e9A5unvQObp70Dm6e9A5unvQObp73Dm6e//5unvv+bp7wDm6e8AAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wAA5unvAObp7wDm6e8A5unvYObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvYObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wC9AZT4nc/lQgAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvYObp7//m6e//5unv/+bp7//m6e9g5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8w5unvgObp74Dm6e+A5unvgObp74/m6e//5unv/+bp7//m6e//5unvj+bp74Dm6e+A5unvgObp74Dm6e8w5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp74Dm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvEObp70Dm6e+f5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp75/m6e9A5unvEObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvv+bp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvn+bp77/m6e//5unv/+bp77/m6e+f5unv/+bp7//m6e+/5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e9A5unvgObp7//m6e//5unvgObp70Dm6e//5unv/+bp77/m6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp70Dm6e+A5unv/+bp7//m6e+A5unvQObp7//m6e//5unvv+bp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvQObp74Dm6e//5unv/+bp74Dm6e9A5unv/+bp7//m6e+/5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e9A5unvgObp7//m6e//5unvgObp70Dm6e//5unv/+bp77/m6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp70Dm6e+A5unv/+bp7//m6e+A5unvQObp7//m6e//5unvv+bp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvv+bp7//m6e//5unvQObp74Dm6e//5unv/+bp74Dm6e9A5unv/+bp7//m6e+/5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e+/5unv/+bp7//m6e9A5unvgObp7//m6e//5unvgObp70Dm6e//5unv/+bp77/m6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp76/m6e/P5unv/+bp7//m6e/P5unvr+bp7//m6e//5unvv+bp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvv+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+/5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8w5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp7zDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wBf7M00oWWKhwAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e9Q5unvgObp74Dm6e9Q5unvEObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e+P5unv/+bp7//m6e//5unv/+bp7//m6e//5unvj+bp7xDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8Q5unvz+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvz+bp7xDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp76/m6e8g5unvAObp7wDm6e8g5unvr+bp7//m6e//5unvv+bp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e9g5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unvYObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp76/m6e//5unv3+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unv3+bp7//m6e+v5unvAObp7wDm6e8A5unvAADm6e8A5unvn+bp77/m6e+/5unv7+bp7//m6e/f5unvn+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7+/m6e8A5unvAObp7wDm6e8AAObp7wDm6e+A5unv/+bp7//m6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp70Dm6e+A5unvgObp7wDm6e8A5unvAObp7wAA5unvAObp7xDm6e/v5unv/+bp7//m6e//5unv7+bp7xDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp74Dm6e//5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvEObp7+/m6e//5unv7+bp7xDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvgObp7//m6e+A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8Q5unvv+bp7xDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDPL3IlDR9fDAAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e9Q5unvgObp74Dm6e9Q5unvEObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e+P5unv/+bp7//m6e//5unv/+bp7//m6e//5unvj+bp7xDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8Q5unvz+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvz+bp7xDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp77/m6e//5unv/+bp76/m6e8g5unvAObp7wDm6e8g5unvr+bp7//m6e//5unvv+bp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e9g5unv/+bp7//m6e+A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unvYObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp76/m6e//5unv3+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unv3+bp7//m6e+v5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unv7+bp7//m6e+A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp75/m6e/f5unv/+bp7+/m6e+/5unvv+bp75/m6e8AAObp7wDm6e8A5unvAObp7wDm6e+A5unvgObp70Dm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvgObp7//m6e//5unv/+bp7//m6e//5unvgObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8Q5unv7+bp7//m6e//5unv/+bp7+/m6e8Q5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e+A5unv/+bp7//m6e//5unvgObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e/v5unv/+bp7+/m6e8Q5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp74Dm6e//5unvgObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvEObp77/m6e8Q5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAgp3IlZMMvnAAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAEG0lEQVR4AQEQBO/7AObp7wDm6e8A5unvAObp7wDm6e8F5unvAObp7xfm6e/Y5unvUObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8B5unvAebp7wDm6e8K5unvYObp7//m6e/95unvgebp7wPm6e8D5unvBObp7wDm6e8A5unvAADm6e8A5unvAebp7wHm6e8A5unvb+bp79zm6e//5unv/ebp7/rm6e//5unvrubp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8D5unvBObp76nm6e//5unv/+bp7//m6e/65unv/+bp7+vm6e9Z5unvDubp70Xm6e8B5unvAebp7wAA5unvAObp7wDm6e+O5unv/+bp7//m6e+x5unvZObp7//m6e/C5unvJubp7wDm6e+i5unv/+bp74rm6e8A5unvAADm6e8A5unvNubp7/3m6e//5unvn+bp7wDm6e8B5unvXObp7wPm6e8A5unvAubp74zm6e//5unv/Obp7zbm6e8AAObp7wDm6e+g5unv/+bp793m6e8I5unvAubp7wLm6e8A5unvAObp7wPm6e8B5unvCubp793m6e//5unvn+bp7wAA5unvAObp79rm6e//5unvhubp7wDm6e8E5unvAObp7wTm6e8B5unvAObp7wTm6e8A5unvh+bp7/7m6e/a5unvAADm6e8A5unv7+bp7//m6e9f5unvAebp7wTm6e8A5unvAObp7wDm6e8A5unvBObp7wHm6e9g5unv/+bp7+7m6e8AAObp7wDm6e/o5unv/+bp72vm6e8B5unvBObp7wDm6e8A5unvAObp7wDm6e8E5unvAebp72vm6e//5unv6Obp7wAA5unvAObp78Tm6e/+5unvr+bp7wDm6e8F5unvAObp7wDm6e8A5unvAObp7wXm6e8A5unvr+bp7/7m6e/D5unvAADm6e8A5unvb+bp7//m6e/55unvP+bp7wDm6e8E5unvBObp7wTm6e8F5unvAObp70Dm6e/55unv/+bp72/m6e8AAObp7wDm6e8N5unv2ubp7//m6e/n5unvRebp7wDm6e8A5unvAObp7wDm6e9E5unv5+bp7//m6e/a5unvDebp7wAA5unvAObp7wDm6e875unv+ebp7//m6e/95unvtObp73zm6e985unvtObp7/3m6e//5unv+ebp7zvm6e8A5unvAADm6e8A5unvAubp7wDm6e9A5unv2ebp7//m6e//5unv/+bp7//m6e//5unv/+bp79nm6e9B5unvAObp7wPm6e8AAObp7wDm6e8A5unvA+bp7wDm6e8S5unveubp78jm6e/p5unv6ebp78jm6e965unvEubp7wDm6e8D5unvAObp7wCrQBZDim68DgAAAABJRU5ErkJggg=="></div>
+  <div class="vao"></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAHsUlEQVR4AQGmB1n4AObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvUObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvEObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e9w5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp73Dm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvUObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvEObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp71Dm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvcObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e9w5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7xDm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp71Dm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e9Q5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp7zDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e//5unvv+bp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unv/+bp7//m6e//5unv/+bp7//m6e//5unv/+bp7//m6e+/5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e9Q5unvgObp74Dm6e+A5unvgObp74Dm6e+A5unvgObp7zDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAA5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAADm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8AAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wDm6e8A5unvAObp7wAylZICWfcYKAAAAABJRU5ErkJggg=="></div>
+  <div class="bt"><img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAEG0lEQVR4AQEQBO/7AObp7wDm6e8B5unvAObp7wDm6e8A5unvAObp75Hm6e/z5unv8+bp75Hm6e8A5unvAObp7wDm6e8A5unvAebp7wAA5unvAebp7wDm6e8C5unvaubp7yzm6e8K5unv5+bp7//m6e//5unv5+bp7wrm6e8s5unvaubp7wPm6e8A5unvAQDm6e8C5unvCubp767m6e//5unv8ubp7+Dm6e//5unv/ebp7/3m6e//5unv4ebp7/Lm6e//5unvr+bp7wrm6e8CAObp7wDm6e9u5unv/+bp7/fm6e//5unv/+bp7/vm6e//5unv/+bp7/vm6e//5unv/+bp7/fm6e//5unvbubp7wAA5unvA+bp7y3m6e/r5unv/ubp7/3m6e/+5unv/+bp7/jm6e/45unv/+bp7/7m6e/95unv/ubp7+vm6e8t5unvAwDm6e8A5unvCubp7+Dm6e//5unv/Obp7/rm6e915unvH+bp7x/m6e935unv++bp7/zm6e//5unv4Obp7wrm6e8AAObp75Tm6e/k5unv/+bp7/zm6e//5unvdubp7wDm6e8A5unvAObp7wDm6e945unv/+bp7/zm6e//5unv5Obp75MA5unv/ebp7//m6e/95unv/+bp7/fm6e8a5unvA+bp7wPm6e8D5unvA+bp7xrm6e/35unv/+bp7/3m6e//5unv/ADm6e/95unv/+bp7/3m6e//5unv9+bp7xrm6e8D5unvA+bp7wPm6e8D5unvGubp7/fm6e//5unv/ebp7//m6e/8AObp75Pm6e/k5unv/+bp7/zm6e//5unvd+bp7wDm6e8A5unvAObp7wDm6e935unv/+bp7/zm6e//5unv5Obp75MA5unvAObp7wrm6e/g5unv/+bp7/zm6e/75unveObp7x/m6e8f5unvd+bp7/vm6e/85unv/+bp7+Dm6e8K5unvAADm6e8D5unvLebp7+vm6e/+5unv/ebp7/7m6e//5unv+Obp7/jm6e//5unv/ubp7/3m6e/+5unv6+bp7y3m6e8DAObp7wDm6e9u5unv/+bp7/fm6e//5unv/+bp7/vm6e//5unv/+bp7/vm6e//5unv/+bp7/fm6e//5unvbubp7wAA5unvAubp7wrm6e+u5unv/+bp7/Lm6e/g5unv/+bp7/3m6e/95unv/+bp7+Hm6e/y5unv/+bp76/m6e8K5unvAgDm6e8B5unvAObp7wLm6e9q5unvLObp7wnm6e/n5unv/+bp7//m6e/n5unvC+bp7yzm6e9q5unvA+bp7wDm6e8BAObp7wDm6e8B5unvAObp7wDm6e8A5unvAObp75Hm6e/z5unv8+bp75Hm6e8A5unvAObp7wDm6e8A5unvAebp7wCtQU/V+IX/1AAAAABJRU5ErkJggg=="></div>
+</div>
+    <!-- /BARRA -->
+    <div class="onda" id="onda"><b></b></div>
+    <div class="faixas" id="faixas"><div class="cursor"></div></div>
+  </div>
+  <p class="legenda">A Programação MIDI: uma faixa por controle, e os blocos
+     são o tempo em que cada um fica ligado. Arraste as bordas, mova o
+     trecho, selecione vários com o botão direito.</p>
+
+  <div style="height:26px"></div>
+
+  <div class="tela"><div id="painel" class="painel"></div></div>
+  <p class="legenda">A sua Tela Personalizada, redesenhada dentro do REAPER —
+     os mesmos botões, nos mesmos lugares, com as mesmas cores do arquivo
+     que você exportou do Lumikit.</p>
+</div></section>
+
 <section id="recursos"><div class="wrap">
-  <h2>O que ele faz</h2>
-  <div class="grade">
-    <div class="cartao">
-      <svg class="ico" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <rect x="3" y="5" width="26" height="22" rx="3" stroke="#3D8BFD" stroke-width="2"/>
-        <rect x="7" y="9"  width="7" height="6" rx="1.5" fill="#F5A524"/>
-        <rect x="18" y="9" width="7" height="6" rx="1.5" fill="#2A2F3A"/>
-        <rect x="7" y="18" width="7" height="6" rx="1.5" fill="#2A2F3A"/>
-        <rect x="18" y="18" width="7" height="6" rx="1.5" fill="#3D8BFD"/>
-      </svg>
-      <h3>A sua tela, do seu jeito</h3>
-      <p>Ele lê o arquivo <code>.form</code> exportado do Lumikit e
-         redesenha a sua Janela Personalizada — os mesmos botões, nos
-         mesmos lugares, com as mesmas cores.</p>
+  <h2>Recursos</h2>
+
+  <div class="recurso">
+    <div>
+      <h3>Um clique e a música nasce pronta</h3>
+      <p class="corpo">Escolha a região da música e aperte <strong>Preparar</strong>.
+         Ele cria o item MIDI do tamanho exato da região, escreve o
+         <em>Release&nbsp;All</em> no primeiro quadradinho e deixa os faders
+         no ponto em que a música deve abrir.</p>
+      <p class="corpo">É o passo que ninguém lembra de fazer à mão — e é
+         justamente ele que evita a música começar com o que sobrou acesa
+         da anterior. Preparar duas vezes não duplica nada.</p>
     </div>
-    <div class="cartao">
-      <svg class="ico" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <rect x="3" y="8"  width="14" height="5" rx="1.5" fill="#F5A524"/>
-        <rect x="3" y="15" width="24" height="5" rx="1.5" fill="#3D8BFD"/>
-        <rect x="3" y="22" width="9"  height="5" rx="1.5" fill="#46A758"/>
-        <path d="M20 4v25" stroke="#46A758" stroke-width="2"/>
-      </svg>
-      <h3>Grava na linha do tempo</h3>
-      <p>Toque a música e opere a luz como no show. Cada clique vira MIDI
-         na timeline do REAPER, alinhado à onda — e dá para ajustar nota
-         por nota depois.</p>
+    <div class="tela mini"><div id="demoPreparar"></div></div>
+  </div>
+
+  <div class="recurso invertido">
+    <div>
+      <h3>Grave tocando, como no palco</h3>
+      <p class="corpo">Aperte REC e opere a luz enquanto o áudio roda.
+         Botões momentâneos, grupos de "apenas um ativo" e faders se
+         comportam exatamente como no Lumikit — o que a sua mão faz é o
+         que fica gravado, no compasso em que você fez.</p>
+      <p class="corpo">A onda do áudio fica acima das faixas, então a
+         batida está à vista enquanto você toca.</p>
     </div>
-    <div class="cartao">
-      <svg class="ico" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-        <path d="M6 26V6l18 10-18 10z" fill="#3D8BFD"/>
-        <path d="M27 6v20" stroke="#F5A524" stroke-width="2.5"/>
-      </svg>
-      <h3>E toca sozinho no palco</h3>
-      <p>No show, dê play. A programação sai em MIDI para o Lumikit no
-         tempo exato, todas as noites igual — sem depender da sua mão
-         acertar o compasso.</p>
+    <div class="tela mini"><div id="demoGravar"></div></div>
+  </div>
+
+  <div class="recurso">
+    <div>
+      <h3>Ajuste nota por nota</h3>
+      <p class="corpo">Arraste a borda para mudar onde começa ou termina.
+         Pegue pelo meio para mover o trecho inteiro. Duplo clique cria,
+         Del apaga, Ctrl+J junta dois trechos. E o ímã casa tempos que
+         ficaram a milissegundos um do outro.</p>
+      <p class="corpo">É aqui que a luz sai de "quase junto" para
+         <strong>junto</strong> — o que se percebe na plateia.</p>
     </div>
+    <div class="tela mini"><div id="demoEditar"></div></div>
+  </div>
+
+  <div class="recurso invertido">
+    <div>
+      <h3>Selecione várias de uma vez</h3>
+      <p class="corpo">Arraste com o botão direito e marque quantas quiser,
+         em quantas faixas quiser. Depois mova, estique ou apague todas
+         juntas — e um Ctrl+Z devolve o grupo inteiro.</p>
+      <p class="corpo">O refrão que entrou meio tempo adiantado se conserta
+         de uma vez, e não bloco por bloco.</p>
+    </div>
+    <div class="tela mini"><div id="demoSelecao"></div></div>
+  </div>
+
+  <div class="recurso">
+    <div>
+      <h3>Faders com curva, não em degraus</h3>
+      <p class="corpo">O movimento de um fader vira Control Change com
+         curva suave. O que sobe devagar sobe devagar de verdade, em vez
+         de virar uma escada de pontos.</p>
+      <p class="corpo">Fade de entrada, respiro no meio da música, apagão
+         lento no fim: tudo isso é um traço na linha do tempo.</p>
+    </div>
+    <div class="tela mini"><div id="demoFader"></div></div>
+  </div>
+
+  <div class="recurso invertido">
+    <div>
+      <h3>Ajustado do seu jeito, uma vez só</h3>
+      <p class="corpo">Nove abas em Configurações: a porta MIDI e o canal,
+         a track onde grava, o que o <em>Preparar</em> escreve, os atalhos,
+         os grupos de "apenas um ativo", o registro do que aconteceu.</p>
+      <p class="corpo">Você acerta uma vez e o programa lembra — inclusive
+         o tamanho e o lugar em que deixou a janela. Nada aqui precisa ser
+         reconfigurado a cada projeto.</p>
+    </div>
+    <div class="tela mini"><div id="demoConfig"></div></div>
+  </div>
+
+  <div class="recurso">
+    <div>
+      <h3>Um Ctrl+Z devolve um passo, não a noite</h3>
+      <p class="corpo">O LumiBridge guarda a própria pilha de desfazer, com
+         os últimos sessenta passos da música aberta. Cada gesto é um
+         passo: mover três blocos é um, esticar uma nota é outro, apagar
+         uma faixa é outro.</p>
+      <p class="corpo">Ctrl+Z devolve o último — e nunca a gravação inteira,
+         que é o susto de quem já tentou editar automação direto no
+         REAPER. Ctrl+Shift+Z refaz.</p>
+    </div>
+    <div class="tela mini"><div id="demoHist" class="hist"></div></div>
+  </div>
+
+  <div class="recurso invertido">
+    <div>
+      <h3>Cada música é uma região, e a busca acha</h3>
+      <p class="corpo">O seu projeto do REAPER já tem uma região por música,
+         faixa ou cena. São exatamente essas que aparecem aqui. Comece a
+         digitar no campo da barra — sem precisar clicar nele antes — e a
+         lista filtra enquanto você escreve.</p>
+      <p class="corpo">Escolheu, a tela inteira vai junto: a onda, as
+         faixas, o item da região e o cursor. Num repertório de quarenta
+         músicas, achar a certa é uma palavra.</p>
+    </div>
+    <div class="tela mini"><div id="demoBusca" class="busca"></div></div>
+  </div>
+
+  <div class="recurso">
+    <div>
+      <h3>As teclas que você já usa, e mais doze</h3>
+      <p class="corpo">As teclas que você definiu na sua Tela Personalizada
+         do Lumikit valem aqui, iguais — letras, números e espaço são do
+         <code>.form</code> e continuam sendo.</p>
+      <p class="corpo">Por cima delas, F1 a F12 são do LumiBridge e você
+         mapeia como quiser em Configurações &rsaquo; Atalhos. E o + e o
+         &minus; do teclado numérico mostram e escondem as faixas de
+         fader, sem tirar a mão do lugar.</p>
+    </div>
+    <div class="tela mini"><div id="demoTeclas" class="teclas"></div></div>
+  </div>
+
+  <div class="recurso invertido">
+    <div>
+      <h3>As correções chegam pelo próprio programa</h3>
+      <p class="corpo">Em Configurações &rsaquo; Sobre há um botão que
+         pergunta ao site se saiu versão nova. Se saiu, ele mostra o que
+         mudou antes de qualquer coisa e instala com um clique.</p>
+      <p class="corpo">A versão anterior fica guardada ao lado da nova. Se
+         algo sair errado no meio de uma temporada, ela está lá — e o
+         programa confere o arquivo baixado antes de trocar.</p>
+    </div>
+    <div class="tela mini"><div id="demoSobre" class="sobre"></div></div>
   </div>
 </div></section>
 
-<section id="instalar"><div class="wrap">
-  <h2>Instalação</h2>
-  <ol class="passos">
-    <li><div><h3>Feche o REAPER</h3>
-      <p>Ele reescreve a própria configuração ao sair; com ele aberto a
-         instalação se perde.</p></div></li>
-    <li><div><h3>Rode o instalador</h3>
-      <p>Ele acha o REAPER sozinho e instala tudo o que precisa, inclusive
-         a extensão de tela. Avançar, avançar, concluir.</p></div></li>
-    <li><div><h3>Ative</h3>
-      <p>Na primeira abertura aparece o código da sua máquina. Mande esse
-         código no WhatsApp e digite a chave que vier de volta. Ela vale
-         para sempre e nunca precisa de internet.</p></div></li>
-  </ol>
+<section id="manual"><div class="wrap">
+  <h2>Manual</h2>
+  <!-- MANUAL -->
+  <div class="manualcx">
+    <div>
+      <h3>Manual do usuário</h3>
+      <p class="corpo">Instalação, ativação, os primeiros ajustes, a
+         janela inteira botão por botão, os atalhos e o que conferir
+         quando algo não funciona. Escrito para ser lido antes do
+         primeiro show, e consultado depois.</p>
+      <div class="quando">19 páginas · PDF · versão 1.1.0 · refeito a
+           cada atualização</div>
+    </div>
+    <a class="botao fantasma" href="LumiBridge-manual.pdf"
+       target="_blank" rel="noopener">Baixar o manual</a>
+  </div>
+  <!-- /MANUAL -->
+</div></section>
+
+<section id="novidades"><div class="wrap">
+  <h2>Novidades</h2>
+  <!-- NOVIDADES -->
+  <div class="versao">
+    <div class="num">1.1.0</div>
+    <div class="quando">setembro/2026</div>
+    <div class="oque">Assistente de primeiros ajustes e manual do usu�rio em PDF.</div>
+  </div>
+  <div class="versao">
+    <div class="num">1.0.0</div>
+    <div class="quando">setembro/2026</div>
+    <div class="oque">Primeira versão.</div>
+  </div>
 </div></section>
 
 <section><div class="wrap">
@@ -204,27 +666,495 @@
         exportada em <code>.form</code></td></tr>
     <tr><td>Porta MIDI</td><td>uma porta virtual entre o REAPER e o
         Lumikit — o loopMIDI resolve, e é grátis</td></tr>
-    <tr><td>Internet</td><td>só para baixar. O programa funciona sem
-        rede, inclusive na ativação</td></tr>
+    <tr><td>Internet</td><td>só para baixar e para receber atualização.
+        O programa funciona sem rede, inclusive na ativação</td></tr>
   </table>
 </div></section>
 
 <section id="comprar"><div class="wrap">
   <div class="cta">
-    <h3>Quer usar na sua banda?</h3>
+    <h3>Quer usar no seu projeto?</h3>
     <p>Cada licença vale para um computador, para sempre.<br>
        Chame no WhatsApp e a gente conversa.</p>
-    <!-- TROQUE 5547991868073 -->
-    <a class="botao" href="https://wa.me/5547991868073?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20o%20LumiBridge.">Falar no WhatsApp</a>
-    <!-- TROQUE jacksondiegolaube -->
-    <a class="botao fantasma" style="margin-left:10px" href="https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-instalador.exe">Baixar</a>
+    <a class="botao" href="https://wa.me/5547991868073?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20o%20LumiBridge." target="_blank" rel="noopener">Falar no WhatsApp</a>
+    <a class="botao fantasma" style="margin-left:10px" href="https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-instalador.exe" target="_blank" rel="noopener">Baixar</a>
   </div>
 </div></section>
 
-<footer><div class="wrap" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;width:100%">
-  <div>LumiBridge · Jackson Diego Laube</div>
-  <div>REAPER e Lumikit Show são de seus respectivos donos.</div>
+<section><div class="wrap">
+  <div class="aviso">
+    <p><strong>O LumiBridge é um projeto independente.</strong> Não temos
+       vínculo, sociedade nem representação da Lumikit, da Cockos (REAPER)
+       ou de qualquer outra empresa. Somos usuários dos dois programas,
+       como você.</p>
+    <p>O que desenvolvemos é um script que facilita criar a automação MIDI
+       entre o REAPER e o Lumikit Show, aproveitando a Janela Personalizada
+       que você já montou. <strong>Ele é preciso apenas na hora de
+       criar.</strong> Depois disso, quem envia a comunicação é o REAPER e
+       quem recebe é o Lumikit — sem depender do script.</p>
+    <p>Você precisa ter as suas próprias licenças do REAPER e do Lumikit
+       Show. O LumiBridge não substitui, não modifica e não revende nenhum
+       dos dois.</p>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <p>LumiBridge · Jackson Diego Laube ·
+     <a href="https://wa.me/5547991868073" target="_blank" rel="noopener">WhatsApp</a></p>
+  <p>REAPER é marca da Cockos Incorporated. Lumikit Show é marca da Lumikit.
+     Este site e este programa não são afiliados a nenhuma das duas.</p>
 </div></footer>
 
+<script>
+(function(){
+  // As telas desta página são desenhadas aqui, e não escritas no HTML:
+  // são centenas de elementos, e escrevê-los à mão tornaria a página
+  // impossível de editar. Os dados são os da tela real do autor — os
+  // mesmos grupos, os mesmos nomes, as mesmas cores.
+
+  function el(tag, cls, estilo){
+    var d = document.createElement(tag);
+    if (cls) d.className = cls;
+    if (estilo) d.style.cssText = estilo;
+    return d;
+  }
+
+  // ---------------------------------------------------------- a onda
+  function onda(alvo, barras){
+    if (!alvo) return;
+    for (var i = 0; i < barras; i++) {
+      var b = el('i');
+      b.style.left = (i / barras * 100) + '%';
+      b.style.height =
+        (6 + Math.abs(Math.sin(i * 0.7) * Math.cos(i * 0.13)) * 26) + 'px';
+      if (i / barras < 0.47) b.style.background = '#2E5E8A';
+      alvo.appendChild(b);
+    }
+  }
+  onda(document.getElementById('onda'), 160);
+  onda(document.getElementById('ondaHero'), 190);
+
+  // -------------------------------------------------------- as faixas
+  //
+  // A COR É DO CONTROLE: vale para a pastilha do nome e para todos os
+  // blocos daquela linha. É assim no programa, e é o que deixa achar uma
+  // linha de relance.
+  var FAIXAS = [
+    { nome:'CENA C',        nota:'101:1', cor:'#E8C455', blocos:[[0,26]] },
+    { nome:'FUMAÇA',        nota:'91:1',  cor:'#8FD8A0', blocos:[[24,4],[70,4]] },
+    { nome:'FITA DIREITA',  nota:'55:1',  cor:'#E8C455', blocos:[[30,22],[76,18]] },
+    { nome:'OLD / MAGE',    nota:'12:1',  cor:'#C06BD8', blocos:[[52,22]] },
+    { nome:'CIAN / MAGE',   nota:'11:1',  cor:'#4FBFBF', blocos:[[58,30]] },
+    { nome:'VERM PURO',     nota:'2:1',   cor:'#E05C5C', blocos:[[0,5],[38,17]] },
+    { nome:'BRAN / VERD',   nota:'7:1',   cor:'#8FD8A0', blocos:[[6,80]] },
+    { nome:'FLYOUT',        nota:'39:1',  cor:'#8FA6C8', blocos:[[44,18]] },
+    { nome:'SIDE ADV',      nota:'31:1',  cor:'#7FA8D8', blocos:[[0,9],[64,26]] },
+    { nome:'STAR PAIR ADV', nota:'36:1',  cor:'#9FB8D8', blocos:[[12,44]] },
+    { nome:'CATAVENTO',     nota:'78:1',  cor:'#5CC86E', blocos:[[20,14],[62,10]] },
+    { nome:'PONTILHADO',    nota:'74:1',  cor:'#E8C455', blocos:[[34,16]] },
+    { nome:'BOLA P',        nota:'73:1',  cor:'#8B7BE8', blocos:[[0,58]] },
+    { nome:'PRISMA 3',      nota:'88:1',  cor:'#C7CDD8', blocos:[[48,40]] }
+  ];
+
+  function faixas(alvo, lista, opcoes){
+    if (!alvo) return;
+    opcoes = opcoes || {};
+    lista.forEach(function(f){
+      var linha = el('div', 'faixa');
+      var nome = el('div', 'nome');
+      nome.innerHTML = '<span class="chip" style="background:' + f.cor
+        + '"></span><b>' + f.nome + '</b>'
+        + (opcoes.semNota ? '' : '<i>' + f.nota + '</i>');
+      var trilha = el('div', 'trilha');
+      f.blocos.forEach(function(b, k){
+        var d = el('div', 'bloco');
+        d.style.left = b[0] + '%';
+        d.style.width = b[1] + '%';
+        d.style.background = f.cor;
+        if (opcoes.marcados && opcoes.marcados(f, k)) d.classList.add('marcado');
+        if (opcoes.pegas && opcoes.pegas(f, k)) d.classList.add('pega');
+        trilha.appendChild(d);
+        // O pulso de desligamento no fim do bloco, como o programa grava.
+        var fe = el('div', 'fecho');
+        fe.style.left = (b[0] + b[1]) + '%';
+        trilha.appendChild(fe);
+      });
+      linha.appendChild(nome);
+      linha.appendChild(trilha);
+      alvo.insertBefore(linha, alvo.firstChild);
+    });
+  }
+  faixas(document.getElementById('faixas'), FAIXAS);
+  faixas(document.getElementById('faixasHero'), FAIXAS);
+
+  // ------------------------------------------- a Tela Personalizada
+  //
+  // Os grupos, os nomes e as cores são os da tela real do autor. Uma
+  // tela inventada com quatro botões genéricos não convence quem já
+  // montou a sua no Lumikit — e é essa pessoa que compra.
+  //
+  // `larg` é a largura do grupo em doze colunas, como no editor do
+  // Lumikit: nem todo grupo merece o mesmo espaço.
+  var GRUPOS = [
+    { titulo:'PAN / TILT', larg:6, cols:4, aceso:5, botoes:[
+      ['WAVE ALT','#7FA8D8'],      ['SIDE ADV','#7FA8D8'],
+      ['CIRCLE ALT','#7FA8D8'],    ['CIRCLE PAIR','#7FA8D8'],
+      ['CIRCLE 6 ALT','#9FB8D8'],  ['CIRCLE 4 ADV','#9FB8D8'],
+      ['STAR PAIR ADV','#9FB8D8'], ['PLUS PAIR ALT','#9FB8D8'],
+      ['FLYOUT','#8FA6C8'],        ['WAVE FAST','#8FA6C8'],
+      ['UP FLOW','#8FA6C8'],       ['SIDE ADV UP','#8FA6C8'],
+      ['FIXA CIMA','#A8BEDA'],     ['FIXA LEQUE','#A8BEDA'],
+      ['OPEN CIMA','#A8BEDA'],     ['OPEN LEQUE','#A8BEDA'],
+      ['SOLO METAIS','#C8D4E4'],   ['SOLO TECLADO','#C8D4E4'],
+      ['SOLO BAIXO','#C8D4E4'],    ['SOLO CANTOR','#C8D4E4'] ] },
+    { titulo:'MASTER COLORS', larg:6, cols:4, aceso:9, botoes:[
+      ['BRANCO PURO','#EDEDED'],  ['VERM PURO','#E05C5C'],
+      ['VERDE PURO','#5CC86E'],   ['AZUL PURO','#5C8CE0'],
+      ['CIAN / MAGE','#4FBFBF'],  ['BRAN / VERM','#E88C8C'],
+      ['BRAN / VERD','#8FD8A0'],  ['BRAN / AZUL','#8FB4E8'],
+      ['OLD / MAGE','#C06BD8'],   ['OLD / CIAN','#6BC8C8'],
+      ['AMAR / MAGE','#E8C455'],  ['BRAN / AMBAR','#E8D08F'],
+      ['AZUL / AMBAR','#7FA8D8'], ['BRAN / CIAN','#9FD8D8'],
+      ['MAGE / VERM','#D8608F'],  ['AMAR / VERM','#E8A055'],
+      ['FADE Y-M','#E8C455'],     ['FADE R-A','#E05C5C'],
+      ['FADE R-B','#8B7BE8'],     ['FADE W-G','#8FD8A0'] ] },
+    { titulo:'BEAM EFFECTS', larg:5, cols:4, aceso:1, botoes:[
+      ['BOLA G','#EDEDED'],       ['BOLA P','#D8D8D8'],
+      ['PONTILHADO','#E8C455'],   ['ESTRELA','#EDEDED'],
+      ['TREVO','#8B7BE8'],        ['CATAVENTO','#5CC86E'],
+      ['FLOR','#E05C5C'],         ['LOOP','#5C8CE0'],
+      ['ASTERISCO','#C8D4E4'],    ['GIRASSOL','#E8C455'],
+      ['HÉLICE','#8FD8A0'],       ['MANCHAS','#9FB8D8'],
+      ['WASH ALL','#B9C0CC'],     ['WASH ALT','#B9C0CC'],
+      ['WASH CLOSE','#B9C0CC'],   ['WASH OPEN','#B9C0CC'],
+      ['PRISMA 3','#C7CDD8'],     ['PRISMA 6','#C7CDD8'],
+      ['PRISMA ROT','#C7CDD8'],   ['PRISMA LENTO','#C7CDD8'] ] },
+    { titulo:'DIMMER EFFECTS', larg:4, cols:4, aceso:6, botoes:[
+      ['LED DIREITA','#E0A03C'],  ['LED ESQUERDA','#E0A03C'],
+      ['LED CLOSE','#E0A03C'],    ['LED OPEN','#E0A03C'],
+      ['FITA DIREITA','#E8C455'], ['FITA ESQUER','#E8C455'],
+      ['FITA CLOSE','#E8C455'],   ['FITA OPEN','#E8C455'],
+      ['BEAM ALT','#B9C0CC'],     ['BEAM PAIR','#B9C0CC'],
+      ['BEAM SENO','#B9C0CC'],    ['BEAM RADAR','#B9C0CC'] ] },
+    { titulo:'EXTRAS', larg:3, cols:2, aceso:-1, botoes:[
+      ['FUMAÇA','#8FD8A0'],       ['FUMAÇA AUTO','#8FD8A0'],
+      ['ATOMIC 3000','#EDEDED'],  ['ATOMIC RAMP','#D8D8D8'],
+      ['PISCA LENTO','#9FB8D8'],  ['PISCA RÁPIDO','#9FB8D8'] ] },
+    { titulo:'MASTERS', larg:3, faders:['GERAL','COB','BEAM','LED','ATOMIC'] },
+    { titulo:'AUTO', larg:4, cols:4, cenas:true, aceso:2, botoes:[
+      ['CENA A','#E05C5C'], ['CENA B','#E0A03C'], ['CENA C','#E8C455'],
+      ['CENA D','#5CC86E'], ['CENA E','#4FBFBF'], ['CENA F','#5C8CE0'],
+      ['CENA G','#8B7BE8'] ] },
+    { titulo:'RÁPIDOS', larg:5, cols:6, aceso:-1, botoes:[
+      ['STROBO','#EDEDED'],   ['FLASH','#EDEDED'],   ['BLACKOUT','#3A3F4A'],
+      ['FADE OUT','#6B7280'], ['CONGELA','#9FB8D8'], ['RESET','#B9C0CC'] ] }
+  ];
+
+  /// Um grupo pelo nome — a ordem da lista é a da tela, e mudá-la não
+  /// deve trocar o que aparece lá em cima.
+  function grupo(nome){
+    for (var i = 0; i < GRUPOS.length; i++) {
+      if (GRUPOS[i].titulo === nome) return GRUPOS[i];
+    }
+  }
+
+  function painel(alvo, quais, opcoes){
+    if (!alvo) return;
+    opcoes = opcoes || {};
+    (quais || GRUPOS).forEach(function(g){
+      var caixa = el('div', 'grupo');
+      caixa.style.setProperty('--larg', opcoes.emColuna ? 12 : (g.larg || 12));
+      var t = el('div', 'titulo');
+      t.textContent = g.titulo;
+      caixa.appendChild(t);
+
+      if (g.faders) {
+        var fs = el('div', 'faders');
+        g.faders.forEach(function(nome, k){
+          var col = el('div', 'fader');
+          var trilho = el('div', 'trilho');
+          trilho.appendChild(el('div', 'nivel',
+            'height:' + [96, 74, 100, 62, 88][k % 5] + '%'));
+          col.appendChild(trilho);
+          var rot = el('div', 'rot');
+          rot.textContent = nome;
+          col.appendChild(rot);
+          fs.appendChild(col);
+        });
+        caixa.appendChild(fs);
+      } else {
+        var bs = el('div', 'botoes');
+        bs.style.gridTemplateColumns =
+          'repeat(' + (opcoes.cols || g.cols || 2) + ',1fr)';
+        var lista = opcoes.corte ? g.botoes.slice(0, opcoes.corte) : g.botoes;
+        lista.forEach(function(b, k){
+          var d = el('div', 'b' + (k === g.aceso ? ' aceso' : '')
+                              + (g.cenas ? ' cena' : ''));
+          d.innerHTML = '<em style="background:' + b[1] + '"></em><span>'
+            + b[0] + '</span>';
+          bs.appendChild(d);
+        });
+        caixa.appendChild(bs);
+      }
+      alvo.appendChild(caixa);
+    });
+  }
+  painel(document.getElementById('painel'));
+
+  // No alto da página o painel divide a largura com as faixas, então ele
+  // vira uma coluna só, com os grupos que se reconhecem de relance.
+  painel(document.getElementById('painelHero'),
+         [grupo('MASTERS'), grupo('MASTER COLORS'), grupo('BEAM EFFECTS')],
+         { emColuna:true, cols:4, corte:8 });
+
+  // A barra do topo é a MESMA barra gerada de ui/glyphs.lua, clonada.
+  // Duas cópias no HTML seriam duas coisas para manter em dia.
+  var barra = document.querySelector('.barra');
+  var heroBarra = document.getElementById('heroBarra');
+  if (barra && heroBarra) heroBarra.appendChild(barra.cloneNode(true));
+
+  // ------------------------------------------- as telas dos recursos
+  //
+  // Cada uma mostra UM gesto, com as mesmas faixas de sempre, para o
+  // olho reconhecer que é o mesmo lugar do programa.
+  var TRES = ['BOLA P', 'SIDE ADV', 'BRAN / VERD'].map(function(nome){
+    return FAIXAS.filter(function(f){ return f.nome === nome; })[0];
+  });
+
+  faixas(document.getElementById('demoGravar'), TRES, { semNota:true });
+  var g = document.getElementById('demoGravar');
+  if (g) {
+    // ACIMA das faixas, com espaço próprio. Sobreposta, ela caía em cima
+    // do nome da primeira linha — e a primeira linha é o que se lê.
+    var pill = el('div', null,
+      'font-size:9px;color:#E5484D;letter-spacing:.12em;padding:0 0 7px 2px');
+    pill.textContent = '● GRAVANDO';
+    g.insertBefore(pill, g.firstChild);
+  }
+
+  faixas(document.getElementById('demoEditar'), TRES,
+         { semNota:true, pegas:function(f, k){ return f.nome === 'BOLA P'; } });
+
+  faixas(document.getElementById('demoSelecao'), TRES, { semNota:true,
+    marcados:function(f, k){
+      return f.nome !== 'BOLA P' || k === 0;
+    } });
+  var sel = document.getElementById('demoSelecao');
+  if (sel) {
+    sel.style.position = 'relative';
+    sel.appendChild(el('div', null,
+      'position:absolute;left:44%;right:8%;top:2px;bottom:2px;'
+      + 'border:1px solid #3D8BFD;border-radius:3px;pointer-events:none'));
+  }
+
+  // O fader: uma curva de Control Change, que é o que o programa grava.
+  var fader = document.getElementById('demoFader');
+  if (fader) {
+    var svg = '<svg viewBox="0 0 300 76" style="width:100%;height:76px">'
+      + '<rect x="0" y="0" width="300" height="76" fill="#16181D" rx="3"/>';
+    for (var y = 19; y < 76; y += 19) {
+      svg += '<line x1="0" y1="' + y + '" x2="300" y2="' + y
+           + '" stroke="#20242C"/>';
+    }
+    var pts = [], N = 90;
+    for (var i = 0; i <= N; i++) {
+      var t = i / N;
+      // Suave nas duas pontas, como a curva que o programa escreve.
+      var s = t * t * (3 - 2 * t);
+      var v = t < 0.55 ? s / 0.55 * 0.9 : 0.9 - (s - 0.55) / 0.45 * 0.55;
+      pts.push((t * 300).toFixed(1) + ',' + (70 - v * 60).toFixed(1));
+    }
+    svg += '<polyline points="' + pts.join(' ')
+        + '" fill="none" stroke="#3D8BFD" stroke-width="2"/>';
+    [0, 30, 55, 90].forEach(function(i){
+      var p = pts[i].split(',');
+      svg += '<circle cx="' + p[0] + '" cy="' + p[1]
+          + '" r="3" fill="#3D8BFD"/>';
+    });
+    svg += '<text x="6" y="12" fill="#5F6672" font-size="8"'
+        + ' font-family="sans-serif">GERAL · CC 7</text></svg>';
+    fader.innerHTML = svg;
+  }
+
+  // O "Preparar": a região vira um item do tamanho dela, com o Release
+  // All no primeiro quadradinho e os faders postos no ponto de partida.
+  // É o gesto do programa que mais poupa trabalho, e o que menos se
+  // enxerga numa lista de recursos — por isso ele é desenhado.
+  var prep = document.getElementById('demoPreparar');
+  if (prep) {
+    var s = '<svg viewBox="0 0 300 108" style="width:100%;height:108px">';
+
+    // A REGIÃO da música, na régua do REAPER.
+    s += '<rect x="0" y="0" width="300" height="13" fill="#1A1D23" rx="2"/>';
+    s += '<rect x="26" y="0" width="248" height="13" fill="#2E5E8A"'
+      +  ' opacity=".4" rx="2"/>';
+    s += '<rect x="26" y="0" width="2" height="13" fill="#5C8CE0"/>';
+    s += '<rect x="272" y="0" width="2" height="13" fill="#5C8CE0"/>';
+    s += '<text x="34" y="9.5" fill="#C7CDD8" font-size="7.5"'
+      +  ' font-family="sans-serif" letter-spacing=".06em">AQUARELA</text>';
+
+    // O ITEM MIDI criado — do tamanho exato da região, nem um quadro a mais.
+    s += '<rect x="26" y="19" width="248" height="85" fill="#16181D"'
+      +  ' stroke="#2A2E37" rx="3"/>';
+
+    // O RELEASE ALL, no primeiro quadradinho.
+    s += '<rect x="28.5" y="21" width="3.5" height="81" fill="#E5484D" rx="1"/>';
+    s += '<text x="38" y="30" fill="#E5484D" font-size="7"'
+      +  ' font-family="sans-serif" letter-spacing=".09em">RELEASE ALL</text>';
+
+    // O ESTADO INICIAL: os botões marcados, no segundo quadradinho.
+    [['BRAN / VERD', '#8FD8A0'], ['VERM PURO', '#E05C5C'],
+     ['BOLA P', '#8B7BE8']].forEach(function(b, k){
+      var y = 37 + k * 11;
+      s += '<rect x="38" y="' + y + '" width="10" height="7" rx="1.5"'
+        +  ' fill="' + b[1] + '"/>';
+      s += '<text x="53" y="' + (y + 6) + '" fill="#8A919E" font-size="7"'
+        +  ' font-family="sans-serif">' + b[0] + '</text>';
+    });
+
+    // OS FADERS: um ponto no começo e outro no fim, prontos para curvar.
+    [['GERAL', 100], ['BEAM', 100]].forEach(function(fd, k){
+      var y = 84 + k * 13;
+      s += '<text x="38" y="' + (y - 4) + '" fill="#5F6672" font-size="6.5"'
+        +  ' font-family="sans-serif">' + fd[0] + ' · ' + fd[1] + '%</text>';
+      s += '<line x1="38" y1="' + y + '" x2="266" y2="' + y
+        +  '" stroke="#3D8BFD" stroke-width="1.5"/>';
+      s += '<circle cx="38" cy="' + y + '" r="2.6" fill="#3D8BFD"/>';
+      s += '<circle cx="266" cy="' + y + '" r="2.6" fill="#3D8BFD"/>';
+    });
+
+    s += '</svg>';
+    prep.innerHTML = s;
+  }
+
+  // As Configurações: as abas e os interruptores da aba Geral, com os
+  // nomes que estão no programa.
+  var cfg = document.getElementById('demoConfig');
+  if (cfg) {
+    var ABAS = ['Arquivo', 'Geral', 'MIDI', 'Gravação', 'Preparo',
+                'Atalhos', 'Grupos', 'Registro', 'Sobre'];
+    var AJUSTES = [
+      ['/', 'JANELA'],
+      ['Sempre visível', 1], ['Detalhes', 0], ['Dicas', 1],
+      ['/', 'BARRA DE TRANSPORTE'],
+      ['Botões de música', 1], ['Relógio', 1], ['Repetir a música', 0],
+      ['/', 'PROGRAMAÇÃO MIDI'],
+      ['Virar a página', 1], ['Ímã', 1], ['Zoom no ponteiro', 0]
+    ];
+    var caixa = el('div', 'cfg');
+    var abas = el('div', 'abas');
+    ABAS.forEach(function(nome){
+      var a = el('div', 'aba' + (nome === 'Geral' ? ' viva' : ''));
+      a.textContent = nome;
+      abas.appendChild(a);
+    });
+    var lista = el('div', 'lista');
+    AJUSTES.forEach(function(linha){
+      if (linha[0] === '/') {
+        var t = el('div', 'secao');
+        t.textContent = linha[1];
+        lista.appendChild(t);
+        return;
+      }
+      var it = el('div', 'item');
+      it.innerHTML = '<span>' + linha[0] + '</span><i class="chave'
+        + (linha[1] ? ' on' : '') + '"></i>';
+      lista.appendChild(it);
+    });
+    caixa.appendChild(abas);
+    caixa.appendChild(lista);
+    cfg.appendChild(caixa);
+  }
+  // ------------------------------ o desfazer, a busca, as teclas, o sobre
+  //
+  // Quatro partes do programa que não aparecem na Programação MIDI e
+  // que, sem desenho, viravam quatro parágrafos iguais.
+
+  var hist = document.getElementById('demoHist');
+  if (hist) {
+    [['mover 3 blocos', 'agora', 1],
+     ['esticar BOLA P', 'há 2 min', 0],
+     ['apagar CENA C', 'há 2 min', 0],
+     ['juntar 2 trechos', 'há 5 min', 0],
+     ['gravar AQUARELA', 'há 9 min', 0]].forEach(function(s){
+      var d = el('div', 'passo' + (s[2] ? ' topo' : ''));
+      d.innerHTML = '<b>' + s[0] + '</b>'
+        + (s[2] ? '<i class="zap">CTRL+Z</i>' : '')
+        + '<i class="quando">' + s[1] + '</i>';
+      hist.appendChild(d);
+    });
+  }
+
+  var busca = document.getElementById('demoBusca');
+  if (busca) {
+    var caixa = el('div', 'caixa');
+    caixa.innerHTML = 'aqua<i></i>';
+    busca.appendChild(caixa);
+    var lista = el('div', 'lista');
+    [['<em>AQUA</em>RELA', '4:12', 1],
+     ['<em>AQUA</em>RELA (acústico)', '3:48', 0],
+     ['ÁGUA DE BEBER', '2:57', 0],
+     ['SEM <em>AQUA</em>RELA — reprise', '1:20', 0]].forEach(function(r){
+      var d = el('div', 'linha' + (r[2] ? ' viva' : ''));
+      d.innerHTML = '<span>' + r[0] + '</span><span class="dur">'
+        + r[1] + '</span>';
+      lista.appendChild(d);
+    });
+    busca.appendChild(lista);
+  }
+
+  var teclas = document.getElementById('demoTeclas');
+  if (teclas) {
+    var F = [['F1','preparar'], ['F2','apagar'], ['F3','release'],
+             ['F4',''], ['F5','faixas'], ['F6','ímã'],
+             ['F7',''], ['F8','espelho'], ['F9','zoom'],
+             ['F10',''], ['F11',''], ['F12','registro']];
+    var fila = el('div', 'fila');
+    F.forEach(function(k){
+      var d = el('div', 'k' + (k[1] ? ' mapeada' : ''));
+      d.innerHTML = '<b>' + k[0] + '</b><span>' + (k[1] || '—') + '</span>';
+      fila.appendChild(d);
+    });
+    teclas.appendChild(fila);
+
+    var L = [['Q','BOLA P'], ['W','TREVO'], ['E','FLOR'], ['R','LOOP'],
+             ['A','VERM'], ['S','VERDE'], ['D','AZUL'], ['F','BRANCO'],
+             ['␣','BLACKOUT']];
+    var fila2 = el('div', 'fila');
+    L.forEach(function(k){
+      var d = el('div', 'k dofor');
+      d.innerHTML = '<b>' + k[0] + '</b><span>' + k[1] + '</span>';
+      fila2.appendChild(d);
+    });
+    teclas.appendChild(fila2);
+
+    var nota = el('div', 'nota');
+    nota.innerHTML = 'F1&ndash;F12 são do LumiBridge · '
+      + '<em>letras, números e espaço são da sua Tela Personalizada</em>';
+    teclas.appendChild(nota);
+  }
+
+  var sobre = document.getElementById('demoSobre');
+  if (sobre) {
+    // A versão instalada sai da lista de Novidades, que o publicar.lua
+    // mantém em dia. Um número escrito à mão aqui envelheceria na
+    // primeira atualização, e num desenho do programa isso se nota.
+    var topo = document.querySelector('#novidades .versao');
+    var num = topo ? topo.querySelector('.num').textContent.trim() : '1.0.0';
+    var oque = topo ? topo.querySelector('.oque').textContent.trim() : '';
+    var quando = topo ? topo.querySelector('.quando').textContent.trim() : '';
+
+    sobre.innerHTML =
+        '<div class="par"><span>Versão instalada</span><b>' + num + '</b></div>'
+      + '<div class="par"><span>Compilação</span><b>' + quando + '</b></div>'
+      + '<div class="par"><span>Licença</span><b>ativa neste computador</b></div>'
+      + '<div class="bt2">Procurar atualizações</div>'
+      + '<div class="achou">Há uma versão nova disponível.'
+      + '<b>' + (oque || 'Correções e melhorias.') + '</b></div>'
+      + '<div class="bt2 forte">Baixar e instalar</div>';
+  }
+
+})();
+</script>
 </body>
 </html>
