@@ -1,4 +1,4 @@
--- LumiBridge 1.0.3  (compilado em 2026-09-02 15:12)
+-- LumiBridge 1.0.4  (compilado em 2026-09-02 17:03)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -50,7 +50,7 @@ local Version = {}
 
 Version.MAIOR    = 1
 Version.MENOR    = 0
-Version.CORRECAO = 3
+Version.CORRECAO = 4
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -67,7 +67,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 15:12"
+Version.COMPILACAO = "2026-09-02 17:03"
 
 --- Onde o programa procura por versão nova.
 --
@@ -9280,18 +9280,27 @@ local opcoes = {
   --   relogio  a posição em minutos e segundos
   regioes = false,
   relogio = false,
-  -- COMO A PROGRAMAÇÃO MIDI ABRE, toda vez.
+  -- COMO A PROGRAMAÇÃO MIDI ABRE.
   --
   -- Quem abre a lista quase sempre vai EDITAR: quer a janela inteira
   -- para a linha do tempo, quer ver todos os controles e quer os faders
-  -- à vista. Deixar isso para o usuário rearrumar a cada abertura é
-  -- pedir três cliques que ele sempre dá do mesmo jeito.
+  -- à vista. Deixar isso para rearrumar a cada abertura é pedir três
+  -- gestos que sempre saem iguais.
   --
-  -- São três ajustes e não um, porque quem discordar de um não precisa
-  -- abrir mão dos outros. Ligados por padrão: é o modo de trabalho.
-  abrirInteira   = true,   -- sem a Tela Personalizada
-  abrirSemFiltro = true,   -- todos os controles, não só os usados
-  abrirComCC     = true,   -- os faders à vista
+  -- O LUGAR É UMA ESCOLHA ENTRE TRÊS, e não um sim/não. Era "abrir em
+  -- tela cheia", ligado ou desligado — e desligado não dizia qual dos
+  -- outros dois: em cima ou ao lado. Um sim/não para uma pergunta de
+  -- três respostas deixa a terceira sem como ser pedida.
+  --
+  --   'cima'     Tela Personalizada em cima, faixas embaixo
+  --   'lado'     as duas lado a lado
+  --   'somente'  só a Programação MIDI
+  abrirModo  = 'somente',
+  -- OS DOIS FILTROS, ditos pelo que LIGAM e não pelo que tiram: "abrir
+  -- sem filtro" acendia para dizer que não havia filtro, o que é um
+  -- interruptor aceso para anunciar uma ausência.
+  abrirFiltro = false,  -- só os controles com algo gravado
+  abrirComCC  = true,   -- as linhas de fader à vista
   -- REPETIR A REGIÃO era um botão na barra; virou só ajuste. Ligado por
   -- padrão porque programar iluminação é repetir o mesmo trecho — é o
   -- estado em que se passa quase todo o tempo, e um botão para o estado
@@ -9650,8 +9659,9 @@ function faixas.abrir()
   faixas.sel = nil
   if not faixas.modoPosto then
     faixas.modoPosto = true
-    faixas.inteira = opcoes.abrirInteira
-    faixas.todos   = opcoes.abrirSemFiltro
+    faixas.inteira = (opcoes.abrirModo == 'somente')
+    faixas.lado    = (opcoes.abrirModo == 'lado')
+    faixas.todos   = not opcoes.abrirFiltro
     faixas.comCC   = opcoes.abrirComCC
   end
   encaixe.w = 0   -- a área muda de tamanho: recalcula a escala
@@ -15009,44 +15019,61 @@ local function drawAbaAtual()
     ImGui.Dummy(ctx, 1, 10)
     grupo('PROGRAMAÇÃO MIDI')
 
-    -- COMO ELA ABRE — três ajustes, e não um.
+    -- COMO ELA ABRE.
     --
-    -- Quem abre a lista quase sempre vai editar, e sempre arrumava as
-    -- mesmas três coisas na mão: esconder a Tela Personalizada, tirar o
-    -- filtro e mostrar os faders. Agora ela já abre assim.
+    -- Quem abre a lista quase sempre vai editar, e arrumava as mesmas
+    -- coisas na mão a cada abertura. Agora ela já abre assim, e o que
+    -- for mexido depois vale até fechar o programa.
     --
-    -- Separados porque discordar de um não deve custar os outros: há
-    -- quem queira a lista sem filtro mas com a Tela Personalizada à
-    -- vista, para clicar e ver a linha aparecer.
-    local chAI, ai = ajusteToggle('Abrir em tela cheia',
-      'sem a Tela Personalizada, só a linha do tempo.',
-      opcoes.abrirInteira,
-      'Aceso, abrir a Programação MIDI esconde a Tela Personalizada e\n'
-      .. 'dá a janela inteira para as faixas. O * do teclado numérico\n'
-      .. 'alterna isso a qualquer momento.')
-    if chAI then
-      opcoes.abrirInteira = ai
-      faixas.modoPosto = nil
-      reaper.SetExtState(EXT_SECTION, 'op_abrir_inteira',
-                         ai and '1' or '0', true)
+    -- O LUGAR É UMA ESCOLHA ENTRE TRÊS, com os mesmos nomes dos três
+    -- botões do cabeçalho das faixas — quem já conhece os ícones lê a
+    -- lista e reconhece. Um sim/não deixava a opção "ao lado" sem como
+    -- ser pedida.
+    do
+      local NOMES = {
+        { 'cima',    'Tela Personalizada em cima' },
+        { 'lado',    'Tela Personalizada ao lado' },
+        { 'somente', 'Somente a Programação MIDI' },
+      }
+      local atual = 'Somente a Programação MIDI'
+      for _, m in ipairs(NOMES) do
+        if m[1] == opcoes.abrirModo then atual = m[2] end
+      end
+
+      ajuste('Onde abrir', nil, 236)
+      ImGui.SetNextItemWidth(ctx, 236)
+      if ImGui.BeginCombo(ctx, '##abrirModo', atual) then
+        for _, m in ipairs(NOMES) do
+          if ImGui.Selectable(ctx, m[2], m[1] == opcoes.abrirModo) then
+            opcoes.abrirModo = m[1]
+            faixas.modoPosto = nil
+            reaper.SetExtState(EXT_SECTION, 'op_abrir_modo', m[1], true)
+          end
+        end
+        ImGui.EndCombo(ctx)
+      end
+      dica('Onde a Programação MIDI aparece quando você a abre.\n\n'
+        .. 'Os três botões no cabeçalho das faixas mudam isso a\n'
+        .. 'qualquer momento, e o * do teclado numérico alterna entre\n'
+        .. 'ver e esconder a Tela Personalizada.')
     end
 
-    local chAF, af = ajusteToggle('Abrir sem filtro',
-      'todos os controles, e não só os que têm algo gravado.',
-      opcoes.abrirSemFiltro,
-      'Aceso, a lista abre mostrando a Tela Personalizada inteira, um\n'
-      .. 'controle por linha — inclusive os que ainda não foram usados\n'
-      .. 'nesta música. O funil no cabeçalho das faixas volta a filtrar.')
+    local chAF, af = ajusteToggle('Filtrar os controles sem uso',
+      'mostrar só o que tem algo gravado nesta música.',
+      opcoes.abrirFiltro,
+      'Aceso, a lista abre curta: só os controles usados nesta música.\n'
+      .. 'Apagado, ela traz a Tela Personalizada inteira, um controle\n'
+      .. 'por linha. O funil no cabeçalho das faixas alterna isso.')
     if chAF then
-      opcoes.abrirSemFiltro = af
+      opcoes.abrirFiltro = af
       faixas.modoPosto = nil
-      reaper.SetExtState(EXT_SECTION, 'op_abrir_sem_filtro',
+      reaper.SetExtState(EXT_SECTION, 'op_abrir_filtro',
                          af and '1' or '0', true)
     end
 
-    local chAC, ac = ajusteToggle('Abrir com os faders',
-      'as linhas de CC à vista desde o começo.', opcoes.abrirComCC,
-      'Aceso, as linhas de fader (CC) aparecem junto com as de botão.\n'
+    local chAC, ac = ajusteToggle('Mostrar os faders (CC)',
+      'as linhas de fader junto com as de botão.', opcoes.abrirComCC,
+      'Aceso, as linhas de fader (CC) aparecem desde a abertura.\n'
       .. 'O ponto do teclado numérico as esconde e mostra depois.')
     if chAC then
       opcoes.abrirComCC = ac
@@ -19771,6 +19798,9 @@ function Window.__limparAcao() state.lastAction = nil end
 --- Devolve o programa ao estado de quem acabou de abrir o script: o modo
 --- da lista ainda não foi posto nesta sessão.
 function Window.__faixasEsquecerModo() faixas.modoPosto = nil end
+function Window.__abrirModo() return opcoes.abrirModo end
+function Window.__setAbrirModo(v) opcoes.abrirModo = v; faixas.modoPosto = nil end
+function Window.__setAbrirFiltro(v) opcoes.abrirFiltro = v; faixas.modoPosto = nil end
 function Window.__faixasSemCC() return not faixas.comCC end
 function Window.__faixasComCC() return faixas.comCC end
 function Window.__confirmando() return confirmar ~= nil end
@@ -19937,14 +19967,29 @@ function Window.start()
   opcoes.repetir = reaper.GetExtState(EXT_SECTION, 'op_repetir') ~= '0'
   opcoes.zoomNoMouse = reaper.GetExtState(EXT_SECTION, 'op_zoom_mouse') == '1'
   opcoes.ima = reaper.GetExtState(EXT_SECTION, 'op_ima') ~= '0'
-  -- Ligados por padrão (~= '0'): é o modo de trabalho de quem abre a
-  -- lista, e quem quiser outro desliga uma vez e fica desligado.
-  opcoes.abrirInteira   = reaper.GetExtState(EXT_SECTION,
-                                             'op_abrir_inteira') ~= '0'
-  opcoes.abrirSemFiltro = reaper.GetExtState(EXT_SECTION,
-                                             'op_abrir_sem_filtro') ~= '0'
-  opcoes.abrirComCC     = reaper.GetExtState(EXT_SECTION,
-                                             'op_abrir_com_cc') ~= '0'
+  -- COMO A PROGRAMAÇÃO MIDI ABRE.
+  --
+  -- O padrão é o modo de trabalho: só a lista, sem filtro, faders à
+  -- vista. Quem quiser outro muda uma vez e fica.
+  opcoes.abrirModo  = reaper.GetExtState(EXT_SECTION, 'op_abrir_modo')
+  opcoes.abrirFiltro = reaper.GetExtState(EXT_SECTION,
+                                          'op_abrir_filtro') == '1'
+  opcoes.abrirComCC  = reaper.GetExtState(EXT_SECTION,
+                                          'op_abrir_com_cc') ~= '0'
+
+  -- QUEM VEM DA VERSÃO ANTERIOR tinha dois sim/não no lugar disto. Sem
+  -- traduzir, a escolha dele seria silenciosamente trocada pelo padrão —
+  -- e trocada logo na atualização, que é quando ninguém está olhando
+  -- para as configurações.
+  if opcoes.abrirModo == '' then
+    local velhoInteira = reaper.GetExtState(EXT_SECTION, 'op_abrir_inteira')
+    opcoes.abrirModo = (velhoInteira == '0') and 'cima' or 'somente'
+    local velhoSem = reaper.GetExtState(EXT_SECTION, 'op_abrir_sem_filtro')
+    if velhoSem ~= '' then opcoes.abrirFiltro = (velhoSem == '0') end
+  end
+  if opcoes.abrirModo ~= 'cima' and opcoes.abrirModo ~= 'lado' then
+    opcoes.abrirModo = 'somente'
+  end
 
   do
     local medidas = reaper.GetExtState(EXT_SECTION, 'faixas_medidas')

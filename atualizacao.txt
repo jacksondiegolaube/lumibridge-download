@@ -1,3 +1,3 @@
-1.0.3
+1.0.4
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone.lua
-A Programação MIDI lembra o modo de visualização enquanto o programa está aberto.
+Escolha em qual dos três lugares a Programação MIDI abre, e os filtros dizem o que ligam.
