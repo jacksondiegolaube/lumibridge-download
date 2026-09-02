@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LumiBridge — programação de luz dentro do REAPER</title>
+<meta name="description" content="Programe a iluminação da sua banda dentro do REAPER, usando a mesma tela do Lumikit Show. A luz acompanha a música, compasso a compasso.">
+
+<!--
+  ====================================================================
+  JÁ PREENCHIDO — nada a editar aqui.
+
+    GitHub:    jacksondiegolaube
+    WhatsApp:  5547991868073
+
+  Se algum dia mudar, procure por esses dois valores NOS LINKS lá
+  embaixo (href=...), e não neste comentário: é o link que o navegador
+  abre; o comentário é só recado para gente.
+  ====================================================================
+-->
+
+<style>
+  :root{
+    --bg:#14161A; --panel:#1C1F26; --panel2:#20242C;
+    --line:#2A2E37; --text:#D8DCE4; --dim:#7A8290;
+    --accent:#3D8BFD; --amber:#F5A524; --ok:#46A758;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);color:var(--text);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* Fundo sólido, sem backdrop-filter: o desfoque cria uma camada de
+     composição que em alguns navegadores repinta o cabeçalho fixo no
+     lugar errado ao rolar. Numa página que precisa abrir certo em
+     qualquer máquina de cliente, não vale o efeito. */
+  header{border-bottom:1px solid var(--line);position:sticky;top:0;
+    background:var(--bg);z-index:9}
+  header .wrap{display:flex;align-items:center;gap:12px;height:62px}
+  .marca{font-weight:600;letter-spacing:-.01em;font-size:17px}
+  .marca span{color:var(--dim);font-weight:400;font-size:13px;margin-left:6px}
+  header nav{margin-left:auto;display:flex;gap:24px;font-size:14px}
+  header nav a{color:var(--dim)}
+  header nav a:hover{color:var(--text);text-decoration:none}
+
+  .hero{padding:88px 0 72px;text-align:center}
+  .hero h1{font-size:clamp(32px,6vw,52px);line-height:1.12;letter-spacing:-.02em;
+    font-weight:600;max-width:16ch;margin:0 auto 22px}
+  .hero h1 em{font-style:normal;color:var(--accent)}
+  .hero p{font-size:19px;color:var(--dim);max-width:56ch;margin:0 auto 36px}
+
+  .botao{display:inline-block;background:var(--accent);color:#fff;
+    padding:15px 30px;border-radius:9px;font-weight:600;font-size:16px;
+    transition:background .15s}
+  .botao:hover{background:#5599FF;text-decoration:none}
+  .botao.fantasma{background:transparent;color:var(--text);
+    border:1px solid var(--line)}
+  .botao.fantasma:hover{background:var(--panel)}
+  .abaixo{margin-top:16px;font-size:13px;color:var(--dim)}
+
+  section{padding:64px 0;border-top:1px solid var(--line)}
+  h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--dim);font-weight:600;margin-bottom:28px}
+  h3{font-size:18px;font-weight:600;margin-bottom:8px;letter-spacing:-.01em}
+
+  .grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:20px}
+  .cartao{background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:24px}
+  .cartao p{color:var(--dim);font-size:15px}
+  .cartao .ico{width:34px;height:34px;margin-bottom:14px;display:block}
+
+  ol.passos{list-style:none;counter-reset:p}
+  ol.passos li{counter-increment:p;display:flex;gap:18px;padding:18px 0;
+    border-bottom:1px solid var(--line)}
+  ol.passos li:last-child{border-bottom:0}
+  ol.passos li::before{content:counter(p);flex:0 0 30px;height:30px;
+    background:#22304A;color:var(--accent);border-radius:50%;
+    display:grid;place-items:center;font-size:14px;font-weight:600}
+  ol.passos p{color:var(--dim);font-size:15px;margin-top:3px}
+
+  table.req{width:100%;border-collapse:collapse;font-size:15px}
+  table.req td{padding:13px 0;border-bottom:1px solid var(--line);
+    vertical-align:top}
+  table.req td:first-child{color:var(--dim);width:190px}
+  table.req tr:last-child td{border-bottom:0}
+
+  .cta{background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:38px;text-align:center}
+  .cta h3{font-size:22px;margin-bottom:10px}
+  .cta p{color:var(--dim);margin-bottom:26px;font-size:15px}
+
+  footer{border-top:1px solid var(--line);padding:34px 0;
+    color:var(--dim);font-size:13px;
+    display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between}
+
+  @media(max-width:620px){
+    header nav{display:none}
+    .hero{padding:60px 0 48px}
+    .cta{padding:28px 20px}
+  }
+</style>
+</head>
+<body>
+
+<header><div class="wrap">
+  <svg width="26" height="26" viewBox="0 0 48 48" aria-hidden="true">
+    <rect x="7"  y="8"  width="10" height="10" rx="2" fill="#2A2F3A"/>
+    <rect x="19" y="8"  width="10" height="10" rx="2" fill="#F5A524"/>
+    <rect x="31" y="8"  width="10" height="10" rx="2" fill="#2A2F3A"/>
+    <rect x="7"  y="20" width="10" height="10" rx="2" fill="#F5A524"/>
+    <rect x="19" y="20" width="10" height="10" rx="2" fill="#2A2F3A"/>
+    <rect x="31" y="20" width="10" height="10" rx="2" fill="#3D8BFD"/>
+    <rect x="7"  y="32" width="10" height="10" rx="2" fill="#2A2F3A"/>
+    <rect x="19" y="32" width="10" height="10" rx="2" fill="#3D8BFD"/>
+    <rect x="31" y="32" width="10" height="10" rx="2" fill="#2A2F3A"/>
+  </svg>
+  <div class="marca">LumiBridge<span>1.0.0</span></div>
+  <nav>
+    <a href="#recursos">O que faz</a>
+    <a href="#instalar">Instalação</a>
+    <a href="#comprar">Comprar</a>
+  </nav>
+</div></header>
+
+<div class="wrap hero">
+  <h1>A luz acompanha a <em>música</em>, compasso a compasso.</h1>
+  <p>Programe a iluminação da sua banda dentro do REAPER, usando a mesma
+     Janela Personalizada do Lumikit Show que você já conhece.</p>
+  <!-- TROQUE jacksondiegolaube -->
+  <a class="botao" href="https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-instalador.exe">Baixar para Windows</a>
+  <div class="abaixo">Instalador único · requer REAPER e Lumikit Show</div>
+</div>
+
+<section id="recursos"><div class="wrap">
+  <h2>O que ele faz</h2>
+  <div class="grade">
+    <div class="cartao">
+      <svg class="ico" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="3" y="5" width="26" height="22" rx="3" stroke="#3D8BFD" stroke-width="2"/>
+        <rect x="7" y="9"  width="7" height="6" rx="1.5" fill="#F5A524"/>
+        <rect x="18" y="9" width="7" height="6" rx="1.5" fill="#2A2F3A"/>
+        <rect x="7" y="18" width="7" height="6" rx="1.5" fill="#2A2F3A"/>
+        <rect x="18" y="18" width="7" height="6" rx="1.5" fill="#3D8BFD"/>
+      </svg>
+      <h3>A sua tela, do seu jeito</h3>
+      <p>Ele lê o arquivo <code>.form</code> exportado do Lumikit e
+         redesenha a sua Janela Personalizada — os mesmos botões, nos
+         mesmos lugares, com as mesmas cores.</p>
+    </div>
+    <div class="cartao">
+      <svg class="ico" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <rect x="3" y="8"  width="14" height="5" rx="1.5" fill="#F5A524"/>
+        <rect x="3" y="15" width="24" height="5" rx="1.5" fill="#3D8BFD"/>
+        <rect x="3" y="22" width="9"  height="5" rx="1.5" fill="#46A758"/>
+        <path d="M20 4v25" stroke="#46A758" stroke-width="2"/>
+      </svg>
+      <h3>Grava na linha do tempo</h3>
+      <p>Toque a música e opere a luz como no show. Cada clique vira MIDI
+         na timeline do REAPER, alinhado à onda — e dá para ajustar nota
+         por nota depois.</p>
+    </div>
+    <div class="cartao">
+      <svg class="ico" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+        <path d="M6 26V6l18 10-18 10z" fill="#3D8BFD"/>
+        <path d="M27 6v20" stroke="#F5A524" stroke-width="2.5"/>
+      </svg>
+      <h3>E toca sozinho no palco</h3>
+      <p>No show, dê play. A programação sai em MIDI para o Lumikit no
+         tempo exato, todas as noites igual — sem depender da sua mão
+         acertar o compasso.</p>
+    </div>
+  </div>
+</div></section>
+
+<section id="instalar"><div class="wrap">
+  <h2>Instalação</h2>
+  <ol class="passos">
+    <li><div><h3>Feche o REAPER</h3>
+      <p>Ele reescreve a própria configuração ao sair; com ele aberto a
+         instalação se perde.</p></div></li>
+    <li><div><h3>Rode o instalador</h3>
+      <p>Ele acha o REAPER sozinho e instala tudo o que precisa, inclusive
+         a extensão de tela. Avançar, avançar, concluir.</p></div></li>
+    <li><div><h3>Ative</h3>
+      <p>Na primeira abertura aparece o código da sua máquina. Mande esse
+         código no WhatsApp e digite a chave que vier de volta. Ela vale
+         para sempre e nunca precisa de internet.</p></div></li>
+  </ol>
+</div></section>
+
+<section><div class="wrap">
+  <h2>Requisitos</h2>
+  <table class="req">
+    <tr><td>Sistema</td><td>Windows 10 ou 11</td></tr>
+    <tr><td>REAPER</td><td>versão 6 ou mais nova, com a sua licença</td></tr>
+    <tr><td>Lumikit Show</td><td>com a Janela Personalizada montada e
+        exportada em <code>.form</code></td></tr>
+    <tr><td>Porta MIDI</td><td>uma porta virtual entre o REAPER e o
+        Lumikit — o loopMIDI resolve, e é grátis</td></tr>
+    <tr><td>Internet</td><td>só para baixar. O programa funciona sem
+        rede, inclusive na ativação</td></tr>
+  </table>
+</div></section>
+
+<section id="comprar"><div class="wrap">
+  <div class="cta">
+    <h3>Quer usar na sua banda?</h3>
+    <p>Cada licença vale para um computador, para sempre.<br>
+       Chame no WhatsApp e a gente conversa.</p>
+    <!-- TROQUE 5547991868073 -->
+    <a class="botao" href="https://wa.me/5547991868073?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20o%20LumiBridge.">Falar no WhatsApp</a>
+    <!-- TROQUE jacksondiegolaube -->
+    <a class="botao fantasma" style="margin-left:10px" href="https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-instalador.exe">Baixar</a>
+  </div>
+</div></section>
+
+<footer><div class="wrap" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;width:100%">
+  <div>LumiBridge · Jackson Diego Laube</div>
+  <div>REAPER e Lumikit Show são de seus respectivos donos.</div>
+</div></footer>
+
+</body>
+</html>
