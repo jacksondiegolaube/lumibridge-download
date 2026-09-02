@@ -8,7 +8,7 @@ A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
 _setembro/2026_
 
-Assistente de primeiros ajustes e manual do usu�rio em PDF.
+Assistente de primeiros ajustes e manual do usuário em PDF.
 
 ## 1.0.0
 

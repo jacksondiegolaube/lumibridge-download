@@ -66,7 +66,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 12:43"
+Version.COMPILACAO = "2026-09-02 12:46"
 
 --- Onde o programa procura por versão nova.
 --
