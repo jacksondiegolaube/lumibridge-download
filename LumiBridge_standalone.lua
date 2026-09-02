@@ -1,4 +1,4 @@
--- LumiBridge 1.0.1  (compilado em 2026-09-02 13:04)
+-- LumiBridge 1.0.2  (compilado em 2026-09-02 13:58)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -50,7 +50,7 @@ local Version = {}
 
 Version.MAIOR    = 1
 Version.MENOR    = 0
-Version.CORRECAO = 1
+Version.CORRECAO = 2
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -67,7 +67,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 13:04"
+Version.COMPILACAO = "2026-09-02 13:58"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3588,16 +3588,8 @@ function Lanes.build(layout, session, eventos, todos, contexto)
   contexto = contexto or {}
 
   --- Isto é só o que o preparo escreveu, sem nada seu por cima?
-  --
-  --  Vale também para o "ocultar CC": o botão da barra esconde as faixas
-  --  de fader nas DUAS telas, e esconder aqui é o mesmo mecanismo de
-  --  esconder o que o preparo escreveu — some da lista, entra na conta
-  --  do que está oculto, e "mostrar todos" traz de volta.
   local function soODoPreparo(linha)
-    if linha.tipo == 'fader' then
-      if contexto.semCC then return true end
-      return #linha.pontos <= 2
-    end
+    if linha.tipo == 'fader' then return #linha.pontos <= 2 end
     if contexto.releaseTag and linha.tag == contexto.releaseTag then
       local b = linha.blocos[1]
       return #linha.blocos == 1 and b
@@ -3630,7 +3622,19 @@ function Lanes.build(layout, session, eventos, todos, contexto)
             tipo = 'fader', cc = cc, canal = select(2, ccDe(e)),
             pontos = pontos or {}, blocos = {},
           }
-          if todos or not soODoPreparo(linha) then
+          -- OS FADERES SOMEM COM O BOTÃO DE CC APAGADO, e isso não
+          -- depende do filtro.
+          --
+          -- Antes "esconder CC" era um caso do "só o que o preparo
+          -- escreveu", e portanto só valia com o filtro ligado —
+          -- "mostrar todos" trazia os faderes de volta. Enquanto a lista
+          -- abria filtrada isso passava despercebido; abrindo sem
+          -- filtro, o botão de CC vira um botão que não faz nada. Dois
+          -- controles lado a lado precisam agir cada um por si.
+          if contexto.semCC then
+            escondidas = escondidas + 1
+            nomesOcultos[#nomesOcultos + 1] = linha.nome
+          elseif todos or not soODoPreparo(linha) then
             linhas[#linhas + 1] = linha
           else
             escondidas = escondidas + 1
@@ -9276,6 +9280,18 @@ local opcoes = {
   --   relogio  a posição em minutos e segundos
   regioes = false,
   relogio = false,
+  -- COMO A PROGRAMAÇÃO MIDI ABRE, toda vez.
+  --
+  -- Quem abre a lista quase sempre vai EDITAR: quer a janela inteira
+  -- para a linha do tempo, quer ver todos os controles e quer os faders
+  -- à vista. Deixar isso para o usuário rearrumar a cada abertura é
+  -- pedir três cliques que ele sempre dá do mesmo jeito.
+  --
+  -- São três ajustes e não um, porque quem discordar de um não precisa
+  -- abrir mão dos outros. Ligados por padrão: é o modo de trabalho.
+  abrirInteira   = true,   -- sem a Tela Personalizada
+  abrirSemFiltro = true,   -- todos os controles, não só os usados
+  abrirComCC     = true,   -- os faders à vista
   -- REPETIR A REGIÃO era um botão na barra; virou só ajuste. Ligado por
   -- padrão porque programar iluminação é repetir o mesmo trecho — é o
   -- estado em que se passa quase todo o tempo, e um botão para o estado
@@ -9566,7 +9582,14 @@ local faixas = {
   lado    = false,
   largura = nil,    -- largura da coluna nesse modo (nil = 42% do espaço)
   todos   = false,  -- mostrar também controles sem nada gravado
-  semCC   = false,  -- esconder as faixas de fader (botão da barra)
+  -- OS FADERES (CC) À MOSTRA.
+  --
+  -- Era `semCC`, e o botão acendia para dizer "estou escondendo". Ler um
+  -- botão aceso como uma ausência é o contrário do que qualquer botão
+  -- ensina — e o de filtro logo ao lado acende para dizer que HÁ filtro,
+  -- então os dois acesos queriam dizer coisas opostas na mesma fileira.
+  -- Aceso agora quer dizer o que se vê: os CC estão aí.
+  comCC   = true,
   -- Vista compartilhada com a forma de onda. nil = música inteira.
   vDe = nil, vAte = nil,
   escalaV = 1,       -- zoom vertical: multiplica a altura das linhas
@@ -9603,6 +9626,25 @@ local faixas = {
   selNotas = {},
   arraste = nil,    -- arrasto de borda em curso
 }
+
+--- Abre a Programação MIDI no modo escolhido em Configurações.
+--
+--  MÉTODO DA TABELA, e não função local: o corpo deste módulo está no
+--  teto de 200 locais do Lua, e uma função a mais o estourou de fato
+--  quando isto foi escrito.
+--
+--  Chamada por TODOS os lugares que abrem a lista — o botão da barra, o
+--  + e o * do numérico. Cada um deles fazia o seu próprio arranjo, e o
+--  modo em que a lista abria dependia de por onde se tinha entrado.
+function faixas.abrir()
+  faixas.abertas = true
+  faixas.at, faixas.ajustar = 0, true
+  faixas.sel = nil
+  faixas.inteira = opcoes.abrirInteira
+  faixas.todos   = opcoes.abrirSemFiltro
+  faixas.comCC   = opcoes.abrirComCC
+  encaixe.w = 0   -- a área muda de tamanho: recalcula a escala
+end
 
 -- Confirmação pendente, desenhada por nós no fim do quadro.
 local confirmar   = nil
@@ -11431,7 +11473,7 @@ local function remontarFaixas(agora, forcado)
     local assinatura = ('%d|%s|%s|%s|%s'):format(
       Timeline.revision(), tostring(region.startTime),
       tostring(region.endTime), tostring(faixas.todos),
-      tostring(faixas.semCC))
+      tostring(faixas.comCC))
     if faixas.assinatura == assinatura then return end
     faixas.assinatura = assinatura
   else
@@ -11451,7 +11493,7 @@ local function remontarFaixas(agora, forcado)
       inicio = region.startTime,
       celula = celula,
       releaseTag = rel and rel.tag or nil,
-      semCC = faixas.semCC,
+      semCC = not faixas.comCC,
       cores = faixas.cores,
       grupoDe = faixas.grupoDe,
     })
@@ -11740,11 +11782,12 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- escondendo. Veio da barra de transporte, onde era um botão de janela
   -- entre botões de janela; aqui é um filtro entre filtros.
   if botaoCabecalho('##faixasCC', nil,
-      'Filtro: esconde as linhas de fader (CC).\n\n'
+      'Mostra as linhas de fader (CC).\n\n'
+      .. 'Aceso, elas estão à vista; apagado, ficam escondidas.\n\n'
       .. 'Vale também para a área de CC do editor MIDI do REAPER —\n'
       .. 'lá depende de ele estar aberto no item certo; aqui funciona\n'
       .. 'sempre.',
-      faixas.semCC,
+      faixas.comCC,
       function(dl2, cx, cy, cor)
         -- Uma curva de automação: sobe, faz um patamar e desce.
         local pts = { { -8, 4 }, { -4, -4 }, { 0, -4 }, { 4, 3 }, { 8, 3 } }
@@ -11762,7 +11805,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     -- sempre funciona: no editor depende de ele estar aberto no item
     -- certo. A decisão de esconder é do usuário; o editor recebe o
     -- pedido e atende se puder.
-    faixas.semCC = not faixas.semCC
+    faixas.comCC = not faixas.comCC
     faixas.at = 0
     local okCC, erroCC = CCLanes.toggle()
     if not okCC then log('CC lanes do editor: ' .. tostring(erroCC)) end
@@ -14623,17 +14666,20 @@ local function drawTransportBar()
       .. 'de onda logo acima.\n\n'
       .. 'Arraste as bordas de um bloco para ajustar; Del apaga.\n'
       .. 'Roda do mouse aproxima no tempo; Ctrl + roda muda a altura.') then
-    faixas.abertas = not faixas.abertas
-    faixas.at = 0
-    faixas.sel = nil
-    -- ABRE JÁ NO TAMANHO DO CONTEÚDO, até um limite.
+    -- ABRE JÁ NO TAMANHO DO CONTEÚDO, até um limite (ver faixas.ajustar).
     --
     -- Uma altura fixa não serve: cinco masters sozinhos ocupam 170px, e
     -- com 150 a faixa abria rolando antes de mostrar a primeira linha
     -- de botão. Quem abre quer VER, não rolar. O teto evita o contrário
     -- — uma música cheia tomando a janela inteira sem ser pedido.
-    if faixas.abertas then faixas.ajustar = true end
-    encaixe.w = 0   -- a área muda de tamanho: recalcula a escala
+    if faixas.abertas then
+      faixas.abertas = false
+      faixas.sel = nil
+      faixas.at = 0
+      encaixe.w = 0
+    else
+      faixas.abrir()
+    end
   end
   ImGui.SameLine(ctx)
 
@@ -14951,6 +14997,51 @@ local function drawAbaAtual()
 
     ImGui.Dummy(ctx, 1, 10)
     grupo('PROGRAMAÇÃO MIDI')
+
+    -- COMO ELA ABRE — três ajustes, e não um.
+    --
+    -- Quem abre a lista quase sempre vai editar, e sempre arrumava as
+    -- mesmas três coisas na mão: esconder a Tela Personalizada, tirar o
+    -- filtro e mostrar os faders. Agora ela já abre assim.
+    --
+    -- Separados porque discordar de um não deve custar os outros: há
+    -- quem queira a lista sem filtro mas com a Tela Personalizada à
+    -- vista, para clicar e ver a linha aparecer.
+    local chAI, ai = ajusteToggle('Abrir em tela cheia',
+      'sem a Tela Personalizada, só a linha do tempo.',
+      opcoes.abrirInteira,
+      'Aceso, abrir a Programação MIDI esconde a Tela Personalizada e\n'
+      .. 'dá a janela inteira para as faixas. O * do teclado numérico\n'
+      .. 'alterna isso a qualquer momento.')
+    if chAI then
+      opcoes.abrirInteira = ai
+      reaper.SetExtState(EXT_SECTION, 'op_abrir_inteira',
+                         ai and '1' or '0', true)
+    end
+
+    local chAF, af = ajusteToggle('Abrir sem filtro',
+      'todos os controles, e não só os que têm algo gravado.',
+      opcoes.abrirSemFiltro,
+      'Aceso, a lista abre mostrando a Tela Personalizada inteira, um\n'
+      .. 'controle por linha — inclusive os que ainda não foram usados\n'
+      .. 'nesta música. O funil no cabeçalho das faixas volta a filtrar.')
+    if chAF then
+      opcoes.abrirSemFiltro = af
+      reaper.SetExtState(EXT_SECTION, 'op_abrir_sem_filtro',
+                         af and '1' or '0', true)
+    end
+
+    local chAC, ac = ajusteToggle('Abrir com os faders',
+      'as linhas de CC à vista desde o começo.', opcoes.abrirComCC,
+      'Aceso, as linhas de fader (CC) aparecem junto com as de botão.\n'
+      .. 'O ponto do teclado numérico as esconde e mostra depois.')
+    if chAC then
+      opcoes.abrirComCC = ac
+      reaper.SetExtState(EXT_SECTION, 'op_abrir_com_cc',
+                         ac and '1' or '0', true)
+    end
+
+    ImGui.Dummy(ctx, 1, 4)
 
     local chVira, vp = ajusteToggle('Virar a página',
       'com zoom, a vista acompanha a reprodução.', faixas.seguirCursor,
@@ -17005,9 +17096,7 @@ local function handleShortcuts()
 
     if (numerico('Key_KeypadAdd') or caractere(43))
        and not faixas.abertas then
-      faixas.abertas = true
-      faixas.at, faixas.ajustar = 0, true
-      encaixe.w = 0
+      faixas.abrir()
       log('Programação MIDI: aberta (+ do numérico)')
     end
 
@@ -17043,10 +17132,7 @@ local function handleShortcuts()
     -- entre editar a programação e apertar os botões sem tirar a mão do
     -- teclado.
     if numerico('Key_KeypadMultiply') or caractere(42) then
-      if not faixas.abertas then
-        faixas.abertas = true
-        faixas.ajustar = true
-      end
+      if not faixas.abertas then faixas.abrir() end
       faixas.inteira = not faixas.inteira
       faixas.at, encaixe.w = 0, 0
       log(('Tela Personalizada: %s (* do numérico)')
@@ -17054,11 +17140,11 @@ local function handleShortcuts()
     end
 
     if numerico('Key_KeypadDecimal', 'Key_Period') or caractere(46) then
-      faixas.semCC = not faixas.semCC
+      faixas.comCC = not faixas.comCC
       faixas.at = 0
       local ok = CCLanes.toggle()
       log(('CC %s (. do numérico)%s'):format(
-        faixas.semCC and 'ocultos' or 'visíveis',
+        faixas.comCC and 'visíveis' or 'ocultos',
         ok and '' or ' — o editor MIDI não acompanhou'))
     end
   end
@@ -17785,6 +17871,25 @@ function painel.assistOk(n)
   return painel.assistOk(1) and painel.assistOk(2) and painel.assistOk(3)
 end
 
+--- O assistente deve abrir sozinho agora?
+--
+--  SÓ NA PRIMEIRA VEZ NAQUELA MÁQUINA, E SÓ SE FALTAR ALGUMA COISA:
+--  quem já usava o programa antes desta versão não tem a marca, mas tem
+--  as respostas, e um assistente na cara dele seria trocar um problema
+--  por outro.
+--
+--  A ORDEM DA CHAMADA IMPORTA, e é por isso que ela é uma função e não
+--  um `if` solto no meio do início: ela precisa ser perguntada DEPOIS
+--  de a Tela Personalizada ser reaberta. Perguntada antes, `layout`
+--  ainda é nil, o passo 1 conta como pendente, e o assistente abre para
+--  quem tinha tudo configurado — que foi o que aconteceu na estreia.
+function painel.assistDeveAbrir()
+  if reaper.GetExtState(EXT_SECTION, 'assistente_visto') == '1' then
+    return false
+  end
+  return not painel.assistOk(painel.ASSIST_TOTAL)
+end
+
 --- Fecha o assistente e marca que ele já foi visto.
 function painel.assistFechar()
   painel.assist.aberto = false
@@ -17829,8 +17934,27 @@ end
 --  Desenhado como a tela de ativação: um cartão centrado. Texto solto no
 --  canto de uma janela vazia parece um erro; um cartão no meio parece
 --  uma etapa — e é uma etapa.
+--- Quantas regiões o projeto tem, para a tela de conferência.
+--
+--  LIDAS AQUI, e não da lista que o programa mantém em `regions`. Quem
+--  preenche aquela lista é recheckBindings, que roda DEPOIS deste
+--  portão no quadro — com o assistente aberto ela nunca chega a ser
+--  preenchida, e a última tela dizia "este projeto ainda não tem
+--  regiões" para todo mundo, inclusive para quem tinha vinte.
+--
+--  Uma leitura por ENTRADA na tela, e não uma por quadro: enumerar as
+--  regiões de um projeto grande não é de graça, e este número não muda
+--  enquanto a tela está parada na frente de alguém.
+function painel.assistContarRegioes()
+  local ok, lista = pcall(Transport.regions)
+  painel.assist.regioes = (ok and lista) and #lista or 0
+end
+
 function painel.telaDoAssistente()
   local a  = painel.assist
+  if a.passo == painel.ASSIST_TOTAL and a.regioes == nil then
+    painel.assistContarRegioes()
+  end
   local dl = ImGui.GetWindowDrawList(ctx)
   local bx, by = ImGui.GetCursorScreenPos(ctx)
   bx, by = math.floor(bx), math.floor(by)
@@ -18096,7 +18220,8 @@ function painel.telaDoAssistente()
     -- mas sem elas a janela abre sem nenhuma música para escolher, e o
     -- programa parece quebrado pelo mesmo motivo de antes.
     ImGui.SetCursorScreenPos(ctx, px, yc + 106)
-    if #regions == 0 then
+    local quantas = a.regioes or 0
+    if quantas == 0 then
       ImGui.TextColored(ctx, Theme.UI.warn,
         'Este projeto ainda não tem regiões.')
       ImGui.SetCursorScreenPos(ctx, px, yc + 124)
@@ -18106,7 +18231,7 @@ function painel.telaDoAssistente()
     else
       ImGui.TextColored(ctx, 0x777F8CFF,
         ('%d região(ões) no projeto — cada uma é uma música na barra.')
-          :format(#regions))
+          :format(quantas))
     end
   end
 
@@ -18126,7 +18251,7 @@ function painel.telaDoAssistente()
     ImGui.SetCursorScreenPos(ctx, px + pw - 224, yr + 16)
     if ImGui.Button(ctx, 'Voltar', 100, 30) then
       a.passo = a.passo - 1
-      a.recado = nil
+      a.recado, a.regioes = nil, nil
     end
   end
 
@@ -18134,7 +18259,7 @@ function painel.telaDoAssistente()
   if a.passo < painel.ASSIST_TOTAL then
     if ImGui.Button(ctx, 'Continuar', 116, 30) then
       a.passo = a.passo + 1
-      a.recado = nil
+      a.recado, a.regioes = nil, nil
       -- Relê as listas ao ENTRAR no passo que as usa: quem abriu o
       -- assistente e foi criar a porta ou a track no meio do caminho
       -- encontraria a lista de antes.
@@ -18208,6 +18333,26 @@ local function frame()
   if not chrome.lic.ativa then
     chrome.telaDeAtivacao()
     return
+  end
+
+  -- ABRIR SOZINHO É DECIDIDO NO PRIMEIRO QUADRO, e não no início.
+  --
+  -- No início a resposta dependia da ORDEM DAS LINHAS: perguntada antes
+  -- de a Tela Personalizada ser reaberta, `layout` ainda era nil, o
+  -- passo 1 contava como pendente, e o assistente abria na cara de quem
+  -- tinha tudo configurado — foi o que aconteceu com quem atualizou da
+  -- 1.0.0. Aqui não há ordem para lembrar: quando o primeiro quadro
+  -- desenha, tudo já está carregado.
+  if not painel.assist.decidido then
+    painel.assist.decidido = true
+    if painel.assistDeveAbrir() then
+      painel.assist.aberto = true
+      for n = 1, painel.ASSIST_TOTAL do
+        if not painel.assistOk(n) then painel.assist.passo = n break end
+        painel.assist.passo = painel.ASSIST_TOTAL
+      end
+      refreshDevices()
+    end
   end
 
   -- O ASSISTENTE, no lugar do programa enquanto estiver aberto.
@@ -19384,11 +19529,25 @@ function Window.__digitarChave(v) chrome.lic.digitada = v end
 function Window.__setMinimizado(v) chrome.minimizado = v end
 --- O assistente de primeiros ajustes, para os testes.
 --  Sem argumento, só conta o estado.
+--- Devolve o programa ao estado de quem acabou de abrir a janela: sem a
+--- lista de regiões, e com a revalidação ainda longe.
+--
+--  É assim que o assistente encontra o programa quando abre sozinho, e
+--  era esse estado que o teste não reproduzia — por isso ele não via o
+--  defeito da contagem de regiões.
+function Window.__comecoDeSessao()
+  regions = {}
+  quadro.recheckAt = math.huge
+end
+
+function Window.__assistDecidirDeNovo() painel.assist.decidido = false end
+function Window.__assistDeveAbrir() return painel.assistDeveAbrir() end
+function Window.__assistRegioes() return painel.assist.regioes end
 function Window.__assistente(abrir, passo)
   if abrir ~= nil then
     painel.assist.aberto = abrir
     painel.assist.passo  = passo or 1
-    painel.assist.recado = nil
+    painel.assist.recado, painel.assist.regioes = nil, nil
   end
   return painel.assist.aberto, painel.assist.passo
 end
@@ -19592,7 +19751,8 @@ function Window.__ativos()
 end
 function Window.__ultimaAcao() return state.lastAction end
 function Window.__limparAcao() state.lastAction = nil end
-function Window.__faixasSemCC() return faixas.semCC end
+function Window.__faixasSemCC() return not faixas.comCC end
+function Window.__faixasComCC() return faixas.comCC end
 function Window.__confirmando() return confirmar ~= nil end
 function Window.__layoutInfo()
   return { w = layout and layout.contentWidth or 0,
@@ -19757,6 +19917,14 @@ function Window.start()
   opcoes.repetir = reaper.GetExtState(EXT_SECTION, 'op_repetir') ~= '0'
   opcoes.zoomNoMouse = reaper.GetExtState(EXT_SECTION, 'op_zoom_mouse') == '1'
   opcoes.ima = reaper.GetExtState(EXT_SECTION, 'op_ima') ~= '0'
+  -- Ligados por padrão (~= '0'): é o modo de trabalho de quem abre a
+  -- lista, e quem quiser outro desliga uma vez e fica desligado.
+  opcoes.abrirInteira   = reaper.GetExtState(EXT_SECTION,
+                                             'op_abrir_inteira') ~= '0'
+  opcoes.abrirSemFiltro = reaper.GetExtState(EXT_SECTION,
+                                             'op_abrir_sem_filtro') ~= '0'
+  opcoes.abrirComCC     = reaper.GetExtState(EXT_SECTION,
+                                             'op_abrir_com_cc') ~= '0'
 
   do
     local medidas = reaper.GetExtState(EXT_SECTION, 'faixas_medidas')
@@ -19792,31 +19960,13 @@ function Window.start()
   restoreTrack()
   state.fonts = Theme.createFonts(ImGui, ctx)
 
-  -- NA PRIMEIRA ABERTURA, o assistente na frente.
-  --
-  -- Depois de restoreDevice/restoreTrack de propósito: quem já tinha
-  -- tudo configurado antes desta versão não merece um assistente na
-  -- cara — a marca ainda não existe na máquina dele, mas as respostas
-  -- sim, e o assistente abre no passo que falta.
-  -- E SÓ SE FALTAR ALGUMA COISA. Quem já usava o programa antes desta
-  -- versão não tem a marca na máquina, mas tem as respostas — abrir um
-  -- assistente na cara dele seria trocar um problema por outro.
-  if reaper.GetExtState(EXT_SECTION, 'assistente_visto') ~= '1'
-     and not painel.assistOk(painel.ASSIST_TOTAL) then
-    painel.assist.aberto = true
-    for n = 1, painel.ASSIST_TOTAL do
-      if not painel.assistOk(n) then painel.assist.passo = n break end
-      painel.assist.passo = painel.ASSIST_TOTAL
-    end
-    refreshDevices()
-  end
-
   -- Reabre o último arquivo usado, se ainda existir.
   local last = reaper.GetExtState(EXT_SECTION, EXT_LASTFILE)
   if last and last ~= '' then
     local f = io.open(last, 'rb')
     if f then f:close() loadForm(last) end
   end
+
 
   reaper.defer(loop)
 end
