@@ -4,6 +4,12 @@ Cada versão do LumiBridge e o que mudou nela, a mais nova em cima.
 
 A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
+## 1.0.3
+
+_setembro/2026_
+
+A Programação MIDI lembra o modo de visualização enquanto o programa está aberto.
+
 ## 1.0.2
 
 _setembro/2026_

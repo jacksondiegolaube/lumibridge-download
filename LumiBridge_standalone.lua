@@ -1,4 +1,4 @@
--- LumiBridge 1.0.2  (compilado em 2026-09-02 13:58)
+-- LumiBridge 1.0.3  (compilado em 2026-09-02 15:12)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -50,7 +50,7 @@ local Version = {}
 
 Version.MAIOR    = 1
 Version.MENOR    = 0
-Version.CORRECAO = 2
+Version.CORRECAO = 3
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -67,7 +67,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 13:58"
+Version.COMPILACAO = "2026-09-02 15:12"
 
 --- Onde o programa procura por versão nova.
 --
@@ -9636,13 +9636,24 @@ local faixas = {
 --  Chamada por TODOS os lugares que abrem a lista — o botão da barra, o
 --  + e o * do numérico. Cada um deles fazia o seu próprio arranjo, e o
 --  modo em que a lista abria dependia de por onde se tinha entrado.
+--
+--  O PADRÃO VALE UMA VEZ POR SESSÃO, e não a cada abertura.
+--
+--  Impondo o modo toda vez, fechar e reabrir a lista desfazia o que
+--  acabou de ser arrumado: quem tinha ligado o filtro para achar uma
+--  linha o via desligar sozinho no minuto seguinte. Depois da primeira
+--  abertura, a lista volta como foi deixada — e fechar o programa
+--  esquece tudo, porque esse estado morre com ele.
 function faixas.abrir()
   faixas.abertas = true
   faixas.at, faixas.ajustar = 0, true
   faixas.sel = nil
-  faixas.inteira = opcoes.abrirInteira
-  faixas.todos   = opcoes.abrirSemFiltro
-  faixas.comCC   = opcoes.abrirComCC
+  if not faixas.modoPosto then
+    faixas.modoPosto = true
+    faixas.inteira = opcoes.abrirInteira
+    faixas.todos   = opcoes.abrirSemFiltro
+    faixas.comCC   = opcoes.abrirComCC
+  end
   encaixe.w = 0   -- a área muda de tamanho: recalcula a escala
 end
 
@@ -15015,6 +15026,7 @@ local function drawAbaAtual()
       .. 'alterna isso a qualquer momento.')
     if chAI then
       opcoes.abrirInteira = ai
+      faixas.modoPosto = nil
       reaper.SetExtState(EXT_SECTION, 'op_abrir_inteira',
                          ai and '1' or '0', true)
     end
@@ -15027,6 +15039,7 @@ local function drawAbaAtual()
       .. 'nesta música. O funil no cabeçalho das faixas volta a filtrar.')
     if chAF then
       opcoes.abrirSemFiltro = af
+      faixas.modoPosto = nil
       reaper.SetExtState(EXT_SECTION, 'op_abrir_sem_filtro',
                          af and '1' or '0', true)
     end
@@ -15037,6 +15050,10 @@ local function drawAbaAtual()
       .. 'O ponto do teclado numérico as esconde e mostra depois.')
     if chAC then
       opcoes.abrirComCC = ac
+      -- MUDOU O PADRÃO? Ele volta a valer na próxima abertura. Sem isto,
+      -- mexer no ajuste não faria nada até fechar o programa, e quem
+      -- mexeu concluiria que o ajuste não funciona.
+      faixas.modoPosto = nil
       reaper.SetExtState(EXT_SECTION, 'op_abrir_com_cc',
                          ac and '1' or '0', true)
     end
@@ -19751,6 +19768,9 @@ function Window.__ativos()
 end
 function Window.__ultimaAcao() return state.lastAction end
 function Window.__limparAcao() state.lastAction = nil end
+--- Devolve o programa ao estado de quem acabou de abrir o script: o modo
+--- da lista ainda não foi posto nesta sessão.
+function Window.__faixasEsquecerModo() faixas.modoPosto = nil end
 function Window.__faixasSemCC() return not faixas.comCC end
 function Window.__faixasComCC() return faixas.comCC end
 function Window.__confirmando() return confirmar ~= nil end
