@@ -1,4 +1,4 @@
--- LumiBridge 1.3.1b1  (compilado em 2026-09-03 09:47)
+-- LumiBridge 1.3.1b2  (compilado em 2026-09-03 09:57)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 1
+Version.BETA = 2
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 09:47"
+Version.COMPILACAO = "2026-09-03 09:57"
 
 --- Onde o programa procura por versão nova.
 --
@@ -7983,6 +7983,19 @@ Theme.UI = {
   ok          = 0x46A758FF,
   warn        = 0xF5A524FF,
 }
+
+--- Quanto separar dois botões vizinhos, em pixels.
+--
+--  O ImGui separa QUALQUER dois itens da mesma linha pelo espaçamento
+--  padrão do tema — sete pixels, o mesmo que separa palavras de uma
+--  frase. Entre dois botões isso não se lê como "dois botões", se lê
+--  como um bloco só; e num par em que um deles instala ou reinicia
+--  alguma coisa, a distância é o que evita o clique errado.
+--
+--  Vive no tema, e não como constante solta em ui/window.lua, por duas
+--  razões: é decisão de aparência como as cores acima, e aquele arquivo
+--  está no teto de 200 locais do Lua (ver CLAUDE.md).
+Theme.UI.espacoBotoes = 16
 
 --- Aplica o estilo da janela. Devolve quantas cores e variáveis foram
 --  empilhadas, para o chamador desempilhar o mesmo número.
@@ -16428,7 +16441,14 @@ local function drawAbaAtual()
     end
 
     if at.achada then
-      ImGui.SameLine(ctx)
+      -- ESPAÇO DE VERDADE ENTRE OS DOIS BOTÕES.
+      --
+      -- O SameLine sem argumento usa o espaçamento padrão do tema, sete
+      -- pixels — o mesmo que separa palavras de uma frase. Entre dois
+      -- botões isso não lê como "dois botões", lê como um bloco só, e
+      -- num par em que o segundo INSTALA alguma coisa a distância é o
+      -- que evita o clique errado.
+      ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes)
       -- O BOTÃO DIZ QUAL DOS DOIS É. Sem isso, aceitar uma versão de
       -- teste é o mesmo gesto que aceitar uma oficial, e a diferença só
       -- apareceria depois de instalada.
@@ -16460,40 +16480,61 @@ local function drawAbaAtual()
       local dl2 = ImGui.GetWindowDrawList(ctx)
       local bx, by = ImGui.GetCursorScreenPos(ctx)
       local bw = math.max(320, ImGui.GetContentRegionAvail(ctx) - 8)
-      local bh = 96
+
+      -- A ALTURA SAI DO TEXTO, e não de um número escolhido a olho.
+      --
+      -- ELA ERA 96 FIXOS, e o conteúdo não cabia: a segunda linha da
+      -- explicação ficava POR BAIXO dos botões, ilegível. A frase que
+      -- some é justamente a que diz o que fazer — o quadro inteiro
+      -- existe para dizer isso.
+      --
+      -- Um número fixo aqui só funciona enquanto a fonte e o texto não
+      -- mudam, e os dois mudam: a fonte acompanha a escala da tela, e a
+      -- frase é a primeira coisa que alguém reescreve. Medindo a linha,
+      -- o quadro cresce junto e não há como voltar a cortar.
+      local medir = Compat.get(ImGui, 'GetTextLineHeight')
+      local ok, linha = pcall(medir, ctx)
+      linha = (ok and type(linha) == 'number' and linha > 0) and linha or 17
+
+      local PAD, ALTURA_BOTAO = 14, 26
+      local bh = PAD + linha            -- o título
+                 + 8 + linha * 2        -- as duas linhas da explicação
+                 + 14 + ALTURA_BOTAO    -- os botões
+                 + PAD
+
       ImGui.DrawList_AddRectFilled(dl2, bx, by, bx + bw, by + bh,
                                    0x14171CFF, 8)
       ImGui.DrawList_AddRect(dl2, bx, by, bx + bw, by + bh,
                              0x3A4150FF, 8, 0, 1)
 
-      ImGui.SetCursorScreenPos(ctx, bx + 16, by + 12)
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + PAD)
       ImGui.TextColored(ctx, Theme.UI.accent, at.reiniciar)
 
-      ImGui.SetCursorScreenPos(ctx, bx + 16, by + 32)
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + PAD + linha + 8)
       ImGui.TextColored(ctx, 0x8A93A3FF,
         'A versão nova já está no disco, mas quem está rodando ainda é a\n'
         .. 'anterior. O LumiBridge precisa fechar e abrir para ela valer.')
 
-      ImGui.SetCursorScreenPos(ctx, bx + 16, by + bh - 34)
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + bh - PAD - ALTURA_BOTAO)
 
       -- REINICIAR SOZINHO SÓ SE HOUVER COMO. Sem a identidade da ação,
       -- não há o que chamar de volta — e um botão que promete reabrir e
       -- só fecha é pior que nenhum, porque a pessoa fica olhando para a
       -- tela vazia esperando.
       if chrome.cmdID and chrome.cmdID ~= 0 then
-        if ImGui.Button(ctx, 'Reiniciar agora', 150, 26) then
+        if ImGui.Button(ctx, 'Reiniciar agora', 150, ALTURA_BOTAO) then
           chrome.reiniciar = true
           chrome.fechar    = true
         end
-        ImGui.SameLine(ctx)
-        if ImGui.Button(ctx, 'Mais tarde', 120, 26) then
+        ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes)
+        if ImGui.Button(ctx, 'Mais tarde', 120, ALTURA_BOTAO) then
           at.reiniciar = nil
         end
       else
         ImGui.TextColored(ctx, 0x8A93A3FF,
           'Feche esta janela e abra o LumiBridge de novo.')
-        ImGui.SameLine(ctx)
-        if ImGui.Button(ctx, 'Entendi', 100, 26) then at.reiniciar = nil end
+        ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes)
+        if ImGui.Button(ctx, 'Entendi', 100, ALTURA_BOTAO) then at.reiniciar = nil end
       end
 
       ImGui.SetCursorScreenPos(ctx, bx, by + bh + 8)
@@ -16550,7 +16591,12 @@ local function drawAbaAtual()
     ImGui.TextColored(ctx, Theme.UI.textDim,
                       chrome.lic.idInstalacao or 'máquina não identificada')
     if chrome.lic.idInstalacao then
-      ImGui.SameLine(ctx)
+      -- MAIS FOLGA AQUI DO QUE ENTRE DOIS BOTÕES: à esquerda não há um
+      -- botão, há um código para LER. Com o espaçamento padrão o Copiar
+      -- encosta no último caractere do ID e os dois viram uma coisa só —
+      -- justamente quando o que se quer é conferir o código com o olho
+      -- antes de copiar.
+      ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes + 6)
       -- ALTURA ZERO É A ALTURA NATURAL DE UM QUADRO. O 20 fixo que estava
       -- aqui discordava do padding do tema, somando ao desencontro.
       if ImGui.Button(ctx, 'Copiar', 74, 0) then
