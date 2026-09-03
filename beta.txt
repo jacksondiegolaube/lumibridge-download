@@ -1,4 +1,4 @@
-1.3.1b2
+1.3.1b3
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-O aviso de reinício não corta mais o texto, e os botões ganharam espaço.
+O botão Reiniciar agora não pede mais confirmação ao REAPER.
 ID-7171-61AF

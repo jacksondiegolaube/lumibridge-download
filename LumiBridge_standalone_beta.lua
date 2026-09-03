@@ -1,4 +1,4 @@
--- LumiBridge 1.3.1b2  (compilado em 2026-09-03 09:57)
+-- LumiBridge 1.3.1b3  (compilado em 2026-09-03 10:06)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 2
+Version.BETA = 3
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 09:57"
+Version.COMPILACAO = "2026-09-03 10:06"
 
 --- Onde o programa procura por versão nova.
 --
@@ -20386,6 +20386,27 @@ local function loop()
     -- é o último: não há `defer` depois dele. A ação nova encontra o
     -- carimbo vazio, passa pela guarda e abre, com o código novo.
     if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
+      -- SEM A CAIXA DE DIÁLOGO DO REAPER.
+      --
+      -- Chamada a ação, o REAPER via que o script ainda constava como
+      -- rodando e abria a sua própria janela: "LumiBridge_standalone.lua
+      -- is running in background — terminate all instances, or launch a
+      -- new instance?". Três botões em inglês, no meio de um reinício
+      -- que o programa acabou de prometer que faria sozinho.
+      --
+      -- `set_action_options(1)` diz ao REAPER que ESTA execução pode ser
+      -- encerrada sem perguntar quando a ação for chamada de novo. É a
+      -- pergunta acima, respondida de antemão.
+      --
+      -- SÓ AQUI, e nunca ao iniciar. Ligado o tempo todo, apertar o
+      -- botão da barra de ferramentas com o LumiBridge aberto MATARIA o
+      -- programa em vez de trazer a janela para a frente — que é
+      -- justamente o caminho de volta de uma janela minimizada. Nesta
+      -- linha o programa já está terminando, então não há o que perder.
+      --
+      -- Por pcall: é uma conveniência, e nenhuma conveniência vale
+      -- derrubar o reinício em si.
+      pcall(function() reaper.set_action_options(1) end)
       reaper.Main_OnCommand(chrome.cmdID, 0)
     end
   end
