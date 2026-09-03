@@ -1,4 +1,4 @@
--- LumiBridge 1.3.1b5  (compilado em 2026-09-03 10:17)
+-- LumiBridge 1.3.1b6  (compilado em 2026-09-03 10:22)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 5
+Version.BETA = 6
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 10:17"
+Version.COMPILACAO = "2026-09-03 10:22"
 
 --- Onde o programa procura por versão nova.
 --

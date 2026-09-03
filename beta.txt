@@ -1,4 +1,4 @@
-1.3.1b5
+1.3.1b6
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-O Reiniciar agora fecha e abre o programa sozinho.
+Versão só para exercitar o botão Reiniciar agora.
 ID-7171-61AF
