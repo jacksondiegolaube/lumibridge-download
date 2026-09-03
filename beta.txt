@@ -1,4 +1,4 @@
-1.3.1b3
+1.3.1b4
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-O botão Reiniciar agora não pede mais confirmação ao REAPER.
+Outra tentativa de reiniciar sem a caixa do REAPER.
 ID-7171-61AF
