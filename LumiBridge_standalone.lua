@@ -1,4 +1,4 @@
--- LumiBridge 1.0.4  (compilado em 2026-09-02 17:03)
+-- LumiBridge 1.1.0  (compilado em 2026-09-02 22:40)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -49,8 +49,8 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 0
-Version.CORRECAO = 4
+Version.MENOR    = 1
+Version.CORRECAO = 0
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -67,7 +67,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 17:03"
+Version.COMPILACAO = "2026-09-02 22:40"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3468,6 +3468,35 @@ end
 --  @param de      onde o trecho começa
 --  @param ate     onde ele iria
 --  @return o `ate` limitado
+--- Há algo DESTA linha ocupando o trecho [t0, t1]?
+--
+--  Existe para o arrasto de um trecho para OUTRA linha. Duas notas na
+--  mesma altura ao mesmo tempo é o estado que o resto deste código
+--  evita em todo lugar (ver o "absorver" do preencher, em ui/window):
+--  na reprodução, qual delas manda é imprevisível, e a tela mostraria
+--  uma coisa enquanto a música faz outra.
+--
+--  O DESLIGAMENTO CONTA JUNTO. Ele é uma nota como qualquer outra e
+--  ocupa lugar; ignorá-lo deixaria soltar um trecho exatamente em cima
+--  do pulso que apaga a luz do vizinho.
+--
+--  @param linha    a linha de destino
+--  @param t0, t1   o trecho pretendido, em segundos
+--  @param ignorar  um bloco a não considerar (o próprio, ao remanejar)
+--  @return o bloco que atrapalha, ou nil se couber
+function Lanes.ocupado(linha, t0, t1, ignorar)
+  for _, b in ipairs((linha and linha.blocos) or {}) do
+    if b ~= ignorar then
+      local fim = (b.fecho and b.fecho.t1) or b.t1
+      -- Folga de um décimo de milésimo: encostar borda com borda é
+      -- legítimo (um trecho termina onde o outro começa) e não pode
+      -- contar como sobreposição.
+      if b.t0 < t1 - 0.0001 and fim > t0 + 0.0001 then return b end
+    end
+  end
+  return nil
+end
+
 function Lanes.limiteAte(rivais, de, ate)
   for _, r in ipairs(rivais or {}) do
     if r.t0 >= de and r.t0 < ate then ate = r.t0 end
@@ -5794,6 +5823,50 @@ function Timeline.inSession()
   return sessionOpen
 end
 
+-- ------------------------------------------------- salvar o projeto
+
+--- O projeto tem alteração não salva?
+--
+--  Serve para o botão de salvar dizer se há o que salvar, em vez de
+--  ficar sempre com a mesma cara. Se a versão do REAPER não expuser a
+--  pergunta, a resposta é "não sei" — e "não sei" aqui vira `false`,
+--  que deixa o botão neutro em vez de alarmado à toa.
+function Timeline.projetoSujo()
+  local r = api()
+  if not r.IsProjectDirty then return false end
+  local ok, sujo = pcall(r.IsProjectDirty, 0)
+  return ok and (tonumber(sujo) or 0) ~= 0
+end
+
+--- Salva o projeto do REAPER.
+--
+--  POR QUE ISTO MORA AQUI, e não em midi/transport.lua: o transporte
+--  fala sobre TEMPO (tocar, pausar, posição). Salvar é sobre o que foi
+--  ESCRITO no projeto, que é o assunto deste arquivo — inclusive a
+--  gravação que acabou de sair daqui.
+--
+--  Main_SaveProject salva calado num projeto que já tem arquivo, e abre
+--  o "salvar como" na primeira vez. É o mesmo comportamento do Ctrl+S
+--  do REAPER, que é o que a pessoa espera do gesto.
+--
+--  A queda para Main_OnCommand(40026) existe pelos simuladores dos
+--  testes e por qualquer instalação sem a função nomeada: a ação 40026
+--  é o mesmo "File: Save project".
+--
+--  @return true se deu para pedir o salvamento
+function Timeline.salvarProjeto()
+  local r = api()
+  if r.Main_SaveProject then
+    local ok = pcall(r.Main_SaveProject, 0, false)
+    if ok then return true end
+  end
+  if r.Main_OnCommand then
+    local ok = pcall(r.Main_OnCommand, 40026, 0)
+    if ok then return true end
+  end
+  return false
+end
+
 --- Roda uma edição dentro de um ponto de desfazer PRÓPRIO.
 --
 --  POR QUE NÃO BASTAVA beginSession/endSession. Aquele par existe para a
@@ -6066,6 +6139,79 @@ function Timeline.nextEventQN(afterQN, pitches)
   end
 
   return melhor
+end
+
+-- --------------------------------------------- o que a automação diz
+
+--- O que a automação deste CC já diz em torno de `qn`.
+--
+--  Existe para responder UMA pergunta: escrever um ponto aqui mudaria
+--  alguma coisa? Um ponto de CC com o mesmo valor do que já vale antes
+--  dele e do que vem depois não muda a luz em lugar nenhum — aparece só
+--  na tela do usuário, como um ponto solto logo depois do movimento,
+--  pedindo uma explicação que não existe.
+--
+--  A tolerância de 4 tiques é a MESMA que Timeline.write usa para
+--  decidir que dois pontos estão "no mesmo lugar". Precisa ser a mesma:
+--  se aqui um ponto contasse como "antes" e lá como "em cima", esta
+--  função descreveria uma timeline diferente da que a escrita encontra.
+--
+--  @param cc      número do Control Change
+--  @param channel canal MIDI, 1-based (como vem do .form)
+--  @param qn      posição, em semínimas
+--  @return atual  valor do ponto que já existe EM `qn` (nil se não há)
+--  @return antes  valor do último ponto ANTES de `qn` (nil se não há)
+--  @return depois valor do primeiro ponto DEPOIS de `qn` (nil se não há)
+function Timeline.ccAoRedor(cc, channel, qn)
+  local track = Timeline.track()
+  if not track or not cc then return nil, nil, nil end
+
+  local r = api()
+  if not r.MIDI_CountEvts or not r.MIDI_GetCC then return nil, nil, nil end
+
+  local canal = (channel or 1) - 1
+  local atual, antes, depois
+  local distAntes, distDepois = math.huge, math.huge
+
+  for i = 0, r.CountTrackMediaItems(track) - 1 do
+    local item = r.GetTrackMediaItem(track, i)
+    local take = item and r.GetActiveTake(item)
+    if take and r.TakeIsMIDI(take) then
+      local p = r.MIDI_GetPPQPosFromProjQN(take, qn)
+      local _, _, ccCount = r.MIDI_CountEvts(take)
+      for n = 0, (ccCount or 0) - 1 do
+        local ok, _, _, ccPPQ, _, ch, msg2, msg3 = r.MIDI_GetCC(take, n)
+        if ok and msg2 == cc and ch == canal and ccPPQ then
+          local d = ccPPQ - p
+          if math.abs(d) < 4 then
+            atual = msg3
+          elseif d < 0 then
+            if -d < distAntes then distAntes, antes = -d, msg3 end
+          else
+            if d < distDepois then distDepois, depois = d, msg3 end
+          end
+        end
+      end
+    end
+  end
+
+  return atual, antes, depois
+end
+
+--- Escrever este ponto de CC mudaria a automação?
+--
+--  Não muda quando o valor já vale ANTES dele, o que existe no lugar
+--  (se existe) já é esse valor, e o que vem DEPOIS também é. Aí o ponto
+--  é só um marcador a mais no meio de uma linha reta.
+--
+--  Um ponto sem nada depois também não muda nada: o REAPER segura o
+--  último valor até o fim do item.
+function Timeline.ccPontoMuda(cc, channel, qn, valor)
+  local atual, antes, depois = Timeline.ccAoRedor(cc, channel, qn)
+  if antes ~= valor then return true end
+  if atual ~= nil and atual ~= valor then return true end
+  if depois ~= nil and depois ~= valor then return true end
+  return false
 end
 
 -- ------------------------------------------------------ punch-in de CC
@@ -6696,14 +6842,30 @@ local function acharNotaEm(pitch, tempoInicio)
   return nil
 end
 
---- Muda o início e o fim de uma nota já gravada.
+--- Muda o início e o fim de uma nota já gravada — e, se pedido, a
+--  ALTURA dela, que é o mesmo que mudar de controle.
+--
+--  POR QUE A TROCA DE ALTURA ENTRA AQUI, e não numa função à parte.
+--  Arrastar um trecho para outra linha muda as duas coisas de uma vez:
+--  a hora e o controle. Fossem duas chamadas, a primeira já teria movido
+--  a nota e a segunda a procuraria pela altura ANTIGA, que não existe
+--  mais — o mesmo tipo de erro que acharNotaEm existe para evitar. Numa
+--  chamada só, a busca acontece antes de qualquer mudança.
+--
+--  O CANAL VAI JUNTO porque cada controle do .form pode estar num canal
+--  diferente (ver core/lanes.lua). Trocar a altura e deixar o canal
+--  antigo mandaria a nota para um controle que não existe naquele canal:
+--  a luz não acenderia e a faixa mostraria a nota na linha certa.
 --
 --  @param pitch        altura da nota
 --  @param tempoInicio  onde ela começa HOJE, para reencontrá-la
 --  @param novoT0       novo início, em segundos
 --  @param novoT1       novo fim, em segundos
+--  @param novoPitch    nova altura (opcional; nil mantém a de hoje)
+--  @param novoCanal    novo canal MIDI, 1-based (opcional)
 --  @return boolean deu certo?
-function Timeline.setNoteSpan(pitch, tempoInicio, novoT0, novoT1)
+function Timeline.setNoteSpan(pitch, tempoInicio, novoT0, novoT1,
+                              novoPitch, novoCanal)
   local take, n = acharNotaEm(pitch, tempoInicio)
   if not take then return false end
 
@@ -6714,7 +6876,10 @@ function Timeline.setNoteSpan(pitch, tempoInicio, novoT0, novoT1)
   local p1 = r.MIDI_GetPPQPosFromProjTime(take, novoT1)
   if p1 <= p0 then return false end
 
-  r.MIDI_SetNote(take, n, nil, nil, p0, p1, nil, nil, nil, true)
+  -- `nil` em MIDI_SetNote quer dizer "não mexe neste campo", que é
+  -- exatamente o que se quer quando só o tempo muda.
+  local canal = novoCanal and (novoCanal - 1) or nil
+  r.MIDI_SetNote(take, n, nil, nil, p0, p1, canal, novoPitch, nil, true)
   if r.MIDI_Sort then r.MIDI_Sort(take) end
   Timeline.invalidateIndex()
   return true
@@ -8481,6 +8646,34 @@ Glyphs.juntar = { lado = 22, alfa = alfa([[
   00000000000000000000000000000000000000000000
   00000000000000000000000000000000000000000000
   00000000000000000000000000000000000000000000
+  00000000000000000000000000000000000000000000
+  00000000000000000000000000000000000000000000
+]]) }
+
+-- Salvar: o disquete, o desenho universal de "salvar". Tampa em cima,
+-- etiqueta embaixo com dois riscos. GERADO por tools/gen_glyphs.lua,
+-- como os outros desta seção — não mexa nos números.
+Glyphs.salvar = { lado = 22, alfa = alfa([[
+  00000000000000000000000000000000000000000000
+  00000000000000000000000000000000000000000000
+  00000020708080000000000000000080807020000000
+  000020efffffff0000000000000000ffffffef200000
+  000070ffffffff0000000000000000ffffffff700000
+  000080ffffffff0000000000000000ffffffff800000
+  000080ffffffff0000000000000000ffffffff800000
+  000080ffffffff1000000000000010ffffffff800000
+  000080ffffffffffffffffffffffffffffffff800000
+  000080ffffffffffffffffffffffffffffffff800000
+  000080ffffffffffffffffffffffffffffffff800000
+  000080ffffffffffffffffffffffffffffffff800000
+  000080ffffff10000000000000000010ffffff800000
+  000080ffffff00000000000000000000ffffff800000
+  000080ffffff0000ffffffffffff0000ffffff800000
+  000080ffffff00000000000000000000ffffff800000
+  000080ffffff0000ffffffffffff0000ffffff800000
+  000070ffffff00000000000000000000ffffff700000
+  000020efffff10000000000000000010ffffef200000
+  00000020708080808080808080808080807020000000
   00000000000000000000000000000000000000000000
   00000000000000000000000000000000000000000000
 ]]) }
@@ -11978,6 +12171,12 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   faixas.sobNome = nil
   faixas.sobLinha = nil
 
+  -- O DESTINO DE UM ARRASTO É DECIDIDO A CADA QUADRO, na varredura das
+  -- linhas logo abaixo. Zerado aqui de propósito: o ponteiro pode ter
+  -- saído da lista desde o quadro anterior, e um destino velho soltaria
+  -- a nota numa linha que já não é a apontada.
+  if faixas.arraste then faixas.arraste.destino = nil end
+
   local yLinha = yc - faixas.rolagem
   local alturaTotal = 0
   local acertou = nil          -- { linha, bloco, parte } sob o mouse
@@ -12033,6 +12232,24 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         and Session.isActive(session, elNome, linha.tag) or false
       linha.ligado = ligado
       linha.momentaneo = (elNome and elNome.momentary) or false
+
+      -- A LINHA SOB O PONTEIRO GANHA UMA TARJA.
+      --
+      -- É o par da clareada do bloco (mais abaixo): a tarja atravessa a
+      -- faixa inteira, do nome até a borda direita, e é ela que liga o
+      -- que está debaixo do ponteiro ao nome lá na esquerda. Com vinte
+      -- linhas de dezoito pixels, seguir a linha com o olho até a coluna
+      -- de nomes era contar linhas — e contar errado uma vez já basta
+      -- para apagar a nota do controle vizinho.
+      --
+      -- FRACA de propósito (5% de branco): o que precisa aparecer é a
+      -- programação, não a tarja. Ela responde "esta linha", e quem diz
+      -- "esta nota" é a clareada do bloco.
+      local sobreEsta = sobreCorpo and my >= yLinha and my < yLinha + h
+      if sobreEsta then
+        ImGui.DrawList_AddRectFilled(dl, x0, yLinha, x0 + largura,
+                                     yLinha + h, 0xFFFFFF0D)
+      end
 
       ImGui.DrawList_AddLine(dl, x0, yLinha + h, x0 + largura, yLinha + h,
                              0x20232AFF, 1)
@@ -12111,6 +12328,26 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         if mx < x0 + GUTTER then faixas.sobNome = linha end
         -- A LINHA SOB O MOUSE, para o duplo clique saber em qual criar.
         faixas.sobLinha = linha
+
+        -- E, COM UM TRECHO NA MÃO, A LINHA PARA ONDE ELE VAI.
+        --
+        -- Só valendo para o trecho INTEIRO (parte 'meio'): esticando uma
+        -- borda, subir de linha não quer dizer nada. E só para um trecho
+        -- por vez — levar uma seleção de cinco controles para uma linha
+        -- só transformaria cinco coisas em uma, que é perda de
+        -- informação que ninguém pediu arrastando.
+        --
+        -- Fader nunca é destino: o valor de um fader é uma posição numa
+        -- rampa, não um trecho ligado/desligado, e uma nota lá dentro
+        -- não teria como ser tocada.
+        if faixas.arraste and faixas.arraste.parte == 'meio'
+           and not faixas.arraste.grupo
+           and linha.tipo ~= 'fader' and linha.pitch
+           and linha ~= faixas.arraste.linha then
+          faixas.arraste.destino  = linha
+          faixas.arraste.destinoY = yLinha
+          faixas.arraste.destinoH = h
+        end
       end
 
       -- ARRASTAR O NOME DE UM FADER MOVE O FADER.
@@ -12337,8 +12574,38 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         for _, b in ipairs(linha.blocos) do
           local bx0, bx1 = xDe(b.t0), xDe(b.t1)
           if bx1 - bx0 < 2 then bx1 = bx0 + 2 end
+
+          -- A COR DO BLOCO RESPONDE AO PONTEIRO.
+          --
+          -- Numa música cheia são dezenas de retângulos coloridos em
+          -- linhas de dezoito pixels, e descobrir de qual controle é o
+          -- que está sob o ponteiro exigia seguir a linha com o olho até
+          -- a coluna de nomes, contando linhas. O bloco sob o ponteiro
+          -- clareia; a linha inteira ganha uma tarja fraca (mais acima),
+          -- e as duas juntas ligam o bloco ao nome sem contar nada.
+          --
+          -- Clarear, e não contornar: contorno já quer dizer duas coisas
+          -- aqui (branco = alvo dos atalhos, azul = vai junto), e uma
+          -- terceira borda no mesmo lugar não seria lida como "o mouse
+          -- está aqui".
+          local corB = cor
+          if sobreEsta and mx > x0 + GUTTER
+             and mx >= bx0 - 2 and mx <= bx1 + 2 then
+            corB = Theme.rgba(Model.shade(linha.cor or
+                     { r = 107, g = 114, b = 128 }, 0.32))
+          end
+
+          -- SAINDO PARA OUTRA LINHA: o bloco fica só como sombra de onde
+          -- ele estava, e o desenho cheio aparece na linha de destino
+          -- (ver o fantasma, depois do laço). Mostrar os dois cheios
+          -- faria parecer que a nota foi duplicada.
+          if faixas.arraste and faixas.arraste.bloco == b
+             and faixas.arraste.destino then
+            corB = (cor & 0xFFFFFF00) | 0x38
+          end
+
           ImGui.DrawList_AddRectFilled(dl, bx0, yLinha + 3, bx1,
-                                       yLinha + h - 3, cor, 2)
+                                       yLinha + h - 3, corB, 2)
 
           -- TERMINADOR: barra clara e um pouco mais alta na borda,
           -- onde VOCÊ desligou o controle.
@@ -12409,6 +12676,39 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     end
 
     yLinha = yLinha + h
+  end
+
+  -- O FANTASMA: onde o trecho vai cair, na linha de destino.
+  --
+  -- DEPOIS DO LAÇO de propósito. A linha de destino tanto pode ter sido
+  -- desenhada antes quanto depois da de origem, e desenhar o fantasma
+  -- dentro do laço o deixaria por baixo das linhas seguintes na metade
+  -- dos casos. Aqui ele fica por cima de tudo, que é o que um objeto na
+  -- mão deve fazer.
+  --
+  -- Na COR DA ORIGEM, não na do destino: o que está sendo movido
+  -- continua sendo aquele controle até o botão ser solto. Pintá-lo com a
+  -- cor do destino diria que a troca já aconteceu.
+  if faixas.arraste and faixas.arraste.destino and faixas.arraste.destinoY then
+    local a = faixas.arraste
+    local corO = a.linha.cor and Theme.rgba(a.linha.cor) or 0x6B7280FF
+    local gx0, gx1 = xDe(a.t0), xDe(a.t1)
+    if gx1 - gx0 < 2 then gx1 = gx0 + 2 end
+    local gy0, gy1 = a.destinoY + 3, a.destinoY + (a.destinoH or 18) - 3
+    -- NÃO CABE: âmbar, a mesma cor com que o resto da janela avisa. O
+    -- fantasma continua seguindo o ponteiro — some-lo esconderia por que
+    -- o gesto não vai dar em nada.
+    if a.bloqueado then
+      ImGui.DrawList_AddRectFilled(dl, gx0, gy0, gx1, gy1,
+                                   (Theme.UI.warn & 0xFFFFFF00) | 0x50, 2)
+      ImGui.DrawList_AddRect(dl, gx0 - 1, gy0 - 1, gx1 + 1, gy1 + 1,
+                             Theme.UI.warn, 2, 0, 1.6)
+    else
+      ImGui.DrawList_AddRectFilled(dl, gx0, gy0, gx1, gy1,
+                                   (corO & 0xFFFFFF00) | 0xC0, 2)
+      ImGui.DrawList_AddRect(dl, gx0 - 1, gy0 - 1, gx1 + 1, gy1 + 1,
+                             0xFFFFFFFF, 2, 0, 1.6)
+    end
   end
 
   -- ROLAGEM, com o limite calculado DEPOIS do laço: só ali se sabe a
@@ -13118,12 +13418,35 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         puxado = Lanes.imantar(faixas.linhas, puxado, escala * 8,
                                faixas.arraste.bloco)
       end
-      local t0, t1 = Lanes.arrastar(faixas.arraste.linha, faixas.arraste.bloco,
+      -- OS LIMITES SÃO OS DA LINHA DE DESTINO, quando há uma.
+      --
+      -- Trocando de linha, quem não pode ser invadido são os vizinhos DE
+      -- LÁ, não os daqui. E sai de graça: Lanes.arrastar ignora o bloco
+      -- que está na mão ao procurar vizinhos, e ele não pertence à linha
+      -- de destino — então todos os blocos de lá contam como vizinhos,
+      -- que é exatamente a regra certa. Os rivais de grupo idem: valem os
+      -- do grupo para onde a nota está indo.
+      local linhaLim = faixas.arraste.destino or faixas.arraste.linha
+      local t0, t1 = Lanes.arrastar(linhaLim, faixas.arraste.bloco,
                                     faixas.arraste.parte, puxado, minimo,
-                                    Lanes.rivais(faixas.linhas,
-                                                 faixas.arraste.linha))
+                                    Lanes.rivais(faixas.linhas, linhaLim))
       faixas.arraste.t0, faixas.arraste.t1 = t0, t1
       faixas.arraste.bloco.t0, faixas.arraste.bloco.t1 = t0, t1
+
+      -- CABE NA LINHA DE DESTINO?
+      --
+      -- Os limites acima já impedem quase toda sobreposição: eles fazem
+      -- o trecho parar no vizinho de lá. Sobra um caso que eles não
+      -- pegam — quando a posição de PARTIDA já está por cima de um bloco
+      -- do destino, ele não é nem o anterior nem o seguinte, e nada
+      -- segura. Duas notas na mesma altura ao mesmo tempo é o estado que
+      -- este código evita em todo lugar, então o gesto avisa e não
+      -- escreve: o fantasma fica âmbar e soltar ali não faz nada.
+      local reserva = faixas.arraste.bloco.fecho
+        and (faixas.arraste.bloco.fecho.t1 - faixas.arraste.bloco.fecho.t0)
+        or 0
+      faixas.arraste.bloqueado = faixas.arraste.destino ~= nil
+        and Lanes.ocupado(faixas.arraste.destino, t0, t1 + reserva) ~= nil
 
       -- O GRUPO ANDA PELO MESMO TANTO, e é isso que se vê arrastando.
       --
@@ -13157,8 +13480,28 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- SÓ ESCREVE SE MUDOU. Um clique na borda sem arrastar é um
       -- clique de seleção, e gastar um passo de desfazer com ele
       -- entulharia o histórico de coisa nenhuma.
-      if math.abs(a.t0 - a.origem) > 0.001
-         or math.abs(a.t1 - a.origemT1) > 0.001 then
+      -- TROCAR DE LINHA TAMBÉM É MUDANÇA, mesmo sem andar um milésimo
+      -- no tempo: soltar o trecho na linha de cima, na mesma hora, é o
+      -- gesto de "isto era o controle errado".
+      -- RECONFERIDO AQUI, e não lido de `a.bloqueado`.
+      --
+      -- Aquele é o estado do último quadro de ARRASTO, e serve para
+      -- pintar o fantasma. Este é o do quadro em que o botão foi solto —
+      -- e é o destino deste instante que decide, não o do anterior.
+      if a.destino and Lanes.ocupado(a.destino, a.t0,
+           a.t1 + (a.bloco.fecho
+                   and (a.bloco.fecho.t1 - a.bloco.fecho.t0) or 0)) then
+        -- SOLTO EM CIMA DE OUTRO TRECHO: nada é escrito, e o registro
+        -- diz por quê. O `faixas.at = 0` devolve o bloco ao lugar — a
+        -- prévia do arrasto mexeu nas posições da lista, e sem remontar
+        -- ele ficaria na tela onde a mão o largou, sem estar lá na
+        -- música.
+        log(('%s não coube em %s: já há um trecho nesse instante')
+          :format(a.linha.nome, a.destino.nome))
+        faixas.at = 0
+      elseif math.abs(a.t0 - a.origem) > 0.001
+         or math.abs(a.t1 - a.origemT1) > 0.001
+         or a.destino then
         local fecho
         -- DECLARADO AQUI, e não dentro do closure: lá dentro ele era um
         -- local novo, e o `if` abaixo lia o `ok` do pcall do botão
@@ -13180,13 +13523,28 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- Primeiro o pulso, depois a nota: movendo a nota antes, o fim
         -- dela passaria por cima do pulso na posição antiga, e a busca
         -- por posição poderia achar o alvo errado.
+        --
+        -- E O PULSO TROCA DE LINHA JUNTO. Ele é uma nota na mesma altura
+        -- da que fecha; deixá-lo para trás apagaria a luz do controle
+        -- ANTIGO num instante em que ninguém mais o ligou, e o controle
+        -- novo ficaria aceso até o fim da música.
+        --
+        -- A ALTURA NOVA VAI NA MESMA CHAMADA que move o tempo. Fossem
+        -- duas, a primeira já teria trocado a altura e a segunda
+        -- procuraria a nota pela altura antiga, que não existe mais —
+        -- ver Timeline.setNoteSpan.
+        local pitchNovo = a.destino and a.destino.pitch or nil
+        local canalNovo = a.destino and a.destino.canal or nil
+
         fecho = a.bloco.fecho
         if fecho then
           Timeline.setNoteSpan(a.linha.pitch, fecho.t0, a.t1,
-                               a.t1 + (fecho.t1 - fecho.t0))
+                               a.t1 + (fecho.t1 - fecho.t0),
+                               pitchNovo, canalNovo)
         end
 
-        certo = Timeline.setNoteSpan(a.linha.pitch, a.origem, a.t0, a.t1)
+        certo = Timeline.setNoteSpan(a.linha.pitch, a.origem, a.t0, a.t1,
+                                     pitchNovo, canalNovo)
 
         -- E O RESTO DA SELEÇÃO, pelo mesmo delta — movida ou esticada.
         --
@@ -13243,10 +13601,20 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         end
 
         if certo then
-          faixas.sel = { tag = a.linha.tag, pitch = a.linha.pitch, t0 = a.t0 }
+          -- A SELEÇÃO SEGUE A NOTA PARA A LINHA NOVA. Guardá-la na
+          -- linha de origem deixaria o contorno branco num lugar onde
+          -- não há mais nada, e o Del seguinte apagaria o vizinho.
+          local ficou = a.destino or a.linha
+          faixas.sel = { tag = ficou.tag, pitch = ficou.pitch, t0 = a.t0 }
           if not a.grupo then
-            log(('%s ajustado: %s → %s'):format(a.linha.nome,
-                  Transport.formatTime(a.t0), Transport.formatTime(a.t1)))
+            -- O REGISTRO DIZ DE ONDE PARA ONDE quando a linha muda:
+            -- "ajustado" não descreve uma nota que trocou de controle, e
+            -- é a informação que se procura ao desconfiar do gesto.
+            log(a.destino
+              and ('%s → %s: %s → %s'):format(a.linha.nome, a.destino.nome,
+                    Transport.formatTime(a.t0), Transport.formatTime(a.t1))
+              or ('%s ajustado: %s → %s'):format(a.linha.nome,
+                    Transport.formatTime(a.t0), Transport.formatTime(a.t1)))
           end
         else
           log('não consegui ajustar a nota: ela não está mais onde estava')
@@ -13559,8 +13927,14 @@ local function transportButton(kind, ativo, textoDica, distintivo)
   -- 'cc': `ativo` aqui significa "CC lanes ocultas agora", não "botão
   -- pressionado" — o aviso já é o risco em cima do ícone (ver abaixo),
   -- então o fundo fica neutro em vez de ganhar o destaque azul.
+  --
+  -- 'salvar': `ativo` significa "há alteração não salva", que também não
+  -- é "botão pressionado". O azul do fundo é a marca dos botões que
+  -- ficam LIGADOS (faixas abertas, configurações abertas) e diria a
+  -- coisa errada aqui. Quem avisa é a COR DO ÍCONE, âmbar, o mesmo
+  -- caminho que o alerta já usa logo abaixo.
   local fundo = Theme.UI.panel
-  if ativo and kind ~= 'cc' then
+  if ativo and kind ~= 'cc' and kind ~= 'salvar' then
     fundo = (kind == 'rec') and Theme.UI.rec or Theme.UI.accent
   elseif hovered then
     fundo = Theme.UI.panelHover
@@ -13572,6 +13946,7 @@ local function transportButton(kind, ativo, textoDica, distintivo)
   local cor = 0xE6E9EFFF
   if kind == 'rec' and not ativo then cor = 0xE5484DFF end
   if kind == 'alerta' then cor = Theme.UI.warn end
+  if kind == 'salvar' and ativo then cor = Theme.UI.warn end
 
   local cx, cy = x + D * 0.5, y + D * 0.5
 
@@ -14044,21 +14419,48 @@ local function stopRecording()
       -- — exatamente o buraco que essa funcionalidade existe pra
       -- fechar.
       if recorder and session and next(manualCursor) then
-        local fechados = 0
+        local fechados, semPonto = 0, 0
         for tag, desde in pairs(manualCursor) do
           local e = session.byTag[tag]
           if e and desde < fim then
             local valor = math.floor(Session.faderValue(session, e) * 127 + 0.5)
+            -- A intenção é montada antes da decisão porque é dela que
+            -- saem o CC e o canal deste fader — quem conhece esse
+            -- mapeamento é o core/recorder, não esta janela.
             local escritas = Recorder.fader(recorder, e, fim, valor)
             if #escritas > 0 then
-              Timeline.clearCCRange(escritas[1].cc, escritas[1].channel, desde, fim)
-              Timeline.write(escritas)
-              fechados = fechados + 1
+              local cc, canal = escritas[1].cc, escritas[1].channel
+              Timeline.clearCCRange(cc, canal, desde, fim)
+
+              -- O PONTO DO STOP SÓ ENTRA SE MUDAR ALGUMA COISA.
+              --
+              -- A limpeza acima é o que fecha o buraco: entre o seu
+              -- último toque e o Stop, a automação antiga sai. O ponto
+              -- só é necessário quando existe algo DEPOIS do Stop com
+              -- outro valor — aí ele segura a linha reta até aqui, em
+              -- vez de deixá-la subir de longe rumo ao ponto seguinte.
+              --
+              -- Quando não há nada depois (ou o que há já é este mesmo
+              -- valor), ele não muda nada: o REAPER segura o último
+              -- valor sozinho. E aí ele era só um ponto solto logo
+              -- depois de cada movimento, em toda gravação — o que o
+              -- usuário via como "sempre cria um ponto depois da
+              -- curva". Era este.
+              if Timeline.ccPontoMuda(cc, canal, fim, valor) then
+                Timeline.write(escritas)
+                fechados = fechados + 1
+              else
+                semPonto = semPonto + 1
+              end
             end
           end
         end
-        if fechados > 0 then
-          log(('%d fader(es) manual(is) fechado(s) no stop'):format(fechados))
+        if fechados > 0 or semPonto > 0 then
+          log(('%d fader(es) manual(is) fechado(s) no stop%s'):format(fechados,
+            semPonto > 0
+              and (' | %d sem ponto novo: a linha já valia ali')
+                  :format(semPonto)
+              or ''))
         end
       end
     end
@@ -14557,6 +14959,30 @@ local function drawTransportBar()
       ('Refazer   Ctrl+Shift+Z%s'):format(
         rotuloDoDesfazer(true))) then
     desfazerOuRefazer(true)
+  end
+
+  -- SALVAR O PROJETO DO REAPER, sem sair daqui.
+  --
+  -- Fica ao lado do desfazer porque é da mesma família: as três mexem no
+  -- projeto inteiro, e não na luz que está tocando. O Release, ao lado,
+  -- é o único do grupo que age AGORA, na lâmpada.
+  --
+  -- O ícone fica ÂMBAR quando há alteração não salva. É a única maneira
+  -- de a barra responder "já salvei isso?" sem que ninguém precise
+  -- perguntar — e no meio de um show essa pergunta aparece muito.
+  ImGui.SameLine(ctx)
+  local sujo = Timeline.projetoSujo()
+  if transportButton('salvar', sujo,
+      ('Salvar o projeto   Ctrl+S\n%s'):format(sujo
+        and 'Há alterações não salvas.'
+        or 'Nada mudou desde o último salvamento.')) then
+    -- SEM FUNÇÃO PRÓPRIA, de propósito: o corpo deste módulo está no
+    -- teto de 200 locais do Lua e um `local function` novo em coluna
+    -- zero come uma das poucas vagas que sobram (ver PROJECT_CONTEXT).
+    -- A ação inteira cabe numa linha, e o outro lugar que salva
+    -- (Ctrl+S, no bloco de teclado) repete a mesma linha.
+    log(Timeline.salvarProjeto() and 'projeto salvo'
+        or 'não deu para salvar: o REAPER não aceitou o pedido')
   end
 
   ImGui.SameLine(ctx)
@@ -17360,6 +17786,23 @@ local function handleShortcuts()
       if recording then stopRecording() else startRecording() end
     end
 
+    -- CTRL+S SALVA O PROJETO, como em qualquer programa.
+    --
+    -- Com a janela do LumiBridge em foco o REAPER não vê as teclas, e o
+    -- Ctrl+S do reflexo de todo mundo não fazia nada — o gesto mais
+    -- automático que existe, e justamente o que se quer fazer depois de
+    -- gravar um trecho no meio de um show.
+    --
+    -- Passa por pressedFree como os outros: se o .form mapear a letra S
+    -- num botão, a tela manda e o atalho abre mão dela. (Na prática o
+    -- Ctrl já separa os dois — ver o bloco logo abaixo, onde as teclas
+    -- da tela são ignoradas com Ctrl segurado —, mas a porta é a mesma
+    -- para todo atalho daqui.)
+    if ctrlDown and pressedFree('Key_S', 83) then
+      log(Timeline.salvarProjeto() and 'projeto salvo (Ctrl+S)'
+          or 'não deu para salvar: o REAPER não aceitou o pedido')
+    end
+
     -- AO COMEÇO DA MÚSICA, na seta esquerda. Voltar ao início é o gesto
     -- mais repetido de quem programa — ouve o trecho, ajusta, volta,
     -- ouve de novo —, e uma tecla só é melhor que um acorde para algo
@@ -19599,6 +20042,16 @@ end
 --- Simula uma leitura de gesto de fader, como o arrasto faz.
 --  Existe para tests/test_window_record.lua poder parar a gravação com
 --  um gesto PENDENTE e provar que ele não se perde.
+--
+--  `valor` é a POSIÇÃO do fader (0 a 1), como o arrasto entrega, e o
+--  ponto guardado é o CC correspondente (0 a 127) — igual ao caminho de
+--  verdade, que passa por Session.setFader e grava `intent.faderValue`.
+--
+--  MEXER NA SESSÃO TAMBÉM FAZ PARTE DA SIMULAÇÃO. Enquanto este atalho
+--  só empilhava leituras, o fader da tela continuava onde estava: o
+--  gesto gravava um valor e o programa acreditava em outro, o que
+--  escondia todo defeito que dependa dos dois combinarem — o ponto do
+--  stop, por exemplo, sai da posição do fader na tela.
 function Window.__gestoFader(tag, valor)
   local e = session and session.byTag[tag]
   if not e then return false end
@@ -19607,8 +20060,10 @@ function Window.__gestoFader(tag, valor)
     mov = { element = e, pontos = {} }
     faderMov[tag] = mov
   end
+  Session.setFader(session, e, valor)
   local rc = context()
-  mov.pontos[#mov.pontos + 1] = { qn = rc.qn, value = valor }
+  mov.pontos[#mov.pontos + 1] =
+    { qn = rc.qn, value = Session.faderCC(session, tag) }
   mov.ultimo = reaper.time_precise and reaper.time_precise() or 0
   return true
 end
