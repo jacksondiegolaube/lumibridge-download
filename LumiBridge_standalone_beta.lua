@@ -1,4 +1,4 @@
--- LumiBridge 1.4.0b3  (compilado em 2026-09-03 15:19)
+-- LumiBridge 1.4.0b4  (compilado em 2026-09-03 15:55)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 3
+Version.BETA = 4
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 15:19"
+Version.COMPILACAO = "2026-09-03 15:55"
 
 --- Onde o programa procura por versão nova.
 --
@@ -8080,8 +8080,13 @@ end
 Theme.UI = {
   bg          = 0x14161AFF,
   panel       = 0x1C1F26FF,
-  panelHover  = 0x252932FF,
-  panelActive = 0x2E333EFF,
+  -- O REALCE PRECISA SER VISTO. Estes dois eram 0x252932 e 0x2E333E —
+  -- nove pontos de cinza acima do painel (0x1C1F26), diferença que na
+  -- tela some: passar o mouse sobre uma linha de ajuste ou um botão não
+  -- se lia como realce nenhum. Clareados para o passo ser o dobro, sem
+  -- chegar a virar um bloco branco no meio do escuro.
+  panelHover  = 0x30353FFF,
+  panelActive = 0x3C4351FF,
   border      = 0x000000FF,
   text        = 0xD8DCE4FF,
   textDim     = 0x7A8290FF,
@@ -10115,6 +10120,11 @@ local faixas = {
   acionar   = {},
   segurando = {},   -- quem está com o nome pressionado, por tag
   arrasteFader = nil, -- fader sendo puxado pelo nome { tag, x0, v0 }
+  -- NOTA SENDO CRIADA POR ARRASTO no vazio de uma linha de botão:
+  -- { linha, t0, t1, mx0, y, h, arrastou }. Vira nota ao soltar, e só
+  -- se o ponteiro tiver andado — senão o gesto era o clique que leva o
+  -- cursor. Ver a criação por arrasto no corpo das faixas.
+  criando = nil,
   sobNome = nil,    -- linha sob o mouse na coluna de nomes
   seguirCursor = true, -- com zoom, a vista salta para acompanhar o play
   menuEl    = nil,  -- elemento do .form do menu de faixa aberto
@@ -14337,7 +14347,10 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- clique simples no vazio já tem dono: leva o cursor da música.
   --
   -- Nasce com uma célula da grade, como as notas da gravação: é a menor
-  -- duração que o Lumikit distingue, e esticar depois é um arrasto.
+  -- duração que o Lumikit distingue. Para nascer já do tamanho certo,
+  -- ARRASTE no vazio em vez de dar dois cliques (ver faixas.criando) —
+  -- os dois gestos convivem, e este continua sendo o atalho de quem só
+  -- quer uma nota curta ali.
   if sobreCorpo and apertou(duplo) and not acertou and not noFader
      and mx >= x0 + GUTTER then
     -- Qual linha está sob o ponteiro, pela mesma régua que desenhou as
@@ -14468,6 +14481,79 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       faixas.selCC, faixas.selNotas = {}, {}
     else
       saltarPara(tDe(mx), false)
+
+      -- ARRASTAR NO VAZIO CRIA A NOTA DO TAMANHO ARRASTADO.
+      --
+      -- O duplo clique continua criando uma nota de uma célula; isto é
+      -- para quando já se sabe o tamanho: aperta, estica, solta — em vez
+      -- de criar pequeno e ir puxar a borda depois.
+      --
+      -- O CLIQUE SIMPLES NÃO MUDA. Só vira criação se o ponteiro andar
+      -- mais de quatro pixels com o botão apertado; abaixo disso continua
+      -- sendo o gesto de levar o cursor, que é o mais usado da tela. Por
+      -- isso o salto acima acontece do mesmo jeito: quem só clicou já
+      -- teve a resposta, e quem arrastou queria mesmo trabalhar dali.
+      local lc, hLc, yAcc = nil, 0, yc - faixas.rolagem
+      for iL, hL in ipairs((faixas.geom or {}).alturas or {}) do
+        if my >= yAcc and my < yAcc + hL then
+          lc, hLc = faixas.linhas[iL], hL
+          break
+        end
+        yAcc = yAcc + hL
+      end
+      if lc and lc.tipo ~= 'fader' and lc.pitch then
+        faixas.criando = { linha = lc, t0 = tDe(mx), mx0 = mx,
+                           y = yAcc, h = hLc, arrastou = false }
+      end
+    end
+  end
+
+  -- A CRIAÇÃO POR ARRASTO: prévia enquanto segura, escrita ao soltar.
+  --
+  -- Escrever a cada quadro encheria o desfazer de dezenas de passos para
+  -- um gesto só — mesma razão da prévia no arrasto de bloco.
+  if faixas.criando then
+    local c = faixas.criando
+    if ativoCorpo then
+      if math.abs(mx - c.mx0) > 4 then c.arrastou = true end
+      c.t1 = tDe(mx)
+      if c.arrastou then
+        local pa, pb = math.min(c.t0, c.t1), math.max(c.t0, c.t1)
+        ImGui.DrawList_AddRectFilled(dl, xDe(pa), c.y + 3,
+          xDe(pb), c.y + c.h - 3, 0x3D8BFD55, 3)
+        ImGui.DrawList_AddRect(dl, xDe(pa), c.y + 3,
+          xDe(pb), c.y + c.h - 3, Theme.UI.accent, 3, 0, 1)
+      end
+    else
+      if c.arrastou and region and c.t1 then
+        local celula = Timeline.qnToTime(Timeline.timeToQN(region.startTime)
+                                         + Timeline.projectGrid())
+                       - region.startTime
+        local a, b = math.min(c.t0, c.t1), math.max(c.t0, c.t1)
+        if opcoes.ima then
+          local imas = Transport.markerTimes(regions)
+          a = Lanes.imantar(faixas.linhas, a, escala * 8, nil, imas)
+          b = Lanes.imantar(faixas.linhas, b, escala * 8, nil, imas)
+        end
+        -- Uma célula da grade é o piso, como em toda borda daqui: abaixo
+        -- disso o Lumikit não distingue, e um arrasto trêmulo viraria
+        -- uma nota de duração zero.
+        local minimo = math.max(celula, 0.05)
+        if b - a < minimo then b = a + minimo end
+
+        local criou = false
+        Timeline.editar('LumiBridge: criar nota', function()
+          criou = Timeline.inserirNota(c.linha.pitch, c.linha.canal, a, b)
+        end)
+        if criou then
+          log(('%s: nota criada de %s a %s'):format(c.linha.nome,
+            Transport.formatTime(a), Transport.formatTime(b)))
+          faixas.at = 0
+        else
+          log('não consegui criar a nota: a música tem item MIDI aqui?')
+        end
+      end
+      faixas.criando = nil
     end
   end
 
@@ -15741,6 +15827,7 @@ local function drawTransportBar()
     if faixas.abertas then
       faixas.abertas = false
       faixas.sel = nil
+      faixas.criando = nil
       faixas.at = 0
       encaixe.w = 0
     else
@@ -15879,6 +15966,12 @@ local function drawAbas()
     -- ali, e a aba passou a misturar duas perguntas diferentes: "qual
     -- tela estou usando" e "como o programa se comporta".
     { chave = 'geral',    titulo = 'Geral'    },
+    -- EDIÇÃO: o comportamento da ÁREA DE TRABALHO — a Programação MIDI e
+    -- as seções da música. Saiu de dentro de Geral, que tinha juntado
+    -- quinze controles de cinco assuntos diferentes numa rolagem só:
+    -- "como a janela se comporta" e "como a lista de notas se comporta"
+    -- são duas perguntas, e quem procura uma não quer ler a outra.
+    { chave = 'edicao',   titulo = 'Edição'   },
     { chave = 'midi',     titulo = 'MIDI'     },
     { chave = 'gravacao', titulo = 'Gravação' },
     { chave = 'preparo',  titulo = 'Preparo'  },
@@ -16074,6 +16167,16 @@ local function drawAbaAtual()
     end
 
     ImGui.Dummy(ctx, 1, 10)
+    grupo('TECLADO')
+
+    local chSc, sc = ajusteToggle('Atalhos',
+      'ativa as teclas da tela e as F1-F12.', opcoes.atalhos,
+      'Ativa as teclas da Tela Personalizada (A-Z, 0-9, Espaço)\n'
+      .. 'e as F1-F12\n'
+      .. 'definidas na aba Atalhos.')
+    if chSc then opcoes.atalhos = sc end
+
+  elseif abaAtual == 'edicao' then
     grupo('PROGRAMAÇÃO MIDI')
 
     -- COMO ELA ABRE.
@@ -16176,35 +16279,63 @@ local function drawAbaAtual()
     grupo('SEÇÕES DA MÚSICA')
 
     -- A PALETA DE NOMES do menu de clique direito na onda e do popup do
-    -- Ctrl+M. Editada como etiquetas: cada nome é uma pílula com um "x",
-    -- e o campo no fim acrescenta. Quem faz teatro troca por "cena 1,
-    -- blackout, coro".
+    -- Ctrl+M. Quem faz teatro troca por "cena 1, blackout, coro".
+    --
+    -- PÍLULAS DESENHADAS À MÃO, e não SmallButton com "nome  x" no
+    -- rótulo. Com o botão pronto, o "x" era só mais uma letra do texto:
+    -- não dava para saber que ele removia, não acendia ao passar o mouse
+    -- e clicar em qualquer parte do nome apagava a etiqueta. Aqui o "x"
+    -- tem zona própria à direita, acende em vermelho sob o cursor, e o
+    -- resto da pílula não faz nada — remover é destrutivo e não pode
+    -- disparar num clique em qualquer ponto.
     rotulo('Nomes prontos ao marcar uma seção.')
-    ImGui.Dummy(ctx, 1, 2)
+    ImGui.Dummy(ctx, 1, 4)
     do
       local nomes = painel.secao.nomes
       local mudou, remover = false, nil
+      local dlT = ImGui.GetWindowDrawList(ctx)
       local avail = ImGui.GetContentRegionAvail(ctx)
+      local ALT, PADX, ZONAX = 24, 11, 20
       local usado = 0
       for i, nome in ipairs(nomes) do
-        local rotChip = nome .. '  x##secTag' .. i
-        local w = (ImGui.CalcTextSize(ctx, nome) or 40) + 34
+        local wTx, hTx = ImGui.CalcTextSize(ctx, nome)
+        wTx, hTx = wTx or 40, hTx or 14
+        local wChip = math.floor(wTx + PADX * 2 + ZONAX)
         if i > 1 then
-          if usado + w < avail then ImGui.SameLine(ctx) else usado = 0 end
+          if usado + wChip <= avail then ImGui.SameLine(ctx, 0, 6)
+          else usado = 0 end
         end
-        if ImGui.SmallButton(ctx, rotChip) then remover = i end
-        usado = usado + w + 6
+        local cx, cy = ImGui.GetCursorScreenPos(ctx)
+        cx, cy = math.floor(cx), math.floor(cy)
+
+        ImGui.InvisibleButton(ctx, '##secTag' .. i, wChip, ALT)
+        local sobre = ImGui.IsItemHovered(ctx)
+        local sobreX = false
+        if sobre then
+          local mtx = ImGui.GetMousePos(ctx)
+          sobreX = mtx >= cx + wChip - ZONAX
+        end
+        if sobreX and ImGui.IsItemClicked(ctx) then remover = i end
+
+        ImGui.DrawList_AddRectFilled(dlT, cx, cy, cx + wChip, cy + ALT,
+          sobre and Theme.UI.panelActive or Theme.UI.panelHover, ALT * 0.5)
+        local ty = math.floor(cy + (ALT - hTx) * 0.5)
+        ImGui.DrawList_AddText(dlT, cx + PADX, ty, Theme.UI.text, nome)
+        ImGui.DrawList_AddText(dlT, cx + wChip - ZONAX + 5, ty,
+          sobreX and Theme.UI.rec or Theme.UI.textDim, 'x')
+
+        usado = usado + wChip + 6
       end
       if remover then table.remove(nomes, remover); mudou = true end
 
-      ImGui.Dummy(ctx, 1, 4)
+      ImGui.Dummy(ctx, 1, 6)
       ImGui.SetNextItemWidth(ctx, 180)
       local chNT, txtNT = ImGui.InputText(ctx, '##secNovaTag',
         painel.secao.novaTag)
       if ImGui.IsItemActive(ctx) then campoTextoAtivo = true end
       if chNT then painel.secao.novaTag = txtNT end
-      ImGui.SameLine(ctx)
       local nova = (painel.secao.novaTag or ''):gsub('^%s*(.-)%s*$', '%1')
+      ImGui.SameLine(ctx, 0, 6)
       if ImGui.Button(ctx, 'Acrescentar') and nova ~= '' then
         local existe = false
         for _, n in ipairs(nomes) do
@@ -16219,16 +16350,6 @@ local function drawAbaAtual()
           table.concat(nomes, ','), true)
       end
     end
-
-    ImGui.Dummy(ctx, 1, 10)
-    grupo('TECLADO')
-
-    local chSc, sc = ajusteToggle('Atalhos',
-      'ativa as teclas da tela e as F1-F12.', opcoes.atalhos,
-      'Ativa as teclas da Tela Personalizada (A-Z, 0-9, Espaço)\n'
-      .. 'e as F1-F12\n'
-      .. 'definidas na aba Atalhos.')
-    if chSc then opcoes.atalhos = sc end
 
   elseif abaAtual == 'midi' then
     grupo('MOTOR DE ÁUDIO')
@@ -18401,6 +18522,7 @@ local function handleShortcuts()
        and faixas.abertas then
       faixas.abertas = false
       faixas.sel = nil
+      faixas.criando = nil
       encaixe.w = 0
       log('Programação MIDI: fechada (- do numérico)')
     end
@@ -18534,25 +18656,14 @@ local function handleShortcuts()
   if not digitando then
     -- Espaço toca e para; Ctrl+Espaço pausa. Se o .form usar ESPAÇO para
     -- algum botão, o .form manda e o transporte abre mão dele.
-    -- SHIFT+ESPAÇO TAMBÉM PAUSA.
     --
-    -- Existe porque o Enter pode NÃO CHEGAR até aqui, e isso não tem
-    -- conserto do lado do script: uma extensão do REAPER que instale um
-    -- GANCHO DE TECLADO recebe a tecla antes de qualquer janela, e um
-    -- ReaScript não tem como ter prioridade sobre ela. Na máquina onde
-    -- isto foi investigado era a reaper_VSHookExt.dll, que usa o Enter
-    -- para gerenciar as músicas.
-    --
-    -- Foi um bom tempo de investigação até aparecer a pergunta que
-    -- matou as teorias todas: "como pode o Ctrl+Espaço funcionar?".
-    -- Foco perdido e estado de tecla preso teriam derrubado os dois
-    -- atalhos; só uma captura ESPECÍFICA do Enter explica um funcionar
-    -- e o outro não.
-    --
-    -- O Enter continua mapeado de propósito: onde não há gancho
-    -- disputando, ele funciona. Shift+Espaço é a porta que não depende
-    -- disso, para quem tenha o Ctrl+Espaço tomado por outro programa.
-    local pausar = ctrlDown or (state.shiftDown or false)
+    -- HOUVE UM SHIFT+ESPAÇO aqui, como terceira porta para o pausar,
+    -- para quem tivesse tanto o Enter (gancho de teclado) quanto o
+    -- Ctrl+Espaço (atalho global de outro programa) tomados. Foi removido
+    -- a pedido em 1.4.0: o Enter voltou a ser confiável mesmo sob gancho,
+    -- pelo estado físico do teclado via js_ReaScriptAPI (ver mais abaixo
+    -- e em PROJECT_CONTEXT), e três teclas para uma função só é ruído.
+    local pausar = ctrlDown
     aoSoltar('Key_Space', 32, pausar, function(comModificador)
       if comModificador then
         Transport.togglePlayPause()
@@ -18601,6 +18712,15 @@ local function handleShortcuts()
     end
 
     local function playPausa()
+      -- ANTI-DOBRO. Chegam DOIS caminhos aqui: o do ReaImGui (aoSoltar) e
+      -- o do estado físico (JS_VKeys, abaixo). Numa máquina SEM gancho de
+      -- teclado os dois disparam para o mesmo Enter e o transporte
+      -- alternava duas vezes — piscava e voltava. O primeiro a chegar
+      -- age; o segundo, dentro da janela, é engolido.
+      local agora = reaper.time_precise and reaper.time_precise() or 0
+      if agora > 0 and agora - (quadro.enterAgiuEm or 0) < 0.30 then return end
+      quadro.enterAgiuEm = agora
+
       local antes = Transport.isPlaying() and 'tocando'
         or (Transport.isPaused() and 'pausado' or 'parado')
       Transport.togglePlayPause()
@@ -18615,6 +18735,21 @@ local function handleShortcuts()
     -- ficava sem o atalho sem entender por quê.
     aoSoltar('Key_Enter', 13, false, playPausa)
     aoSoltar('Key_KeypadEnter', 13, false, playPausa)
+
+    -- ENTER PELO ESTADO FÍSICO DO TECLADO — o mesmo contorno do popup de
+    -- nome de seção, agora para o play/pausa: um gancho de extensão (a VS
+    -- Hook) engole a MENSAGEM do Enter, mas não costuma apagar o estado
+    -- FÍSICO da tecla. Só com a `js_ReaScriptAPI` e só com a janela do
+    -- LumiBridge em foco; sem a extensão, `JS_VKeys_GetState` é nil e
+    -- isto não roda. Soma-se ao Ctrl+Espaço e ao Enter do ReaImGui; o
+    -- `playPausa` acima cuida de não agir duas vezes.
+    if reaper.JS_VKeys_GetState and focado then
+      local okS, st = pcall(reaper.JS_VKeys_GetState, 0)
+      local baixo = okS and type(st) == 'string' and #st >= 13
+                    and st:byte(13) ~= 0
+      if baixo and not quadro.enterFisAntes then playPausa() end
+      quadro.enterFisAntes = baixo or false
+    end
 
     -- Ctrl+R grava, como no REAPER.
     --
@@ -21242,6 +21377,19 @@ function Window.__faixasInfo()
   end
   return out
 end
+--- Todos os blocos de uma linha, para o teste conferir DURAÇÃO.
+--  __faixasInfo devolve só o primeiro, o que não basta para verificar
+--  uma nota criada por arrasto: ela nasce no fim da linha, não no começo.
+function Window.__blocos(i)
+  local l = faixas.linhas[i]
+  if not l then return {} end
+  local out = {}
+  for k, b in ipairs(l.blocos or {}) do
+    out[k] = { t0 = b.t0, t1 = b.t1 }
+  end
+  return out
+end
+
 function Window.__escalaV() return faixas.escalaV or 1 end
 function Window.__faixasLinhas() return #faixas.linhas end
 

@@ -1,4 +1,4 @@
-1.4.0b3
+1.4.0b4
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Popup de nome da seção com botão OK; e Enter recuperado via js_ReaScriptAPI quando a VS Hook engole a tecla.
+Nota criada por arrasto, aba Edição separada, etiquetas de seção redesenhadas e realce mais claro.
 ID-7171-61AF
