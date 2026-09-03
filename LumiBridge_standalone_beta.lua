@@ -1,4 +1,4 @@
--- LumiBridge 1.3.1b4  (compilado em 2026-09-03 10:12)
+-- LumiBridge 1.3.1b5  (compilado em 2026-09-03 10:17)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 4
+Version.BETA = 5
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 10:12"
+Version.COMPILACAO = "2026-09-03 10:17"
 
 --- Onde o programa procura por versão nova.
 --
@@ -20386,7 +20386,7 @@ local function loop()
     -- é o último: não há `defer` depois dele. A ação nova encontra o
     -- carimbo vazio, passa pela guarda e abre, com o código novo.
     if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
-      -- SEM A CAIXA DE DIÁLOGO DO REAPER.
+      -- SEM A CAIXA DE DIÁLOGO DO REAPER, E VOLTANDO DEPOIS.
       --
       -- Chamada a ação, o REAPER via que o script ainda constava como
       -- rodando e abria a sua própria janela: "LumiBridge_standalone.lua
@@ -20394,42 +20394,35 @@ local function loop()
       -- new instance?". Três botões em inglês, no meio de um reinício
       -- que o programa acabou de prometer que faria sozinho.
       --
-      -- `set_action_options(1)` diz ao REAPER que ESTA execução pode ser
-      -- encerrada sem perguntar quando a ação for chamada de novo. É a
-      -- pergunta acima, respondida de antemão.
+      -- O QUE OS VALORES SIGNIFICAM, DESCOBERTO TESTANDO E NÃO LENDO.
+      --
+      -- A documentação oficial lista `set_action_options` e não descreve
+      -- os parâmetros. Duas versões de teste na máquina dele deram a
+      -- resposta, e o registro fica aqui porque não está em lugar nenhum:
+      --
+      --   sem chamada nenhuma  -> a caixa aparece
+      --   set_action_options(1) -> SEM caixa; encerra e NÃO volta
+      --
+      -- Ou seja: 1 é "pode encerrar esta execução sem perguntar". Sozinho
+      -- ele resolve a caixa e deixa o programa fechado — que foi
+      -- exatamente o relato: "fechou o script, mas não abriu novamente".
+      --
+      -- 2 é a outra metade: reabrir depois de encerrar. Daí 1|2.
       --
       -- SÓ AQUI, e nunca ao iniciar. Ligado o tempo todo, apertar o
       -- botão da barra de ferramentas com o LumiBridge aberto MATARIA o
       -- programa em vez de trazer a janela para a frente — que é
       -- justamente o caminho de volta de uma janela minimizada. Nesta
       -- linha o programa já está terminando, então não há o que perder.
-      --
-      -- Por pcall: é uma conveniência, e nenhuma conveniência vale
-      -- derrubar o reinício em si.
-      pcall(function() reaper.set_action_options(1) end)
+      pcall(function() reaper.set_action_options(1 | 2) end)
 
-      -- E A CHAMADA VAI PARA O `atexit`, não para esta linha.
+      -- E A CHAMADA DIRETA, não mais pelo `atexit`.
       --
-      -- Aqui o script ainda CONSTA como rodando: este é o último quadro,
-      -- mas ele ainda está dentro dele. Foi por isso que o REAPER abriu
-      -- a caixa "is running in background" mesmo com o sinal de vida já
-      -- apagado — o carimbo é nosso, o registro de script rodando é
-      -- dele, e são coisas diferentes.
-      --
-      -- `atexit` roda quando o REAPER já está desmontando o script. É o
-      -- ponto mais tarde a que se consegue chegar de dentro dele, e é
-      -- onde a resposta para "ainda está rodando?" tem a melhor chance
-      -- de ser não.
-      --
-      -- SE MESMO ASSIM A CAIXA APARECER, o botão vira uma promessa que o
-      -- programa não cumpre, e aí ele deve dizer a verdade em vez de
-      -- tentar um terceiro truque.
-      local ok = pcall(function()
-        reaper.atexit(function()
-          reaper.Main_OnCommand(chrome.cmdID, 0)
-        end)
-      end)
-      if not ok then reaper.Main_OnCommand(chrome.cmdID, 0) end
+      -- O atexit foi uma tentativa de fugir da caixa adiando a chamada
+      -- para depois do desmonte. Ela não era necessária: quem tirava a
+      -- caixa era o `1` acima, e adiar só afastava a chamada do momento
+      -- em que o REAPER ainda sabe quem a pediu.
+      reaper.Main_OnCommand(chrome.cmdID, 0)
     end
   end
 end
