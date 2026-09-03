@@ -1,4 +1,4 @@
-1.4.0b1
+1.4.0b2
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Marcações de seção na onda com Ctrl+M, e a opção de contar o tempo pela música.
+Ctrl+M abre uma lista de nomes pra escolher com as setas; nomes viram etiquetas; cada marcador vira ímã ao arrastar.
 ID-7171-61AF
