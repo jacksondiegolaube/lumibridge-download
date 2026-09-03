@@ -1,4 +1,4 @@
-1.3.1b7
+1.4.0b1
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-O recado de atualização atrasada agora manda esperar em vez de assustar.
+Marcações de seção na onda com Ctrl+M, e a opção de contar o tempo pela música.
 ID-7171-61AF

@@ -1,4 +1,4 @@
--- LumiBridge 1.3.1b7  (compilado em 2026-09-03 10:41)
+-- LumiBridge 1.4.0b1  (compilado em 2026-09-03 14:05)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -49,8 +49,8 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 3
-Version.CORRECAO = 1
+Version.MENOR    = 4
+Version.CORRECAO = 0
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
 --
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 7
+Version.BETA = 1
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 10:41"
+Version.COMPILACAO = "2026-09-03 14:05"
 
 --- Onde o programa procura por versão nova.
 --
@@ -7634,6 +7634,66 @@ function Transport.currentRegion(lista)
   return Transport.regionAt(r.GetCursorPosition(), list)
 end
 
+-- ------------------------------------------------------- seções da música
+--
+-- Uma "seção" (refrão, solo, virada) é um MARCADOR do REAPER caindo
+-- dentro da região da música. Nada de formato novo: o REAPER já sabe
+-- guardar marcador, mostra na régua dele e leva junto no .rpp. O
+-- LumiBridge só desenha os que interessam e dá um jeito rápido de criar.
+
+--- Cria um marcador em `pos` (segundos) com o nome dado.
+--  @return o número de índice do marcador criado, ou nil se a API faltar
+function Transport.addMarker(pos, name)
+  local r = api()
+  if not r.AddProjectMarker2 then return nil end
+  local idx = r.AddProjectMarker2(0, false, pos or 0, 0, name or '', -1, 0)
+  return (type(idx) == 'number' and idx >= 0) and idx or nil
+end
+
+--- Renomeia (e reposiciona) o marcador de índice `idx`.
+function Transport.renameMarker(idx, pos, name)
+  local r = api()
+  if not r.SetProjectMarker3 or not idx then return false end
+  local ok = r.SetProjectMarker3(0, idx, false, pos or 0, 0, name or '', 0)
+  return ok and true or false
+end
+
+--- Apaga o marcador de índice `idx`.
+function Transport.deleteMarker(idx)
+  local r = api()
+  if not r.DeleteProjectMarker or not idx then return false end
+  local ok = r.DeleteProjectMarker(0, idx, false)
+  return ok and true or false
+end
+
+--- Os marcadores (não regiões) entre `fromT` e `toT`, em ordem de tempo.
+--  @param list opcional: regiões já lidas, para não reler o projeto
+function Transport.markersInRange(fromT, toT, list)
+  local out = {}
+  for _, rg in ipairs(list or Transport.regions()) do
+    if not rg.isRegion and rg.startTime >= fromT and rg.startTime <= toT then
+      out[#out + 1] = rg
+    end
+  end
+  return out
+end
+
+--- O marcador mais próximo de `pos`.
+--  @param dir  -1 só antes, 1 só depois, 0 qualquer lado
+--  @param list opcional: regiões já lidas
+function Transport.nearestMarker(pos, dir, list)
+  local melhor, menor = nil, math.huge
+  for _, rg in ipairs(list or Transport.regions()) do
+    if not rg.isRegion then
+      local d = rg.startTime - pos
+      local cabe = (dir == 0) or (dir < 0 and d < -0.001)
+                   or (dir > 0 and d > 0.001)
+      if cabe and math.abs(d) < menor then melhor, menor = rg, math.abs(d) end
+    end
+  end
+  return melhor
+end
+
 --- Localiza uma track pelo nome. Usada para achar a track da música.
 function Transport.findTrackByName(name)
   local r = api()
@@ -9693,6 +9753,14 @@ local opcoes = {
   --   relogio  a posição em minutos e segundos
   regioes = false,
   relogio = false,
+  -- TEMPO CONTADO A PARTIR DA MÚSICA, não do projeto.
+  --
+  -- A régua da onda e o relógio mostram o projeto inteiro: uma música que
+  -- começa aos 8 minutos tem o refrão "aos 9:12". Ligado, o começo da
+  -- música escolhida é 0:00 e o refrão vira "1:12" — que é como se fala
+  -- de um trecho ao montar a luz. Desligado por padrão: quem já lê pelo
+  -- tempo do projeto não é surpreendido numa atualização.
+  tempoRegiao = false,
   -- COMO A PROGRAMAÇÃO MIDI ABRE.
   --
   -- Quem abre a lista quase sempre vai EDITAR: quer a janela inteira
@@ -10142,6 +10210,21 @@ local painel = {
   -- PROCURA POR VERSÃO NOVA, na aba Sobre. Aqui e não num local próprio:
   -- o corpo deste módulo está no teto de 200 locais do Lua.
   atualizacao = { recado = nil, achada = nil, ocupado = false },
+  -- SEÇÕES DA MÚSICA (marcadores do REAPER desenhados na onda).
+  --
+  --   nomes     a paleta de nomes prontos do menu de clique direito,
+  --             editável em Configurações
+  --   menuT     instante onde o menu foi aberto (segundos)
+  --   abrirMenu pedido de abrir o menu no próximo quadro (OpenPopup
+  --             precisa do escopo de ID do quadro, não do da onda)
+  --   pendente  { idx, pos, texto, viva } enquanto o nome está sendo
+  --             digitado, logo após criar o marcador
+  --   pediuFoco levar o cursor de teclado ao campo no próximo quadro
+  secao = {
+    nomes = { 'Intro', 'Verso', 'Pré-refrão', 'Refrão', 'Solo',
+              'Ponte', 'Virada', 'Final' },
+    menuT = 0, abrirMenu = false, pendente = nil, pediuFoco = false,
+  },
 }
 
 --- Registra uma linha de diagnóstico.
@@ -10664,6 +10747,69 @@ local function drawFKeyMenu()
 
   ImGui.EndPopup(ctx)
   if padF then pcall(ImGui.PopStyleVar, ctx, 1) end
+end
+
+--- Menu de clique direito na onda: a paleta de nomes de seção. Cada item
+--  cria um marcador do REAPER no instante clicado (painel.secao.menuT),
+--  já nomeado. "Outro nome…" cria em branco e abre o campo de texto.
+--  Aberto por painel.secao.abrirMenu, atendido no escopo do quadro.
+--
+--  Campo de `painel`, e não um `local` novo em coluna zero: este arquivo
+--  está no teto de 200 locais do Lua (ver CLAUDE.md).
+function painel.drawSecaoMenu()
+  local aberto, padS = abrirPopup('secaoMenu')
+  if not aberto then return end
+  local s = painel.secao
+
+  --- Cria o marcador e registra. Devolve o índice, ou nil.
+  local function criar(nome)
+    local idx = Transport.addMarker(s.menuT, nome or '')
+    quadro.recheckAt = 0
+    log(('seção: %s em %s'):format(
+      (nome and nome ~= '') and nome or '(sem nome)',
+      Transport.formatTime(s.menuT)))
+    return idx
+  end
+
+  for _, nome in ipairs(s.nomes) do
+    if ImGui.Selectable(ctx, nome) then
+      criar(nome)
+      ImGui.CloseCurrentPopup(ctx)
+    end
+  end
+
+  ImGui.Separator(ctx)
+  if ImGui.Selectable(ctx, 'Outro nome…') then
+    local idx = criar('')
+    if idx then
+      s.pendente = { idx = idx, pos = s.menuT, texto = '', viva = false }
+      s.pediuFoco = true
+    end
+    ImGui.CloseCurrentPopup(ctx)
+  end
+
+  -- A SEÇÃO MAIS PRÓXIMA do ponto clicado: renomear ou apagar sem ter de
+  -- acertar o pixel da bandeirola.
+  local perto = Transport.nearestMarker(s.menuT, 0, regions)
+  if perto and math.abs(perto.startTime - s.menuT) < 3.0 then
+    ImGui.Separator(ctx)
+    local rot = perto.name ~= '' and perto.name or '(sem nome)'
+    if ImGui.Selectable(ctx, 'Renomear "' .. rot .. '"') then
+      s.pendente = { idx = perto.index, pos = perto.startTime,
+                     texto = perto.name or '', viva = false }
+      s.pediuFoco = true
+      ImGui.CloseCurrentPopup(ctx)
+    end
+    if ImGui.Selectable(ctx, 'Apagar "' .. rot .. '"') then
+      Transport.deleteMarker(perto.index)
+      quadro.recheckAt = 0
+      log('seção apagada: ' .. rot)
+      ImGui.CloseCurrentPopup(ctx)
+    end
+  end
+
+  ImGui.EndPopup(ctx)
+  if padS then pcall(ImGui.PopStyleVar, ctx, 1) end
 end
 
 -- ------------------------------------------------------------ arquivo
@@ -11592,15 +11738,35 @@ local function drawTimeline(xF, yF, larguraF)
   -- pela onda (só pra guiar o olho, sem cortar o desenho do áudio).
   local passo = 10
   if duracao > 300 then passo = 60 elseif duracao > 120 then passo = 30 end
-  local t = math.ceil(from / passo) * passo
+  -- ZERO NA MÚSICA OU NO PROJETO. Com "tempo pela música" ligado, a
+  -- contagem começa no início da região escolhida — os rótulos caem em
+  -- múltiplos de `passo` a partir dali, e não do zero do projeto.
+  local base = (opcoes.tempoRegiao and region) and region.startTime or 0
+  local t = base + math.ceil((from - base) / passo) * passo
   while t < to do
     local px = math.floor(x0 + (t - from) / duracao * largura)
     ImGui.DrawList_AddLine(dl, px, y0 + 11, px, yOnda, 0x3A4150FF, 1)
     ImGui.DrawList_AddLine(dl, px, yOnda + 1, px, yOnda + ALTURA_ONDA,
       0x1E2129FF, 1)
     ImGui.DrawList_AddText(dl, px + 4, y0 + 3, 0x9199A6FF,
-                           Transport.formatTime(t))
+                           Transport.formatTime(t - base))
     t = t + passo
+  end
+
+  -- SEÇÕES: os marcadores do REAPER que caem neste trecho da música.
+  -- Bandeirola âmbar na régua, guia descendo pela onda. Aqui é só
+  -- desenho — criar e nomear é o menu de clique direito e o Ctrl+M.
+  for _, m in ipairs(Transport.markersInRange(from, to, regions)) do
+    local mx = math.floor(x0 + (m.startTime - from) / duracao * largura)
+    ImGui.DrawList_AddLine(dl, mx, yOnda, mx, y0 + ALTURA, 0xF5A52455, 1)
+    ImGui.DrawList_AddTriangleFilled(dl, mx, yOnda, mx + 7, yOnda,
+      mx, yOnda + 7, 0xF5A524FF)
+    if m.name and m.name ~= '' then
+      local wr = ImGui.CalcTextSize(ctx, m.name) or 0
+      ImGui.DrawList_AddRectFilled(dl, mx + 3, yOnda + 1,
+        mx + 8 + wr, yOnda + 15, 0x14161AE6, 2)
+      ImGui.DrawList_AddText(dl, mx + 5, yOnda + 2, 0xF5C877FF, m.name)
+    end
   end
 
   -- Cursor, com pegador no topo — o triângulo mostra que dá pra clicar
@@ -11641,6 +11807,46 @@ local function drawTimeline(xF, yF, larguraF)
     end
   end
 
+  -- BOTÃO DIREITO NA ONDA: abre o menu de seções no ponto clicado. O
+  -- OpenPopup de verdade acontece no escopo do quadro (ver frame), não
+  -- aqui dentro — separado do BeginPopup, o menu não abre.
+  if ImGui.IsItemHovered(ctx) and not recording and ImGui.IsMouseClicked then
+    local okR, foiDir = pcall(ImGui.IsMouseClicked, ctx, 1)
+    if okR and foiDir then
+      local frac = (ImGui.GetMousePos(ctx) - x0) / math.max(1, largura)
+      if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+      painel.secao.menuT = from + frac * duracao
+      painel.secao.abrirMenu = true
+    end
+  end
+
+  -- CAMPO DE NOME logo depois de criar uma seção (menu "Outro nome…" ou
+  -- Ctrl+M). Só na régua principal (a de cima) — a cópia que vai para o
+  -- cabeçalho das faixas passa `xF`, e dois campos com o mesmo id brigam.
+  if not xF and painel.secao.pendente then
+    local p = painel.secao.pendente
+    local mx = x0 + (p.pos - from) / duracao * largura
+    mx = math.max(x0, math.min(x0 + largura - 156, mx))
+    ImGui.SetCursorScreenPos(ctx, mx, y0 + ALTURA + 3)
+    if painel.secao.pediuFoco then
+      local foco = Compat.get(ImGui, 'SetKeyboardFocusHere')
+      if foco then pcall(foco, ctx) end
+      painel.secao.pediuFoco = false
+    end
+    ImGui.SetNextItemWidth(ctx, 150)
+    local chN, txtN = ImGui.InputText(ctx, '##secaoNome', p.texto or '')
+    if chN then p.texto = txtN end
+    if ImGui.IsItemActive(ctx) then campoTextoAtivo = true; p.viva = true end
+    local saiu = Compat.get(ImGui, 'IsItemDeactivatedAfterEdit')
+    if (saiu and saiu(ctx)) or (p.viva and not ImGui.IsItemActive(ctx)) then
+      local nome = (p.texto or ''):gsub('^%s*(.-)%s*$', '%1')
+      if nome ~= '' then Transport.renameMarker(p.idx, p.pos, nome)
+      else Transport.deleteMarker(p.idx) end
+      painel.secao.pendente = nil
+      quadro.recheckAt = 0
+    end
+  end
+
   if recording then
     -- Recusa explicada, não silenciosa: um clique que não faz nada e
     -- não diz por quê parece defeito.
@@ -11659,6 +11865,18 @@ local function drawTimeline(xF, yF, larguraF)
     local frac = (mx - x0) / largura
     if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
     saltoDestino = from + frac * duracao
+    -- ÍMÃ NA SEÇÃO: começar o clique a poucos pixels de uma bandeirola
+    -- vai exatamente para ela — é assim que se pula de seção em seção.
+    -- Só no começo do clique, não durante o arrasto, senão a onda ficaria
+    -- grudenta perto das marcas.
+    local ini = Compat.get(ImGui, 'IsItemActivated')
+    if ini and ini(ctx) then
+      local perto = Transport.nearestMarker(saltoDestino, 0, regions)
+      if perto and math.abs((perto.startTime - saltoDestino)
+                            / duracao * largura) <= 6 then
+        saltoDestino = perto.startTime
+      end
+    end
     saltarPara(saltoDestino, true)
   elseif saltoEmCurso then
     saltarPara(saltoDestino or Transport.position(), false)
@@ -14939,7 +15157,9 @@ local function drawTransportBar()
     ocupa(6)
     ImGui.SameLine(ctx)
     local comFonte = Theme.pushFont(ImGui, ctx, state.fonts, 20)
-    local texto = Transport.formatTime(Transport.position())
+    local rel = Transport.position()
+    if opcoes.tempoRegiao and region then rel = rel - region.startTime end
+    local texto = Transport.formatTime(rel)
     ImGui.Text(ctx, texto)
     local larguraRelogio = ImGui.CalcTextSize(ctx, texto)
     if comFonte then ImGui.PopFont(ctx) end
@@ -15659,6 +15879,18 @@ local function drawAbaAtual()
       reaper.SetExtState(EXT_SECTION, 'op_relogio', rl and '1' or '0', true)
     end
 
+    local chTR, tr = ajusteToggle('Tempo pela música',
+      'contar de 0:00 no início da música, não do projeto.',
+      opcoes.tempoRegiao,
+      'A régua da onda e o relógio passam a mostrar minutos e\n'
+      .. 'segundos a partir do começo da música escolhida — que é\n'
+      .. 'como se fala de um trecho ao montar a luz.')
+    if chTR then
+      opcoes.tempoRegiao = tr
+      reaper.SetExtState(EXT_SECTION, 'op_tempo_regiao', tr and '1' or '0',
+        true)
+    end
+
     local chRep, rp = ajusteToggle('Repetir a música',
       'ao saltar para uma música, repetir só ela.', opcoes.repetir,
       'Programar é repetir o mesmo trecho; por isso vem ligado.')
@@ -15764,6 +15996,29 @@ local function drawAbaAtual()
     if chZm then
       opcoes.zoomNoMouse = zm
       reaper.SetExtState(EXT_SECTION, 'op_zoom_mouse', zm and '1' or '0', true)
+    end
+
+    ImGui.Dummy(ctx, 1, 10)
+    grupo('SEÇÕES DA MÚSICA')
+
+    -- A PALETA DE NOMES do menu de clique direito na onda. Uma lista
+    -- separada por vírgula porque é o que dá pra editar com pressa; quem
+    -- faz teatro troca por "cena 1, blackout, coro". O Ctrl+M cria uma
+    -- seção sem nome e abre o campo na hora.
+    rotulo('Nomes prontos no menu de clique direito da onda.')
+    ImGui.SetNextItemWidth(ctx, -1)
+    local chSN, txtSN = ImGui.InputText(ctx, '##secNomes',
+      table.concat(painel.secao.nomes, ', '))
+    if ImGui.IsItemActive(ctx) then campoTextoAtivo = true end
+    if chSN then
+      local novos = {}
+      for parte in tostring(txtSN):gmatch('[^,]+') do
+        parte = parte:gsub('^%s*(.-)%s*$', '%1')
+        if parte ~= '' then novos[#novos + 1] = parte end
+      end
+      if #novos > 0 then painel.secao.nomes = novos end
+      reaper.SetExtState(EXT_SECTION, 'sec_nomes',
+        table.concat(painel.secao.nomes, ','), true)
     end
 
     ImGui.Dummy(ctx, 1, 10)
@@ -16451,15 +16706,6 @@ local function drawAbaAtual()
     -- Cursor de volta abaixo do ícone, que é mais alto que as duas
     -- linhas de texto ao lado.
     ImGui.SetCursorScreenPos(ctx, ix, iy + ICONE + 4)
-
-    ImGui.Dummy(ctx, 1, 14)
-    grupo('O QUE É')
-    ImGui.TextColored(ctx, 0x8A93A3FF,
-      'Programação de iluminação dentro do REAPER, usando o mesmo layout da\n'
-      .. 'Janela Personalizada do Lumikit Show. Lê o arquivo .form —\n'
-      .. 'a Tela Personalizada —, reconstrói\n'
-      .. 'a tela, envia MIDI ao clicar e grava a operação na timeline — para a\n'
-      .. 'luz acompanhar a música na hora do show.')
 
     -- --------------------------------------------------- atualização
     ImGui.Dummy(ctx, 1, 14)
@@ -18018,6 +18264,32 @@ local function handleShortcuts()
               end
             end
           end
+        end
+      end
+    end
+  end
+
+  -- CTRL+M MARCA UMA SEÇÃO na posição de escrita — a mesma compensação
+  -- de atraso que o REC usa, então o marcador cai onde você OUVIU a
+  -- virada, não no playhead cru. Abre o campo de nome já focado.
+  --
+  -- M de marcador, a própria tecla do REAPER para isto; com Ctrl porque a
+  -- regra da casa reserva as letras soltas ao .form. Não grava: só põe o
+  -- marcador. Sem música escolhida não há onde marcar.
+  if not digitando and ctrlDown and region and not recording
+     and ImGui.IsKeyPressed then
+    local teclaM = Compat.const(ImGui, 'Key_M', nil)
+    if teclaM and teclaM ~= 0 then
+      local ok, apertouM = pcall(ImGui.IsKeyPressed, ctx, teclaM, false)
+      if ok and apertouM and not painel.secao.pendente then
+        local tSec = posicaoDeEscrita()
+        local idx = Transport.addMarker(tSec, '')
+        if idx then
+          painel.secao.pendente = { idx = idx, pos = tSec, texto = '',
+                                    viva = false }
+          painel.secao.pediuFoco = true
+          quadro.recheckAt = 0
+          log('seção: marcador em ' .. Transport.formatTime(tSec))
         end
       end
     end
@@ -20104,6 +20376,14 @@ local function frame()
   -- precisam do mesmo escopo de ID — separados, o menu não abre.
   drawFKeyMenu()
 
+  -- O MENU DE SEÇÕES, aberto pelo clique direito na onda. Mesma razão de
+  -- o OpenPopup morar aqui: o escopo de ID tem de ser o do quadro.
+  if painel.secao.abrirMenu then
+    painel.secao.abrirMenu = false
+    ImGui.OpenPopup(ctx, 'secaoMenu')
+  end
+  painel.drawSecaoMenu()
+
 
   -- POR ÚLTIMO: desenhado depois do canvas, no mesmo DrawList, para
   -- ficar visualmente por cima dele (ver drawSettingsPanel).
@@ -20897,6 +21177,21 @@ function Window.start()
   opcoes.repetir = reaper.GetExtState(EXT_SECTION, 'op_repetir') ~= '0'
   opcoes.zoomNoMouse = reaper.GetExtState(EXT_SECTION, 'op_zoom_mouse') == '1'
   opcoes.ima = reaper.GetExtState(EXT_SECTION, 'op_ima') ~= '0'
+  opcoes.tempoRegiao = reaper.GetExtState(EXT_SECTION, 'op_tempo_regiao') == '1'
+
+  -- A PALETA DE NOMES DE SEÇÃO, se o usuário já editou a dele. Vazio =
+  -- fica com a lista padrão de painel.secao.
+  do
+    local guardados = reaper.GetExtState(EXT_SECTION, 'sec_nomes')
+    if guardados ~= '' then
+      local lista = {}
+      for parte in guardados:gmatch('[^,]+') do
+        parte = parte:gsub('^%s*(.-)%s*$', '%1')
+        if parte ~= '' then lista[#lista + 1] = parte end
+      end
+      if #lista > 0 then painel.secao.nomes = lista end
+    end
+  end
   -- COMO A PROGRAMAÇÃO MIDI ABRE.
   --
   -- O padrão é o modo de trabalho: só a lista, sem filtro, faders à
