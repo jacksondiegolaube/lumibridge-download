@@ -4,6 +4,12 @@ Cada versão do LumiBridge e o que mudou nela, a mais nova em cima.
 
 A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
+## 1.2.0
+
+_setembro/2026_
+
+Implementada a visualização do ID de instalação e a rotina de validação de versões beta.
+
 ## 1.1.0
 
 _setembro/2026_

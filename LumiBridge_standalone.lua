@@ -1,4 +1,4 @@
--- LumiBridge 1.1.0  (compilado em 2026-09-02 22:40)
+-- LumiBridge 1.2.0  (compilado em 2026-09-03 08:28)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -49,8 +49,28 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 1
+Version.MENOR    = 2
 Version.CORRECAO = 0
+
+--- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
+--
+--  1.1.1b1, 1.1.1b2, 1.1.1b3 são três tentativas do MESMO conserto,
+--  entregues só às máquinas da lista de testadores; 1.1.1 é a que vai
+--  para todo mundo depois que ele aprovar.
+--
+--  POR QUE O NÚMERO DEPOIS DO `b`, e não um `b` sozinho. Um beta não é
+--  um evento, é uma conversa: corrige, manda, o testador acha outra
+--  coisa, corrige de novo. Com `1.1.1b` liso, a segunda tentativa teria
+--  o mesmo número da primeira — `maisNovaQue` responderia "você já está
+--  na mais nova" e O TESTADOR NUNCA RECEBERIA O CONSERTO, achando que
+--  tinha recebido. É o tipo de defeito que só aparece na segunda rodada,
+--  quando você já parou de desconfiar do canal.
+--
+--  A ordem, que `maisNovaQue` implementa e um teste guarda:
+--      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
+--  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
+--  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
+Version.BETA = 0
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -67,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-02 22:40"
+Version.COMPILACAO = "2026-09-03 08:28"
 
 --- Onde o programa procura por versão nova.
 --
@@ -89,28 +109,53 @@ Version.COMPILACAO = "2026-09-02 22:40"
 --  chave: publicá-lo entrega a fábrica de chaves junto com o programa.
 Version.MANIFESTO = 'https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/atualizacao.txt'
 
+--- Separa "1.2.3" ou "1.2.3b4" em quatro números comparáveis.
+--
+--  O QUARTO É O DEGRAU DO BETA, e ele é invertido de propósito: um
+--  número sem `b` é uma versão OFICIAL, e a oficial ganha de qualquer
+--  beta do mesmo número. `math.huge` diz isso sem um `if` a mais em
+--  cada comparação.
+--
+--  Um `b` sem número atrás ("1.2.3b") conta como b0 — não é formato que
+--  a gente produza, mas cair para "o beta mais antigo" é mais seguro do
+--  que cair para "é a oficial".
+function Version.partes(v)
+  local a, b, c, marca, n = tostring(v or '')
+    :match('(%d+)%.(%d+)%.(%d+)(b?)(%d*)')
+  if not a then return nil end
+  return tonumber(a), tonumber(b), tonumber(c),
+         (marca == 'b') and (tonumber(n) or 0) or math.huge
+end
+
 --- Compara "1.2.3" com "1.10.0" pelo número, não pelo texto.
 --
 --  Como texto, "1.10.0" < "1.2.3" — a atualização mais nova pareceria
 --  velha e ninguém receberia a correção. É o tipo de erro que só aparece
---  na décima versão menor, meses depois.
+--  na décima versão menor, meses depois. E "1.1.1b2" < "1.1.1" também
+--  só está certo como número: como texto, o beta pareceria o mais novo
+--  dos dois e o testador ficaria preso nele.
 --  @return true se `outra` for mais nova que a instalada
 function Version.maisNovaQue(outra, instalada)
-  local function partes(v)
-    local a, b, c = tostring(v or ''):match('(%d+)%.(%d+)%.(%d+)')
-    return tonumber(a), tonumber(b), tonumber(c)
-  end
-  local a1, b1, c1 = partes(outra)
-  local a2, b2, c2 = partes(instalada or Version.numero())
+  local a1, b1, c1, d1 = Version.partes(outra)
+  local a2, b2, c2, d2 = Version.partes(instalada or Version.numero())
   if not a1 or not a2 then return false end
   if a1 ~= a2 then return a1 > a2 end
   if b1 ~= b2 then return b1 > b2 end
-  return c1 > c2
+  if c1 ~= c2 then return c1 > c2 end
+  return d1 > d2
 end
 
---- "1.0.0"
+--- Esta é uma versão de teste?
+function Version.ehBeta()
+  return (Version.BETA or 0) > 0
+end
+
+--- "1.0.0", ou "1.1.1b2" numa rodada de teste.
 function Version.numero()
-  return ('%d.%d.%d'):format(Version.MAIOR, Version.MENOR, Version.CORRECAO)
+  local n = ('%d.%d.%d'):format(Version.MAIOR, Version.MENOR,
+                                Version.CORRECAO)
+  if Version.ehBeta() then n = n .. 'b' .. Version.BETA end
+  return n
 end
 
 --- "LumiBridge 1.0.0"
@@ -4205,6 +4250,47 @@ function Licenca.codigoDaMaquina(ambiente)
   return ('LB-%s-%s'):format(bloco(id, 'a'), bloco(id, 'b'))
 end
 
+--- O ID de instalação: ID-XXXX-XXXX. Aparece na aba Sobre.
+--
+--  NÃO É A LICENÇA, e é por isso que ele existe separado do
+--  codigoDaMaquina. Este ID vai para um arquivo PÚBLICO — a lista de
+--  quem recebe as versões de teste —, e misturar as duas coisas
+--  publicaria um pedaço do lado comercial de graça. Temperos diferentes:
+--  de um não se chega no outro.
+--
+--  MESMA FORMA, PREFIXO DIFERENTE: LB-XXXX-XXXX é a licença, ID-XXXX-XXXX
+--  é este. Parecidos de propósito — o cliente já sabe ler e copiar um
+--  código nesse formato —, e o prefixo é o que os separa numa mensagem
+--  de WhatsApp.
+--
+--  O PREFIXO JÁ FOI "TESTE-", e estava errado. Este campo aparece para
+--  TODO cliente, não só para quem testa: quem nunca vai testar nada abria
+--  a aba Sobre e lia "ID de instalação: TESTE-09D8", concluindo que
+--  estava rodando uma versão de teste.
+--
+--  E ERAM QUATRO DÍGITOS, não oito. Com algumas dezenas de testadores a
+--  chance de dois computadores tirarem o mesmo ID passava de 1% — e o
+--  efeito seria alguém receber um beta sem ter pedido. Oito dígitos põem
+--  isso na casa do desprezível, ao custo de quatro caracteres a mais
+--  para ler da tela.
+--
+--  E ELE NÃO ABRE NADA. Estar na lista só faz o programa olhar para um
+--  segundo manifesto; a licença continua sendo conferida do mesmo jeito.
+--  Alguém que copie um ID daqui ganha o direito de baixar um programa
+--  inacabado, que é o oposto de um prêmio.
+--
+--  Mora neste arquivo porque os ingredientes estão aqui — `identidade` e
+--  `bloco` —, não porque seja assunto de licença.
+--
+--  Muda quando a pessoa formata ou renomeia o PC, igual ao código de
+--  licença. Aí ela manda o novo e você troca a linha da lista.
+--  @return string, ou nil se não deu para identificar a máquina
+function Licenca.idDeInstalacao(ambiente)
+  local id = Licenca.identidade(ambiente)
+  if not id then return nil end
+  return ('ID-%s-%s'):format(bloco(id, 'inst1'), bloco(id, 'inst2'))
+end
+
 --- Só os dígitos, em maiúsculas: aceita o que o cliente digitou com
 --  espaço a mais, minúscula ou sem os hífens.
 local function limpar(texto)
@@ -4380,27 +4466,86 @@ function Atualizacao.escrever(caminho, conteudo)
 end
 
 --- Interpreta o manifesto de três linhas.
---  @return { versao, url, notas } ou nil
+--  @return { versao, url, notas, ids } ou nil
 function Atualizacao.lerManifesto(texto)
   if not texto then return nil end
   local linhas = {}
   for linha in tostring(texto):gmatch('[^\r\n]+') do
     linhas[#linhas + 1] = (linha:gsub('^%s+', ''):gsub('%s+$', ''))
   end
-  local versao = linhas[1] and linhas[1]:match('^%d+%.%d+%.%d+$')
+  -- O `b%d*` aceita as versões de teste (1.1.1b2). Sem ele o manifesto
+  -- do beta seria recusado inteiro, com "o servidor respondeu algo que
+  -- não entendi" — e a mensagem apontaria para o servidor, que estaria
+  -- certo.
+  local versao = linhas[1] and linhas[1]:match('^%d+%.%d+%.%d+b?%d*$')
   if not versao then return nil end
+
+  -- DA TERCEIRA LINHA EM DIANTE VÊM DUAS COISAS MISTURADAS: a frase que
+  -- se lê na tela e, no manifesto do beta, os IDs de quem pode receber.
+  --
+  -- Separadas pelo formato e não pela posição, de propósito. Contando
+  -- linhas, um ID a mais ou a menos deslocaria tudo e a frase do cliente
+  -- sairia com um "ID-09D8-4A17" no meio — num arquivo que você edita à
+  -- mão, com pressa. Pelo formato, a ordem não importa e nada vaza de um
+  -- lado para o outro.
+  --
+  -- LARGO DE PROPÓSITO, e não só o hexadecimal que o gerador produz. Um
+  -- ID digitado errado tem de continuar sendo um ID — que simplesmente
+  -- não casa com máquina nenhuma — em vez de virar texto e aparecer no
+  -- meio da frase que se lê na tela.
+  local notas, ids = {}, {}
+  for i = 3, #linhas do
+    if linhas[i]:match('^[Ii][Dd]%-[%w%-]+$') then
+      ids[#ids + 1] = linhas[i]
+    else notas[#notas + 1] = linhas[i] end
+  end
+
   return { versao = versao, url = linhas[2] or '',
-           notas = table.concat(linhas, ' ', 3) }
+           notas = table.concat(notas, ' '), ids = ids }
+end
+
+--- Esta máquina está na lista de testadores deste manifesto?
+--
+--  SEM LISTA, NINGUÉM ENTRA. Um beta.txt truncado, ou um em que a lista
+--  se perdeu numa edição à mão, não pode virar "libera para todo mundo"
+--  — o erro seguro é o beta não chegar em ninguém.
+function Atualizacao.liberadoPara(m, id)
+  if not m or not m.ids or #m.ids == 0 then return false end
+  if not id or id == '' then return false end
+  for _, cada in ipairs(m.ids) do
+    if cada:upper() == tostring(id):upper() then return true end
+  end
+  return false
+end
+
+--- O endereço do manifesto de teste, ao lado do oficial.
+--
+--  Derivado do outro pelo mesmo motivo que a URL do programa já é: os
+--  dois moram no mesmo repositório, e duas configurações que podem
+--  discordar uma da outra são uma a mais do que o necessário.
+function Atualizacao.urlBeta(manifestoURL)
+  if not manifestoURL or manifestoURL == '' then return '' end
+  return (manifestoURL:gsub('atualizacao%.txt$', 'beta.txt'))
 end
 
 --- Há versão nova?
 --
+--  DOIS CANAIS, e o de teste é invisível para quem não foi convidado.
+--
+--  O oficial vale para todo mundo. O de teste (beta.txt, ao lado) traz
+--  a lista de IDs que podem recebê-lo: máquina fora da lista nem fica
+--  sabendo que ele existe, e qualquer tropeço ao buscá-lo é engolido em
+--  silêncio — para o cliente comum, um beta.txt ausente, quebrado ou
+--  fora do ar não pode virar recado de erro na tela.
+--
 --  @param manifestoURL  de onde ler; vazio desliga a procura
 --  @param instalada     versão de agora, "1.0.0"
 --  @param temp          caminho de um arquivo temporário
---  @return nil quando não há nada novo, ou { versao, url, notas }
+--  @param idDaMaquina   o ID-XXXX-XXXX desta máquina; nil desliga o beta
+--  @return nil quando não há nada novo, ou { versao, url, notas, beta }
 --  @return mensagem para a tela
-function Atualizacao.procurar(manifestoURL, instalada, temp, Version)
+function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
+                              idDaMaquina)
   if not manifestoURL or manifestoURL == '' then
     return nil, 'a procura por atualizações não está configurada'
   end
@@ -4410,6 +4555,26 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version)
 
   local m = Atualizacao.lerManifesto(Atualizacao.ler(temp))
   if not m then return nil, 'o servidor respondeu algo que não entendi' end
+
+  -- O CANAL DE TESTE, se esta máquina estiver na lista dele.
+  --
+  -- Só substitui o oficial se for mais nova QUE OS DOIS: que a
+  -- instalada e que a candidata oficial. Assim, no dia em que a 1.2.0
+  -- sair enquanto um 1.1.9b3 velho ainda estiver no beta.txt, o
+  -- testador recebe a 1.2.0 — e não fica para trás por estar ajudando.
+  if idDaMaquina and idDaMaquina ~= '' then
+    local urlB = Atualizacao.urlBeta(manifestoURL)
+    if urlB ~= '' and urlB ~= manifestoURL
+       and Atualizacao.baixar(urlB, temp) then
+      local b = Atualizacao.lerManifesto(Atualizacao.ler(temp))
+      if b and Atualizacao.liberadoPara(b, idDaMaquina)
+         and Version.maisNovaQue(b.versao, instalada)
+         and Version.maisNovaQue(b.versao, m.versao) then
+        b.beta = true
+        return b, ('versão de teste %s disponível'):format(b.versao)
+      end
+    end
+  end
 
   if not Version.maisNovaQue(m.versao, instalada) then
     return nil, ('você já está na versão mais nova (%s)'):format(instalada)
@@ -4434,7 +4599,19 @@ function Atualizacao.versaoDe(conteudo)
   local N = conteudo:match('Version%.MENOR%s*=%s*(%d+)')
   local C = conteudo:match('Version%.CORRECAO%s*=%s*(%d+)')
   if not (M and N and C) then return nil end
-  return ('%s.%s.%s'):format(M, N, C)
+  local texto = ('%s.%s.%s'):format(M, N, C)
+
+  -- O `b` TAMBÉM, senão o beta nunca instala. A conferência logo abaixo
+  -- compara isto com o que o manifesto prometeu: sem o BETA, o arquivo
+  -- 1.1.1b2 se apresentaria como "1.1.1", não bateria com a promessa, e
+  -- a instalação seria recusada com a mensagem de servidor adulterado —
+  -- no canal cuja razão de existir é testar exatamente este caminho.
+  --
+  -- `Version.BETA` pode não existir num programa ANTIGO baixando um
+  -- beta; ausente conta como zero, que é o que ele é.
+  local B = tonumber(conteudo:match('Version%.BETA%s*=%s*(%d+)') or 0)
+  if B > 0 then texto = texto .. 'b' .. B end
+  return texto
 end
 
 function Atualizacao.instalar(url, destino, versao)
@@ -16247,7 +16424,12 @@ local function drawAbaAtual()
 
     if at.achada then
       ImGui.SameLine(ctx)
-      if ImGui.Button(ctx, 'Baixar e instalar', 160, 26) then
+      -- O BOTÃO DIZ QUAL DOS DOIS É. Sem isso, aceitar uma versão de
+      -- teste é o mesmo gesto que aceitar uma oficial, e a diferença só
+      -- apareceria depois de instalada.
+      if ImGui.Button(ctx, at.achada.beta and 'Baixar versão de teste'
+                                          or 'Baixar e instalar',
+                      at.achada.beta and 190 or 160, 26) then
         at.ocupado, at.recado = true, 'baixando...'
         at.instalar = true
       end
@@ -16273,6 +16455,43 @@ local function drawAbaAtual()
 
     ajuste('Interface', nil, 220)
     ImGui.TextColored(ctx, Theme.UI.textDim, 'ReaImGui (ReaPack)')
+
+    -- O ID DESTA MÁQUINA, para entrar na lista de quem testa antes.
+    --
+    -- SEMPRE VISÍVEL, e não só para quem já é testador: é justamente
+    -- quem AINDA não está na lista que precisa lê-lo para mandar. Um
+    -- campo que só aparece depois de você já ter entrado não serve para
+    -- entrar.
+    --
+    -- Ele não é a chave nem o código de licença — está aqui embaixo, em
+    -- DESENVOLVIMENTO, longe da tela de ativação, para ninguém mandar um
+    -- pelo outro.
+    ajuste('ID de instalação', nil, 220)
+    ImGui.TextColored(ctx, Theme.UI.textDim,
+                      chrome.lic.idInstalacao or 'máquina não identificada')
+    if chrome.lic.idInstalacao then
+      ImGui.SameLine(ctx)
+      if ImGui.Button(ctx, 'Copiar', 74, 20) then
+        local copiar = Compat.get(ImGui, 'SetClipboardText')
+        if copiar then pcall(copiar, ctx, chrome.lic.idInstalacao) end
+      end
+    end
+    ImGui.TextColored(ctx, 0x777F8CFF,
+      'Mande este ID ao desenvolvedor para receber as versões de teste\n'
+      .. 'antes de todo mundo. Ele não é a chave de licença.')
+
+    -- ESTA É UMA VERSÃO DE TESTE? Dito com todas as letras, porque é o
+    -- que separa "achei um defeito no LumiBridge" de "achei um defeito
+    -- no que você me mandou para testar" — e as duas frases pedem
+    -- respostas diferentes.
+    if Version.ehBeta() then
+      ImGui.Dummy(ctx, 1, 6)
+      ImGui.TextColored(ctx, Theme.UI.warn,
+        'Esta é uma VERSÃO DE TESTE (' .. Version.numero() .. ').')
+      ImGui.TextColored(ctx, 0x777F8CFF,
+        'Ela não foi publicada. Se algo estiver errado, avise — e quando a\n'
+        .. 'versão oficial sair, ela chega aqui por cima desta.')
+    end
 
     ImGui.Dummy(ctx, 1, 10)
     grupo('SOBRE A NUMERAÇÃO')
@@ -16398,6 +16617,11 @@ end
 function chrome.lerLicenca()
   local Lic = require('core.licenca')
   chrome.lic.codigo = Lic.codigoDaMaquina()
+  -- O ID DE TESTADOR, calculado junto porque sai da mesma identidade.
+  -- Guardado em chrome.lic por vizinhança, não por parentesco: ele NÃO é
+  -- licença e não abre nada (ver core/licenca.lua). Fica aqui porque o
+  -- corpo deste módulo está no teto de 200 locais do Lua.
+  chrome.lic.idInstalacao = Lic.idDeInstalacao()
   local guardada = reaper.GetExtState(EXT_SECTION, 'licenca')
   chrome.lic.tipo = guardada ~= '' and Lic.tipoDaChave(guardada) or nil
   chrome.lic.ativa = chrome.lic.tipo ~= nil
@@ -18317,8 +18541,11 @@ function painel.trabalharAtualizacao()
     return
   end
 
+  -- O ID VAI JUNTO: é ele que abre (ou não) o canal de teste. Máquina
+  -- fora da lista recebe exatamente o que recebia antes.
   local achada, msg = Atualizacao.procurar(Version.MANIFESTO,
-                                           Version.numero(), temp, Version)
+                                           Version.numero(), temp, Version,
+                                           chrome.lic.idInstalacao)
   at.achada, at.recado = achada, msg
   log('atualização: ' .. tostring(msg))
 end

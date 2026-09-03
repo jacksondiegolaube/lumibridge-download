@@ -26,7 +26,7 @@ show, teatro, cena, evento com trilha.
 | **Manual do usuário** — instalação, uso, atalhos e problemas comuns | [LumiBridge-manual.pdf](https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-manual.pdf) |
 | Arquivo único, para quem já tem o ReaImGui | [LumiBridge_standalone.lua](https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge_standalone.lua) |
 
-Versão publicada: **1.1.0** — setembro/2026
+Versão publicada: **1.2.0** — setembro/2026
 
 O instalador baixa livremente, mas o programa **só abre com uma chave de
 licença**. Veja *Ativar*, abaixo.
