@@ -1,4 +1,4 @@
--- LumiBridge 1.4.0b2  (compilado em 2026-09-03 14:38)
+-- LumiBridge 1.4.0b3  (compilado em 2026-09-03 15:19)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 2
+Version.BETA = 3
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 14:38"
+Version.COMPILACAO = "2026-09-03 15:19"
 
 --- Onde o programa procura por versão nova.
 --
@@ -10864,11 +10864,19 @@ function painel.finalizarSecao(cancelar)
 end
 
 --- Popup de nome da seção: campo de texto em cima, a paleta de nomes
---  logo abaixo. Setas ↑/↓ movem a escolha (0 = "usar o que digitei"),
---  Enter confirma, clique do mouse também, Esc cancela (e apaga o
---  marcador se ele ainda estiver em branco). Aberto por
---  painel.secao.abrirInput, no escopo do quadro (ver frame).
+--  logo abaixo. Confirmar tem TRÊS caminhos que não dependem do Enter,
+--  de propósito: clicar num nome da lista, o botão OK, ou clicar fora do
+--  popup (grava o que estiver digitado). Setas ↑/↓ movem a escolha
+--  (0 = "usar o que digitei") e o OK confirma a realçada. Esc cancela
+--  (e apaga o marcador se ele ainda estiver em branco).
 --
+--  POR QUE NÃO SÓ O ENTER. Uma extensão do REAPER com gancho de teclado
+--  (a VS Hook, na máquina onde isto apareceu) consome o Enter antes de
+--  qualquer janela, e um ReaScript não tem como ter prioridade sobre ela
+--  — o mesmo motivo do Shift+Espaço no transporte (ver PROJECT_CONTEXT).
+--  O Enter continua ligado aqui: onde não há gancho, ele funciona.
+--
+--  Aberto por painel.secao.abrirInput, no escopo do quadro (ver frame).
 --  Campo de `painel`, não `local` novo em coluna zero (teto de 200
 --  locais do Lua — ver CLAUDE.md).
 function painel.drawSecaoInput()
@@ -10922,8 +10930,30 @@ function painel.drawSecaoInput()
     return
   end
 
+  -- ENTER PELO ESTADO FÍSICO DO TECLADO, contornando um gancho que engula
+  -- a tecla (a VS Hook faz isso — ver PROJECT_CONTEXT, "O Enter que não
+  -- chega"). SÓ com a js_ReaScriptAPI instalada e SÓ com este popup em
+  -- foco, para não sequestrar o Enter no resto do REAPER. Sem a extensão,
+  -- `enterFisico` fica falso e resta o botão OK, que basta.
+  local enterFisico = false
+  if reaper.JS_VKeys_GetDown and reaper.time_precise then
+    local emFoco = true
+    if ImGui.IsWindowFocused then
+      local okW, f = pcall(ImGui.IsWindowFocused, ctx)
+      emFoco = not okW or f
+    end
+    if emFoco then
+      local okV, est = pcall(reaper.JS_VKeys_GetDown,
+                             reaper.time_precise() - 0.20)
+      -- Byte 13 = VK_RETURN. GetDown só marca a tecla que BAIXOU desde o
+      -- corte, então isto já é "acabou de apertar", sem rastrear a borda.
+      enterFisico = okV and type(est) == 'string' and #est >= 13
+                    and est:byte(13) ~= 0
+    end
+  end
+
   local escolhido
-  if tecla('Key_Enter') or tecla('Key_KeypadEnter') then
+  if tecla('Key_Enter') or tecla('Key_KeypadEnter') or enterFisico then
     escolhido = (p.sel >= 1) and filtradas[p.sel] or (p.texto or '')
   end
 
@@ -10936,13 +10966,26 @@ function painel.drawSecaoInput()
   local ch, txt = ImGui.InputText(ctx, '##secaoNome', p.texto or '')
   if ch then p.texto = txt; p.sel = 0 end
 
+  -- O BOTÃO OK é o caminho que não passa pelo Enter. Confirma a linha
+  -- realçada pelas setas, ou o texto digitado se nenhuma estiver.
+  ImGui.SameLine(ctx)
+  if ImGui.Button(ctx, 'OK') then
+    escolhido = (p.sel >= 1) and filtradas[p.sel] or (p.texto or '')
+  end
+
   ImGui.Separator(ctx)
   if #filtradas == 0 then
-    ImGui.TextColored(ctx, 0x6B7280FF, '(nome novo)')
+    ImGui.TextColored(ctx, 0x6B7280FF, p.texto ~= ''
+      and ('nome novo: "' .. p.texto .. '"') or '(sem nome ainda)')
   end
   for i, nome in ipairs(filtradas) do
     if ImGui.Selectable(ctx, nome, i == p.sel) then escolhido = nome end
   end
+
+  -- O JEITO DE CONFIRMAR que não depende do Enter, dito na tela: uma
+  -- extensão de gancho de teclado pode engolir o Enter aqui.
+  ImGui.Separator(ctx)
+  ImGui.TextColored(ctx, 0x6B7280FF, 'Enter, OK, ou clique num nome')
 
   if escolhido ~= nil then
     p.texto = escolhido

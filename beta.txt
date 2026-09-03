@@ -1,4 +1,4 @@
-1.4.0b2
+1.4.0b3
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Ctrl+M abre uma lista de nomes pra escolher com as setas; nomes viram etiquetas; cada marcador vira ímã ao arrastar.
+Popup de nome da seção com botão OK; e Enter recuperado via js_ReaScriptAPI quando a VS Hook engole a tecla.
 ID-7171-61AF
