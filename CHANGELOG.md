@@ -4,6 +4,12 @@ Cada versão do LumiBridge e o que mudou nela, a mais nova em cima.
 
 A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
+## 1.3.1
+
+_setembro/2026_
+
+O aviso de atualização reinicia o programa sozinho, e os recados ficaram mais claros.
+
 ## 1.3.0
 
 _setembro/2026_

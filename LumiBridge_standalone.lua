@@ -1,4 +1,4 @@
--- LumiBridge 1.3.0  (compilado em 2026-09-03 09:15)
+-- LumiBridge 1.3.1  (compilado em 2026-09-03 11:13)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -50,7 +50,7 @@ local Version = {}
 
 Version.MAIOR    = 1
 Version.MENOR    = 3
-Version.CORRECAO = 0
+Version.CORRECAO = 1
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
 --
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 09:15"
+Version.COMPILACAO = "2026-09-03 11:13"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4587,6 +4587,8 @@ end
 --  @param url      de onde baixar o programa
 --  @param destino  o arquivo a substituir
 --  @param versao   a que o manifesto prometeu, para conferir
+--  @param Version  o módulo de versão, para saber se o que chegou é
+--                  apenas ATRASADO (cache) ou realmente outra coisa
 --  @return boolean, mensagem
 --- A versão declarada dentro de um programa LumiBridge.
 --
@@ -4614,7 +4616,7 @@ function Atualizacao.versaoDe(conteudo)
   return texto
 end
 
-function Atualizacao.instalar(url, destino, versao)
+function Atualizacao.instalar(url, destino, versao, Version)
   if not url or url == '' then return false, 'sem endereço para baixar' end
 
   local novo = destino .. '.novo'
@@ -4655,6 +4657,34 @@ function Atualizacao.instalar(url, destino, versao)
                     .. '— nada foi alterado'
     end
     if achada ~= versao then
+      -- DOIS MOTIVOS MUITO DIFERENTES CAEM AQUI, e o recado tem de
+      -- separá-los. O grave é o servidor entregando um programa que não
+      -- é o prometido. O comum é banal, e vai acontecer com qualquer
+      -- cliente que atualize nos minutos seguintes a um lançamento:
+      --
+      -- O manifesto e o programa são DOIS arquivos, servidos por uma
+      -- rede de cache que os expira em momentos diferentes. Por alguns
+      -- minutos o manifesto já anuncia a versão nova e o programa ainda
+      -- é o anterior — exatamente o que se lê nas duas linhas acima.
+      --
+      -- O texto antigo dizia só "o arquivo baixado é a versão X, e não a
+      -- Y — nada foi alterado". Correto e assustador: soa como sabotagem
+      -- quando o que estava certo era esperar um minuto. Ninguém lê essa
+      -- frase e pensa "vou tentar de novo".
+      --
+      -- QUAL DOS DOIS É: se o que chegou é MAIS VELHO que o prometido, é
+      -- o cache — o arquivo anterior ainda no ar. Se for mais novo, ou
+      -- outra coisa qualquer, é algo que não se explica sozinho.
+      --
+      -- `Version` vem por parâmetro, como em `procurar`: este módulo não
+      -- o requer, para continuar testável sem nada em volta.
+      local atrasado = Version and Version.maisNovaQue
+                       and Version.maisNovaQue(versao, achada)
+      if atrasado then
+        return false, ('o servidor ainda está entregando a %s. '
+          .. 'Isto é normal nos primeiros minutos depois de uma versão '
+          .. 'nova: espere um minuto e procure de novo.'):format(achada)
+      end
       return false, ('o arquivo baixado é a versão %s, e não a %s '
                      .. '— nada foi alterado'):format(achada, versao)
     end
@@ -7984,6 +8014,19 @@ Theme.UI = {
   warn        = 0xF5A524FF,
 }
 
+--- Quanto separar dois botões vizinhos, em pixels.
+--
+--  O ImGui separa QUALQUER dois itens da mesma linha pelo espaçamento
+--  padrão do tema — sete pixels, o mesmo que separa palavras de uma
+--  frase. Entre dois botões isso não se lê como "dois botões", se lê
+--  como um bloco só; e num par em que um deles instala ou reinicia
+--  alguma coisa, a distância é o que evita o clique errado.
+--
+--  Vive no tema, e não como constante solta em ui/window.lua, por duas
+--  razões: é decisão de aparência como as cores acima, e aquele arquivo
+--  está no teto de 200 locais do Lua (ver CLAUDE.md).
+Theme.UI.espacoBotoes = 16
+
 --- Aplica o estilo da janela. Devolve quantas cores e variáveis foram
 --  empilhadas, para o chamador desempilhar o mesmo número.
 --
@@ -9836,6 +9879,7 @@ local quadro = {
   ultimaQN    = nil,   -- última posição enquanto tocava, em semínimas
   regiaoAt    = 0,     -- próxima releitura da região
   preparada   = nil,   -- nome da região já preparada
+  vivoEm      = nil,   -- segundo do último sinal de vida escrito
 }
 -- O ESPELHO: acender na tela o que está gravado, conforme o cursor passa.
 --
@@ -13390,7 +13434,6 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     end
   end
 
-  Window.__dbgClick = { acertou ~= nil, sobreCorpo, mx, my, yc, corpo }
   -- BOTÃO DIREITO: LAÇO SE ANDAR, MENU SE NÃO ANDAR.
   --
   -- É o gesto do editor MIDI do próprio REAPER, e foi assim que ele foi
@@ -16428,7 +16471,14 @@ local function drawAbaAtual()
     end
 
     if at.achada then
-      ImGui.SameLine(ctx)
+      -- ESPAÇO DE VERDADE ENTRE OS DOIS BOTÕES.
+      --
+      -- O SameLine sem argumento usa o espaçamento padrão do tema, sete
+      -- pixels — o mesmo que separa palavras de uma frase. Entre dois
+      -- botões isso não lê como "dois botões", lê como um bloco só, e
+      -- num par em que o segundo INSTALA alguma coisa a distância é o
+      -- que evita o clique errado.
+      ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes)
       -- O BOTÃO DIZ QUAL DOS DOIS É. Sem isso, aceitar uma versão de
       -- teste é o mesmo gesto que aceitar uma oficial, e a diferença só
       -- apareceria depois de instalada.
@@ -16460,40 +16510,61 @@ local function drawAbaAtual()
       local dl2 = ImGui.GetWindowDrawList(ctx)
       local bx, by = ImGui.GetCursorScreenPos(ctx)
       local bw = math.max(320, ImGui.GetContentRegionAvail(ctx) - 8)
-      local bh = 96
+
+      -- A ALTURA SAI DO TEXTO, e não de um número escolhido a olho.
+      --
+      -- ELA ERA 96 FIXOS, e o conteúdo não cabia: a segunda linha da
+      -- explicação ficava POR BAIXO dos botões, ilegível. A frase que
+      -- some é justamente a que diz o que fazer — o quadro inteiro
+      -- existe para dizer isso.
+      --
+      -- Um número fixo aqui só funciona enquanto a fonte e o texto não
+      -- mudam, e os dois mudam: a fonte acompanha a escala da tela, e a
+      -- frase é a primeira coisa que alguém reescreve. Medindo a linha,
+      -- o quadro cresce junto e não há como voltar a cortar.
+      local medir = Compat.get(ImGui, 'GetTextLineHeight')
+      local ok, linha = pcall(medir, ctx)
+      linha = (ok and type(linha) == 'number' and linha > 0) and linha or 17
+
+      local PAD, ALTURA_BOTAO = 14, 26
+      local bh = PAD + linha            -- o título
+                 + 8 + linha * 2        -- as duas linhas da explicação
+                 + 14 + ALTURA_BOTAO    -- os botões
+                 + PAD
+
       ImGui.DrawList_AddRectFilled(dl2, bx, by, bx + bw, by + bh,
                                    0x14171CFF, 8)
       ImGui.DrawList_AddRect(dl2, bx, by, bx + bw, by + bh,
                              0x3A4150FF, 8, 0, 1)
 
-      ImGui.SetCursorScreenPos(ctx, bx + 16, by + 12)
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + PAD)
       ImGui.TextColored(ctx, Theme.UI.accent, at.reiniciar)
 
-      ImGui.SetCursorScreenPos(ctx, bx + 16, by + 32)
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + PAD + linha + 8)
       ImGui.TextColored(ctx, 0x8A93A3FF,
         'A versão nova já está no disco, mas quem está rodando ainda é a\n'
         .. 'anterior. O LumiBridge precisa fechar e abrir para ela valer.')
 
-      ImGui.SetCursorScreenPos(ctx, bx + 16, by + bh - 34)
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + bh - PAD - ALTURA_BOTAO)
 
       -- REINICIAR SOZINHO SÓ SE HOUVER COMO. Sem a identidade da ação,
       -- não há o que chamar de volta — e um botão que promete reabrir e
       -- só fecha é pior que nenhum, porque a pessoa fica olhando para a
       -- tela vazia esperando.
       if chrome.cmdID and chrome.cmdID ~= 0 then
-        if ImGui.Button(ctx, 'Reiniciar agora', 150, 26) then
+        if ImGui.Button(ctx, 'Reiniciar agora', 150, ALTURA_BOTAO) then
           chrome.reiniciar = true
           chrome.fechar    = true
         end
-        ImGui.SameLine(ctx)
-        if ImGui.Button(ctx, 'Mais tarde', 120, 26) then
+        ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes)
+        if ImGui.Button(ctx, 'Mais tarde', 120, ALTURA_BOTAO) then
           at.reiniciar = nil
         end
       else
         ImGui.TextColored(ctx, 0x8A93A3FF,
           'Feche esta janela e abra o LumiBridge de novo.')
-        ImGui.SameLine(ctx)
-        if ImGui.Button(ctx, 'Entendi', 100, 26) then at.reiniciar = nil end
+        ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes)
+        if ImGui.Button(ctx, 'Entendi', 100, ALTURA_BOTAO) then at.reiniciar = nil end
       end
 
       ImGui.SetCursorScreenPos(ctx, bx, by + bh + 8)
@@ -16550,7 +16621,12 @@ local function drawAbaAtual()
     ImGui.TextColored(ctx, Theme.UI.textDim,
                       chrome.lic.idInstalacao or 'máquina não identificada')
     if chrome.lic.idInstalacao then
-      ImGui.SameLine(ctx)
+      -- MAIS FOLGA AQUI DO QUE ENTRE DOIS BOTÕES: à esquerda não há um
+      -- botão, há um código para LER. Com o espaçamento padrão o Copiar
+      -- encosta no último caractere do ID e os dois viram uma coisa só —
+      -- justamente quando o que se quer é conferir o código com o olho
+      -- antes de copiar.
+      ImGui.SameLine(ctx, 0, Theme.UI.espacoBotoes + 6)
       -- ALTURA ZERO É A ALTURA NATURAL DE UM QUADRO. O 20 fixo que estava
       -- aqui discordava do padding do tema, somando ao desencontro.
       if ImGui.Button(ctx, 'Copiar', 74, 0) then
@@ -18617,7 +18693,7 @@ function painel.trabalharAtualizacao()
     end
     local versaoNova = at.achada.versao
     local ok, msg = Atualizacao.instalar(at.achada.url, arquivo,
-                                         at.achada.versao)
+                                         at.achada.versao, Version)
     at.recado = msg
     if ok then
       at.achada = nil
@@ -20290,7 +20366,20 @@ local function loop()
   --
   -- Escrito com persist = false: é estado de execução, não preferência,
   -- e não faz sentido sobreviver ao fechamento do REAPER.
-  reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(os.time()), false)
+  --
+  -- UMA VEZ POR SEGUNDO, e não uma vez por quadro. O carimbo guarda
+  -- os.time(), que tem resolução de um segundo: das ~30 escritas por
+  -- segundo que havia aqui, 29 gravavam exatamente o mesmo texto —
+  -- 29 alocações de string e 29 idas ao ExtState por segundo, das quais
+  -- nenhuma mudava nada.
+  --
+  -- A guarda de instância única continua igual: ela aceita um carimbo de
+  -- até 2 segundos atrás, e este nunca fica mais de 1 segundo velho.
+  local agora = os.time()
+  if agora ~= quadro.vivoEm then
+    quadro.vivoEm = agora
+    reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(agora), false)
+  end
 
   -- A ação foi executada com o LumiBridge já aberto: em vez de uma
   -- segunda janela, desminimiza (se estiver) e pula pra frente.
@@ -20327,6 +20416,42 @@ local function loop()
     -- é o último: não há `defer` depois dele. A ação nova encontra o
     -- carimbo vazio, passa pela guarda e abre, com o código novo.
     if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
+      -- SEM A CAIXA DE DIÁLOGO DO REAPER, E VOLTANDO DEPOIS.
+      --
+      -- Chamada a ação, o REAPER via que o script ainda constava como
+      -- rodando e abria a sua própria janela: "LumiBridge_standalone.lua
+      -- is running in background — terminate all instances, or launch a
+      -- new instance?". Três botões em inglês, no meio de um reinício
+      -- que o programa acabou de prometer que faria sozinho.
+      --
+      -- O QUE OS VALORES SIGNIFICAM, DESCOBERTO TESTANDO E NÃO LENDO.
+      --
+      -- A documentação oficial lista `set_action_options` e não descreve
+      -- os parâmetros. Duas versões de teste na máquina dele deram a
+      -- resposta, e o registro fica aqui porque não está em lugar nenhum:
+      --
+      --   sem chamada nenhuma  -> a caixa aparece
+      --   set_action_options(1) -> SEM caixa; encerra e NÃO volta
+      --
+      -- Ou seja: 1 é "pode encerrar esta execução sem perguntar". Sozinho
+      -- ele resolve a caixa e deixa o programa fechado — que foi
+      -- exatamente o relato: "fechou o script, mas não abriu novamente".
+      --
+      -- 2 é a outra metade: reabrir depois de encerrar. Daí 1|2.
+      --
+      -- SÓ AQUI, e nunca ao iniciar. Ligado o tempo todo, apertar o
+      -- botão da barra de ferramentas com o LumiBridge aberto MATARIA o
+      -- programa em vez de trazer a janela para a frente — que é
+      -- justamente o caminho de volta de uma janela minimizada. Nesta
+      -- linha o programa já está terminando, então não há o que perder.
+      pcall(function() reaper.set_action_options(1 | 2) end)
+
+      -- E A CHAMADA DIRETA, não mais pelo `atexit`.
+      --
+      -- O atexit foi uma tentativa de fugir da caixa adiando a chamada
+      -- para depois do desmonte. Ela não era necessária: quem tirava a
+      -- caixa era o `1` acima, e adiar só afastava a chamada do momento
+      -- em que o REAPER ainda sabe quem a pediu.
       reaper.Main_OnCommand(chrome.cmdID, 0)
     end
   end
@@ -20369,7 +20494,6 @@ function Window.__comecoDeSessao()
   quadro.recheckAt = math.huge
 end
 
-function Window.__assistDecidirDeNovo() painel.assist.decidido = false end
 function Window.__assistDeveAbrir() return painel.assistDeveAbrir() end
 function Window.__assistRegioes() return painel.assist.regioes end
 function Window.__assistente(abrir, passo)
@@ -20415,8 +20539,6 @@ end
 --  de esticar as notas por cima do trecho pulado.
 function Window.__saltarPara(seg) saltarPara(seg, false) end
 function Window.__zoom() return state.zoom end
-function Window.__fontMode() return state.fonts and state.fonts.mode end
-function Window.__hasLayout() return layout ~= nil end
 function Window.__setAutoZoom(v) opcoes.zoom = v; state.zoom = 1.0 end
 function Window.__setVerbose(v) painel.verbose = v; painel.linhas = {} end
 function Window.__clearLog() painel.linhas = {} end
@@ -20485,8 +20607,6 @@ function Window.__faixasLado() return faixas.lado end
 function Window.__faixasRolagem() return faixas.rolagem end
 function Window.__faixasRemontagens() return faixas.remontagens or 0 end
 function Window.__zoomMudou() return encaixe.mudou or 0 end
-function Window.__pico() return pico.ultimo or {} end
-function Window.__geoMudou() return geo.contadas or 0 end
 --- Geometria do miolo das faixas: onde o corpo começa e quanto mede a
 --  coluna de nomes. Existe para o teste conferir que nada é submetido
 --  acima do corpo — o cabeçalho fica logo ali em cima.
@@ -20534,7 +20654,6 @@ function Window.__usadoBarra() return encaixe.barraUsado end
 --  ligado: sem isto, um teste não teria como chegar a eles.
 function Window.__setOpcao(nome, valor) opcoes[nome] = valor end
 function Window.__opcao(nome) return opcoes[nome] end
-function Window.__gutter() return faixas.gutter end
 function Window.__setGutter(v) faixas.gutter = v; faixas.salvarEm = 0 end
 function Window.__ocultos() return faixas.nomesOcultos or {} end
 function Window.__painelAberto() return painel.aberto end
@@ -20566,9 +20685,6 @@ function Window.__valorFader(tag)
   if not el then return nil end
   return Session.faderValue(session, el)
 end
-function Window.__faixasDesenho()
-  return faixas.desenhadas or 0, faixas.segmentos or 0
-end
 
 --- Pede uma remontagem imediata, como fazem os `faixas.at = 0`
 --  espalhados pelo arquivo (trocar de música, mudar a cor de uma faixa,
@@ -20595,7 +20711,6 @@ function Window.__limparAcao() state.lastAction = nil end
 --- Devolve o programa ao estado de quem acabou de abrir o script: o modo
 --- da lista ainda não foi posto nesta sessão.
 function Window.__faixasEsquecerModo() faixas.modoPosto = nil end
-function Window.__abrirModo() return opcoes.abrirModo end
 function Window.__setAbrirModo(v) opcoes.abrirModo = v; faixas.modoPosto = nil end
 function Window.__setAbrirFiltro(v) opcoes.abrirFiltro = v; faixas.modoPosto = nil end
 function Window.__faixasSemCC() return not faixas.comCC end
