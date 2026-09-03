@@ -1,4 +1,4 @@
-1.4.0b5
+1.4.0b6
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
 Realce mais claro na interface, e o campo de nome da seção voltou a aparecer no popup.
 ID-7171-61AF
