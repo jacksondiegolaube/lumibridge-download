@@ -1,4 +1,4 @@
-1.4.0b7
+1.4.0b8
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Aba Edição ganhou ícone; e agora dá para apagar uma seção pelo menu e mover arrastando a bandeirola.
+Corrige o item MIDI vazio que aparecia por cima do que tinha a programação.
 ID-7171-61AF

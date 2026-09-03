@@ -1,4 +1,4 @@
--- LumiBridge 1.4.0b7  (compilado em 2026-09-03 17:31)
+-- LumiBridge 1.4.0b8  (compilado em 2026-09-03 20:50)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 7
+Version.BETA = 8
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 17:31"
+Version.COMPILACAO = "2026-09-03 20:50"
 
 --- Onde o programa procura por versão nova.
 --
@@ -5514,15 +5514,44 @@ end
 --
 --  Sem região sob a posição, o item cobre a música inteira: é melhor um
 --  item grande e vazio do que vários pedaços.
+--- Folga usada quando a gravação não acha região nenhuma.
+--
+--  `prepareRegion` PRECISA conhecer este número: é a distância máxima que
+--  um item legítimo desta música pode estar das bordas da região. Enquanto
+--  os dois discordaram — oito segundos aqui, um lá —, preparar depois de
+--  gravar criava um segundo item, vazio, por cima do que tinha a
+--  programação.
+Timeline.RECORD_PAD = 8.0
+
 local function recordingBounds(startTime, endTime)
   local r = api()
 
   if r.EnumProjectMarkers3 and r.CountProjectMarkers then
     local _, markers, regions = r.CountProjectMarkers(0)
+
+    -- 1) A região que CONTÉM o início. É o caso normal.
     for i = 0, (markers or 0) + (regions or 0) - 1 do
       local ok, isRegion, pos, rgnEnd = r.EnumProjectMarkers3(0, i)
       if ok and ok ~= 0 and isRegion
          and startTime >= pos - 1e-9 and startTime < rgnEnd then
+        return pos, rgnEnd
+      end
+    end
+
+    -- 2) A região que a nota ATRAVESSA, quando o início dela caiu fora.
+    --
+    -- A compensação de latência desconta do instante do clique o atraso
+    -- de saída do áudio — o som ao qual você reagiu já era passado. Um
+    -- botão apertado no primeiro compasso escreve, então, ANTES do zero
+    -- da música. Com a busca só por "contém o início", essa nota ficava
+    -- sem região, o item nascia com oito segundos de folga para cada
+    -- lado, e a preparação seguinte não reconhecia mais o item da
+    -- música: nascia outro, vazio, por cima. Foi o defeito relatado como
+    -- "aparece um item MIDI em branco cobrindo o correto".
+    for i = 0, (markers or 0) + (regions or 0) - 1 do
+      local ok, isRegion, pos, rgnEnd = r.EnumProjectMarkers3(0, i)
+      if ok and ok ~= 0 and isRegion
+         and startTime < rgnEnd and (endTime or startTime) > pos then
         return pos, rgnEnd
       end
     end
@@ -5534,9 +5563,8 @@ local function recordingBounds(startTime, endTime)
   -- único item cobrindo todas elas, e gravar a terceira música mexeria
   -- no mesmo item da primeira. Sem região não há como saber onde a
   -- música começa e termina, então o mínimo é o mais seguro.
-  local pad = 8.0
-  local from = math.max(0, startTime - pad)
-  return from, endTime + pad
+  local from = math.max(0, startTime - Timeline.RECORD_PAD)
+  return from, (endTime or startTime) + Timeline.RECORD_PAD
 end
 
 local function takeFor(track, startTime, endTime)
@@ -5630,10 +5658,23 @@ function Timeline.prepareRegion(startTime, endTime, nomeRegiao)
     local pos  = r.GetMediaItemInfo_Value(item, 'D_POSITION')
     local len  = r.GetMediaItemInfo_Value(item, 'D_LENGTH')
 
-    -- Só reaproveita item que já está DENTRO da região, com folga de um
-    -- segundo. Antes bastava sobrepor, então um item grande de outra
-    -- parte do projeto era arrastado para cá e redimensionado.
-    local dentro = pos > startTime - 1.0 and pos + len < endTime + 1.0
+    -- Só reaproveita item que já está DENTRO da região. Antes bastava
+    -- sobrepor, então um item grande de outra parte do projeto era
+    -- arrastado para cá e redimensionado.
+    --
+    -- A FOLGA É A MESMA DA GRAVAÇÃO, e não um segundo como era. Sem
+    -- região casando, `takeFor` cria (e estica) o item com
+    -- Timeline.RECORD_PAD de folga para cada lado — e um item assim
+    -- ficava "fora" deste teste. O que acontecia então era o pior
+    -- resultado possível: em vez de reaproveitar, nascia um SEGUNDO
+    -- item, vazio, exatamente do tamanho da região, DEITADO POR CIMA do
+    -- que tinha a programação inteira. Relatado como "aparece um item
+    -- MIDI em branco cobrindo o correto", depois de gravar e regravar.
+    --
+    -- Um item de outra música continua recusado: ele começa perto do
+    -- início da região DELE, muito além desta folga.
+    local folga = Timeline.RECORD_PAD + 1.0
+    local dentro = pos > startTime - folga and pos + len < endTime + folga
     if dentro and pos < endTime and pos + len > startTime then
       local take = r.GetActiveTake(item)
       if take and r.TakeIsMIDI(take) then
