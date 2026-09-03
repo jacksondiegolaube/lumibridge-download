@@ -1,4 +1,4 @@
--- LumiBridge 1.4.0b4  (compilado em 2026-09-03 15:55)
+-- LumiBridge 1.4.0b5  (compilado em 2026-09-03 17:16)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 4
+Version.BETA = 5
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 15:55"
+Version.COMPILACAO = "2026-09-03 17:16"
 
 --- Onde o programa procura por versão nova.
 --
@@ -8083,10 +8083,14 @@ Theme.UI = {
   -- O REALCE PRECISA SER VISTO. Estes dois eram 0x252932 e 0x2E333E —
   -- nove pontos de cinza acima do painel (0x1C1F26), diferença que na
   -- tela some: passar o mouse sobre uma linha de ajuste ou um botão não
-  -- se lia como realce nenhum. Clareados para o passo ser o dobro, sem
-  -- chegar a virar um bloco branco no meio do escuro.
-  panelHover  = 0x30353FFF,
-  panelActive = 0x3C4351FF,
+  -- se lia como realce nenhum.
+  --
+  -- Foram clareados em duas etapas, as duas conferidas na tela: primeiro
+  -- para 0x30353F/0x3C4351 (o passo dobrou, ainda discreto), depois para
+  -- estes. Agora são ~30 e ~46 pontos acima do painel — realce que se lê
+  -- de relance, sem virar um bloco claro no meio do escuro.
+  panelHover  = 0x3A4050FF,
+  panelActive = 0x4A5265FF,
   border      = 0x000000FF,
   text        = 0xD8DCE4FF,
   textDim     = 0x7A8290FF,
@@ -10972,8 +10976,25 @@ function painel.drawSecaoInput()
     if foco then pcall(foco, ctx) end
     s.pediuFoco = false
   end
+
+  -- O CAMPO PRECISA SE DISTINGUIR DO POPUP.
+  --
+  -- `Col_FrameBg` é `Theme.UI.panel`, e `Col_PopupBg` também: dentro de
+  -- um popup o campo de texto ficava exatamente da cor do fundo e
+  -- desaparecia — sobrava um vazio ao lado do OK, e ninguém adivinha que
+  -- ali se digita. Aqui ele volta ao fundo escuro da janela, que é o
+  -- contraste que um campo tem no resto da interface.
+  local nFundo = 0
+  do
+    local idFrame = Compat.const(ImGui, 'Col_FrameBg', nil)
+    if idFrame and ImGui.PushStyleColor
+       and pcall(ImGui.PushStyleColor, ctx, idFrame, Theme.UI.bg) then
+      nFundo = 1
+    end
+  end
   ImGui.SetNextItemWidth(ctx, 172)
   local ch, txt = ImGui.InputText(ctx, '##secaoNome', p.texto or '')
+  if nFundo > 0 then pcall(ImGui.PopStyleColor, ctx, nFundo) end
   if ch then p.texto = txt; p.sel = 0 end
 
   -- O BOTÃO OK é o caminho que não passa pelo Enter. Confirma a linha
@@ -10993,9 +11014,11 @@ function painel.drawSecaoInput()
   end
 
   -- O JEITO DE CONFIRMAR que não depende do Enter, dito na tela: uma
-  -- extensão de gancho de teclado pode engolir o Enter aqui.
+  -- extensão de gancho de teclado pode engolir o Enter aqui. A lista já
+  -- se explica como clicável — o que precisa ser dito é que o OK vale
+  -- tanto quanto o Enter, e não "clique num nome".
   ImGui.Separator(ctx)
-  ImGui.TextColored(ctx, 0x6B7280FF, 'Enter, OK, ou clique num nome')
+  ImGui.TextColored(ctx, 0x6B7280FF, 'Enter ou OK confirmam')
 
   if escolhido ~= nil then
     p.texto = escolhido

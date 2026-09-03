@@ -1,4 +1,4 @@
-1.4.0b4
+1.4.0b5
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Nota criada por arrasto, aba Edição separada, etiquetas de seção redesenhadas e realce mais claro.
+Realce mais claro na interface, e o campo de nome da seção voltou a aparecer no popup.
 ID-7171-61AF
