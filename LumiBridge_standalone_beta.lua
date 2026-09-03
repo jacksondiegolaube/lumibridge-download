@@ -1,4 +1,4 @@
--- LumiBridge 1.3.1b6  (compilado em 2026-09-03 10:22)
+-- LumiBridge 1.3.1b7  (compilado em 2026-09-03 10:41)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 6
+Version.BETA = 7
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 10:22"
+Version.COMPILACAO = "2026-09-03 10:41"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4587,6 +4587,8 @@ end
 --  @param url      de onde baixar o programa
 --  @param destino  o arquivo a substituir
 --  @param versao   a que o manifesto prometeu, para conferir
+--  @param Version  o módulo de versão, para saber se o que chegou é
+--                  apenas ATRASADO (cache) ou realmente outra coisa
 --  @return boolean, mensagem
 --- A versão declarada dentro de um programa LumiBridge.
 --
@@ -4614,7 +4616,7 @@ function Atualizacao.versaoDe(conteudo)
   return texto
 end
 
-function Atualizacao.instalar(url, destino, versao)
+function Atualizacao.instalar(url, destino, versao, Version)
   if not url or url == '' then return false, 'sem endereço para baixar' end
 
   local novo = destino .. '.novo'
@@ -4655,6 +4657,34 @@ function Atualizacao.instalar(url, destino, versao)
                     .. '— nada foi alterado'
     end
     if achada ~= versao then
+      -- DOIS MOTIVOS MUITO DIFERENTES CAEM AQUI, e o recado tem de
+      -- separá-los. O grave é o servidor entregando um programa que não
+      -- é o prometido. O comum é banal, e vai acontecer com qualquer
+      -- cliente que atualize nos minutos seguintes a um lançamento:
+      --
+      -- O manifesto e o programa são DOIS arquivos, servidos por uma
+      -- rede de cache que os expira em momentos diferentes. Por alguns
+      -- minutos o manifesto já anuncia a versão nova e o programa ainda
+      -- é o anterior — exatamente o que se lê nas duas linhas acima.
+      --
+      -- O texto antigo dizia só "o arquivo baixado é a versão X, e não a
+      -- Y — nada foi alterado". Correto e assustador: soa como sabotagem
+      -- quando o que estava certo era esperar um minuto. Ninguém lê essa
+      -- frase e pensa "vou tentar de novo".
+      --
+      -- QUAL DOS DOIS É: se o que chegou é MAIS VELHO que o prometido, é
+      -- o cache — o arquivo anterior ainda no ar. Se for mais novo, ou
+      -- outra coisa qualquer, é algo que não se explica sozinho.
+      --
+      -- `Version` vem por parâmetro, como em `procurar`: este módulo não
+      -- o requer, para continuar testável sem nada em volta.
+      local atrasado = Version and Version.maisNovaQue
+                       and Version.maisNovaQue(versao, achada)
+      if atrasado then
+        return false, ('o servidor ainda está entregando a %s. '
+          .. 'Isto é normal nos primeiros minutos depois de uma versão '
+          .. 'nova: espere um minuto e procure de novo.'):format(achada)
+      end
       return false, ('o arquivo baixado é a versão %s, e não a %s '
                      .. '— nada foi alterado'):format(achada, versao)
     end
@@ -18663,7 +18693,7 @@ function painel.trabalharAtualizacao()
     end
     local versaoNova = at.achada.versao
     local ok, msg = Atualizacao.instalar(at.achada.url, arquivo,
-                                         at.achada.versao)
+                                         at.achada.versao, Version)
     at.recado = msg
     if ok then
       at.achada = nil
