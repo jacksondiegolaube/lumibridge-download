@@ -1,4 +1,4 @@
--- LumiBridge 1.2.0  (compilado em 2026-09-03 08:28)
+-- LumiBridge 1.3.0  (compilado em 2026-09-03 09:15)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -49,7 +49,7 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 2
+Version.MENOR    = 3
 Version.CORRECAO = 0
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 08:28"
+Version.COMPILACAO = "2026-09-03 09:15"
 
 --- Onde o programa procura por versão nova.
 --
@@ -9917,6 +9917,11 @@ local chrome = {
   minimizado = false,  -- encolhida na pastilha
   aoAlto     = true,   -- manter a janela acima do REAPER
   fechar     = false,  -- o X da barra própria foi clicado
+  -- FECHAR PARA VOLTAR, depois de uma atualização instalada. Lido no
+  -- fim do laço, DEPOIS que o sinal de vida é apagado — que é o que
+  -- desarma a guarda de instância única e deixa a ação abrir de novo.
+  reiniciar  = false,
+  cmdID      = nil,    -- a identidade desta ação no REAPER, para chamá-la
   arrastando = false,  -- a barra de título está sendo arrastada
   offX = 0, offY = 0,  -- distância do mouse ao canto, no arrasto
   normalW = 1200, normalH = 800,  -- tamanho antes de minimizar
@@ -16435,12 +16440,72 @@ local function drawAbaAtual()
       end
     end
 
-    if at.recado then
+    -- ---------------------------------------- INSTALOU: e agora?
+    --
+    -- POR QUE ISTO É UM QUADRO E NÃO MAIS UMA LINHA DE TEXTO.
+    --
+    -- O recado "atualizado — feche e abra o LumiBridge" saía do mesmo
+    -- jeito que "procurando...": uma linha cinza, do tamanho das outras,
+    -- no meio de uma aba cheia de linhas cinzas. Quem acabou de apertar
+    -- um botão e viu a tela continuar igual conclui que a atualização
+    -- não fez nada — e segue usando a versão velha, com a nova já
+    -- instalada no disco, esperando um reinício que ninguém deu.
+    --
+    -- O programa é o único que sabe que isso aconteceu. Ele tem de
+    -- dizer, e tem de dizer no lugar para onde a pessoa está olhando:
+    -- logo abaixo do botão que ela acabou de clicar.
+    if at.reiniciar then
+      ImGui.Dummy(ctx, 1, 8)
+
+      local dl2 = ImGui.GetWindowDrawList(ctx)
+      local bx, by = ImGui.GetCursorScreenPos(ctx)
+      local bw = math.max(320, ImGui.GetContentRegionAvail(ctx) - 8)
+      local bh = 96
+      ImGui.DrawList_AddRectFilled(dl2, bx, by, bx + bw, by + bh,
+                                   0x14171CFF, 8)
+      ImGui.DrawList_AddRect(dl2, bx, by, bx + bw, by + bh,
+                             0x3A4150FF, 8, 0, 1)
+
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + 12)
+      ImGui.TextColored(ctx, Theme.UI.accent, at.reiniciar)
+
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + 32)
+      ImGui.TextColored(ctx, 0x8A93A3FF,
+        'A versão nova já está no disco, mas quem está rodando ainda é a\n'
+        .. 'anterior. O LumiBridge precisa fechar e abrir para ela valer.')
+
+      ImGui.SetCursorScreenPos(ctx, bx + 16, by + bh - 34)
+
+      -- REINICIAR SOZINHO SÓ SE HOUVER COMO. Sem a identidade da ação,
+      -- não há o que chamar de volta — e um botão que promete reabrir e
+      -- só fecha é pior que nenhum, porque a pessoa fica olhando para a
+      -- tela vazia esperando.
+      if chrome.cmdID and chrome.cmdID ~= 0 then
+        if ImGui.Button(ctx, 'Reiniciar agora', 150, 26) then
+          chrome.reiniciar = true
+          chrome.fechar    = true
+        end
+        ImGui.SameLine(ctx)
+        if ImGui.Button(ctx, 'Mais tarde', 120, 26) then
+          at.reiniciar = nil
+        end
+      else
+        ImGui.TextColored(ctx, 0x8A93A3FF,
+          'Feche esta janela e abra o LumiBridge de novo.')
+        ImGui.SameLine(ctx)
+        if ImGui.Button(ctx, 'Entendi', 100, 26) then at.reiniciar = nil end
+      end
+
+      ImGui.SetCursorScreenPos(ctx, bx, by + bh + 8)
+    end
+
+    if at.recado and not at.reiniciar then
       ImGui.Dummy(ctx, 1, 6)
       ImGui.TextColored(ctx,
         at.achada and Theme.UI.accent or 0x8A93A3FF, at.recado)
     end
-    if at.achada and at.achada.notas and at.achada.notas ~= '' then
+    if at.achada and at.achada.notas and at.achada.notas ~= ''
+       and not at.reiniciar then
       ImGui.TextColored(ctx, 0x777F8CFF, at.achada.notas)
     end
     if Version.MANIFESTO == '' then
@@ -16466,12 +16531,29 @@ local function drawAbaAtual()
     -- Ele não é a chave nem o código de licença — está aqui embaixo, em
     -- DESENVOLVIMENTO, longe da tela de ativação, para ninguém mandar um
     -- pelo outro.
+    -- ALINHAR O TEXTO À ALTURA DO BOTÃO, e não o contrário.
+    --
+    -- Numa linha com texto e botão, o ImGui encosta os dois pelo TOPO. O
+    -- botão é mais alto que uma linha de texto, então a palavra dentro
+    -- dele desce alguns pixels em relação ao rótulo ao lado — e é isso
+    -- que se vê na tela como "Copiar descentralizado". O botão está certo
+    -- por dentro; é a linha que está torta.
+    --
+    -- Isto sobe a linha de base do texto para a do quadro, antes do
+    -- primeiro item da linha, que é o que o próprio ImGui faz nos seus
+    -- formulários. Vem por Compat porque no ReaImGui todo acesso a campo
+    -- inexistente LANÇA ERRO, e um alinhamento não vale derrubar a aba.
+    local alinhar = Compat.get(ImGui, 'AlignTextToFramePadding')
+    if alinhar then pcall(alinhar, ctx) end
+
     ajuste('ID de instalação', nil, 220)
     ImGui.TextColored(ctx, Theme.UI.textDim,
                       chrome.lic.idInstalacao or 'máquina não identificada')
     if chrome.lic.idInstalacao then
       ImGui.SameLine(ctx)
-      if ImGui.Button(ctx, 'Copiar', 74, 20) then
+      -- ALTURA ZERO É A ALTURA NATURAL DE UM QUADRO. O 20 fixo que estava
+      -- aqui discordava do padding do tema, somando ao desencontro.
+      if ImGui.Button(ctx, 'Copiar', 74, 0) then
         local copiar = Compat.get(ImGui, 'SetClipboardText')
         if copiar then pcall(copiar, ctx, chrome.lic.idInstalacao) end
       end
@@ -18533,10 +18615,18 @@ function painel.trabalharAtualizacao()
       at.recado = 'não descobri qual arquivo estou rodando'
       return
     end
+    local versaoNova = at.achada.versao
     local ok, msg = Atualizacao.instalar(at.achada.url, arquivo,
                                          at.achada.versao)
     at.recado = msg
-    if ok then at.achada = nil end
+    if ok then
+      at.achada = nil
+      -- O QUADRO DE REINÍCIO guarda a frase de cima, e é a existência
+      -- dele que diz "instalou". Fica até a pessoa escolher uma das duas
+      -- saídas — não some sozinho ao trocar de aba, porque o recado só
+      -- vale enquanto o reinício não aconteceu.
+      at.reiniciar = ('Atualizado para %s.'):format(versaoNova)
+    end
     log('atualização: ' .. tostring(msg))
     return
   end
@@ -20224,6 +20314,21 @@ local function loop()
     -- Some o sinal de vida: sem isto, a próxima execução da ação veria
     -- um carimbo recente e se recusaria a abrir, por até dois segundos.
     reaper.DeleteExtState(EXT_SECTION, 'vivo_em', false)
+
+    -- REINICIAR, e por que é AQUI que isso pode acontecer.
+    --
+    -- Rodar a ação com o LumiBridge aberto NÃO abre uma segunda janela:
+    -- a guarda de instância única (ver Window.start) vê o sinal de vida
+    -- recente e só manda restaurar a janela que já existe. Chamada em
+    -- qualquer outro ponto, `Main_OnCommand` faria exatamente isso —
+    -- restaurar em vez de reiniciar, e o botão pareceria não funcionar.
+    --
+    -- Nesta linha o sinal já foi apagado, uma linha acima, e este quadro
+    -- é o último: não há `defer` depois dele. A ação nova encontra o
+    -- carimbo vazio, passa pela guarda e abre, com o código novo.
+    if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
+      reaper.Main_OnCommand(chrome.cmdID, 0)
+    end
   end
 end
 
@@ -20234,6 +20339,16 @@ end
 function Window.__setRecording(v) recording = v end
 function Window.__setAdvanced(v) painel.aberto = v end
 function Window.__setAba(v) abaAtual = v end
+
+--- Liga o quadro de "reinicie para valer" da aba Sobre.
+--
+--  EXISTE PARA O TESTE DE COMPATIBILIDADE. Aquele quadro só aparece
+--  depois de uma atualização instalada com sucesso — coisa que não
+--  acontece dentro da suíte —, então ele seria a única parte da aba
+--  Sobre que nunca passa pelas três gerações do ReaImGui. Um nome de
+--  função errado ali só apareceria na máquina de um cliente, no minuto
+--  seguinte a ele atualizar, que é o pior minuto possível.
+function Window.__setReinicio(msg) painel.atualizacao.reiniciar = msg end
 --- Estado da licença, para o teste. `__lerLicenca` refaz a leitura como
 --  no início do programa; `__licencaAtiva` diz se a janela vai abrir.
 function Window.__lerLicenca() return chrome.lerLicenca() end
@@ -20582,6 +20697,24 @@ function Window.start()
   if os.time() - carimbo < 2 then
     reaper.SetExtState(EXT_SECTION, 'restaurar', '1', false)
     return
+  end
+
+  -- A IDENTIDADE DESTA AÇÃO, guardada para poder chamá-la de volta.
+  --
+  -- É o que o botão "Reiniciar agora" usa depois de uma atualização. O
+  -- número não é fixo: ele muda de máquina para máquina, e muda se a
+  -- pessoa registrar o script de novo. Perguntar ao REAPER é a única
+  -- forma que não envelhece.
+  --
+  -- Pode não vir (uma execução que não seja por ação registrada). Nesse
+  -- caso o botão de reiniciar nem aparece — ver a aba Sobre.
+  --
+  -- Por pcall porque nem todo jeito de rodar isto é uma ação registrada,
+  -- e uma janela que não abre por causa de um botão de conveniência
+  -- seria uma troca ruim.
+  do
+    local ok, _, _, _, cmd = pcall(reaper.get_action_context)
+    chrome.cmdID = ok and tonumber(cmd) or nil
   end
 
   local im, err = Compat.load()

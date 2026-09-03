@@ -34,7 +34,7 @@ stream
 0.18 0.42 0.78 RG 2.00 w 64.00 544.00 m 154.00 544.00 l S
 0.15 0.16 0.18 rg BT /F1 12.00 Tf 1 0 0 1 64.00 500.00 Tm (Automação de luz entre o REAPER e o Lumikit Show,) Tj ET
 0.15 0.16 0.18 rg BT /F1 12.00 Tf 1 0 0 1 64.00 482.00 Tm (pela sua própria Janela Personalizada.) Tj ET
-0.15 0.16 0.18 rg BT /F2 11.00 Tf 1 0 0 1 64.00 190.00 Tm (Versão 1.2.0) Tj ET
+0.15 0.16 0.18 rg BT /F2 11.00 Tf 1 0 0 1 64.00 190.00 Tm (Versão 1.3.0) Tj ET
 0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 172.00 Tm (03/09/2026) Tj ET
 0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 64.00 140.00 Tm (Jackson Diego Laube) Tj ET
 0.18 0.42 0.78 rg BT /F1 11.00 Tf 1 0 0 1 64.00 122.00 Tm (jacksondiegolaube.github.io/lumibridge-download) Tj ET
@@ -113,7 +113,7 @@ stream
 0.42 0.45 0.50 rg BT /F1 11.00 Tf 1 0 0 1 518.77 394.00 Tm (19) Tj ET
 0.85 0.87 0.90 RG 0.50 w 178.82 397.00 m 510.77 397.00 l S
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (2) Tj ET
 endstream
 endobj
@@ -156,7 +156,7 @@ stream
 0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 378.00 Tm (REAPER e do Lumikit Show.) Tj ET
 0.72 0.50 0.05 RG 2.00 w 67.00 420.00 m 67.00 375.50 l S
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (3) Tj ET
 endstream
 endobj
@@ -195,7 +195,7 @@ stream
 0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 132.88 386.00 Tm (Recarregar) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 191.24 386.00 Tm (em Configurações › Arquivo.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (4) Tj ET
 endstream
 endobj
@@ -231,7 +231,7 @@ stream
 0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 495.50 Tm (nossa e não foi modificada.) Tj ET
 0.72 0.50 0.05 RG 2.00 w 67.00 523.00 m 67.00 493.00 l S
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (5) Tj ET
 endstream
 endobj
@@ -265,7 +265,7 @@ stream
 0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 534.00 Tm (você formatar o computador ou trocar de máquina, peça outra chave.) Tj ET
 0.72 0.50 0.05 RG 2.00 w 67.00 576.00 m 67.00 531.50 l S
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (6) Tj ET
 endstream
 endobj
@@ -314,7 +314,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 372.00 Tm (Cada música, faixa ou cena é uma região, e é ela que aparece no campo de busca da barra. Sem) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 357.00 Tm (nenhuma região, não há o que escolher e a janela parece vazia.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (7) Tj ET
 endstream
 endobj
@@ -374,7 +374,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 155.00 Tm (O desenho do áudio da track de referência, com a régua de tempo e o cursor. É por ela que você) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 140.00 Tm (enxerga a batida. A roda do mouse aproxima e afasta.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (8) Tj ET
 endstream
 endobj
@@ -396,7 +396,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 639.00 Tm (depois vale até fechar o programa: fechar e reabrir a lista não desfaz o que você acabou de) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 624.00 Tm (arrumar.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 526.27 48.00 Tm (9) Tj ET
 endstream
 endobj
@@ -427,7 +427,7 @@ stream
 0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 564.50 Tm (ponto.) Tj ET
 0.72 0.50 0.05 RG 2.00 w 67.00 592.00 m 67.00 562.00 l S
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (10) Tj ET
 endstream
 endobj
@@ -466,7 +466,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 198.22 447.00 Tm (: dê play, marque o tempo junto com a batida algumas vezes e aplique.) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 432.00 Tm (O programa passa a escrever os cliques onde você quis, e não onde a mão chegou.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (11) Tj ET
 endstream
 endobj
@@ -533,7 +533,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 113.01 337.00 Tm (: mover três blocos é um, esticar uma nota é outro. Ctrl+Z devolve o último — e não a) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 322.00 Tm (gravação inteira. Ctrl+Shift+Z refaz.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (12) Tj ET
 endstream
 endobj
@@ -558,7 +558,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 427.30 658.00 Tm (do teclado numérico) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 643.00 Tm (mostram e escondem.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (13) Tj ET
 endstream
 endobj
@@ -598,7 +598,7 @@ stream
 0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 446.00 Tm (Sobre) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 446.00 Tm (a versão instalada e o botão de procurar atualizações.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (14) Tj ET
 endstream
 endobj
@@ -639,7 +639,7 @@ stream
 0.15 0.16 0.18 rg BT /F2 10.50 Tf 1 0 0 1 64.00 452.00 Tm (ESC) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 452.00 Tm (fecha as configurações.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (15) Tj ET
 endstream
 endobj
@@ -659,7 +659,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 681.00 Tm (Isso quer dizer que uma falha do LumiBridge no meio da temporada não derruba o show: ele não) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 64.00 666.00 Tm (está no caminho.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (16) Tj ET
 endstream
 endobj
@@ -694,7 +694,7 @@ stream
 0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 517.50 Tm (lugar para uma máquina que sobe ao palco na mesma semana.) Tj ET
 0.72 0.50 0.05 RG 2.00 w 67.00 545.00 m 67.00 515.00 l S
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (17) Tj ET
 endstream
 endobj
@@ -740,7 +740,7 @@ stream
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 461.00 Tm (confira se o código enviado foi o que aparece na tela de ativação) Tj ET
 0.15 0.16 0.18 rg BT /F1 10.50 Tf 1 0 0 1 214.00 446.00 Tm (deste computador. A chave de outra máquina não vale aqui.) Tj ET
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (18) Tj ET
 endstream
 endobj
@@ -763,7 +763,7 @@ stream
 0.42 0.45 0.50 rg BT /F1 10.00 Tf 1 0 0 1 80.00 618.50 Tm (programa não são afiliados a nenhuma das duas.) Tj ET
 0.72 0.50 0.05 RG 2.00 w 67.00 646.00 m 67.00 616.00 l S
 0.80 0.82 0.85 RG 0.50 w 64.00 62.00 m 531.00 62.00 l S
-0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.2.0  ·  Manual do usuário) Tj ET
+0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 64.00 48.00 Tm (LumiBridge 1.3.0  ·  Manual do usuário) Tj ET
 0.42 0.45 0.50 rg BT /F1 8.50 Tf 1 0 0 1 521.55 48.00 Tm (19) Tj ET
 endstream
 endobj
