@@ -1,4 +1,4 @@
--- LumiBridge 1.4.0b6  (compilado em 2026-09-03 17:19)
+-- LumiBridge 1.4.0b7  (compilado em 2026-09-03 17:31)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 6
+Version.BETA = 7
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 17:19"
+Version.COMPILACAO = "2026-09-03 17:31"
 
 --- Onde o programa procura por versão nova.
 --
@@ -7659,7 +7659,11 @@ function Transport.addMarker(pos, name)
   return (type(idx) == 'number' and idx >= 0) and idx or nil
 end
 
---- Renomeia (e reposiciona) o marcador de índice `idx`.
+--- Grava nome E posição do marcador de índice `idx`.
+--
+--  É a mesma chamada para renomear e para MOVER: o REAPER não tem uma
+--  função só de mover marcador, `SetProjectMarker3` recebe os dois de
+--  uma vez. Quem só quer mover passa o nome que já estava lá.
 function Transport.renameMarker(idx, pos, name)
   local r = api()
   if not r.SetProjectMarker3 or not idx then return false end
@@ -10253,6 +10257,8 @@ local painel = {
   --   abrirInput idem, para o popup de nome com a lista de escolha
   --   pendente   { idx, pos, texto, viva, sel } enquanto o nome está
   --              sendo escolhido, logo após criar o marcador
+  --   movendo    { idx, nome, pos, original } enquanto a bandeirola está
+  --              sendo arrastada pela régua
   --   pediuFoco  levar o cursor de teclado ao campo no próximo quadro
   --   faixa*     geometria da régua da onda, para o popup se posicionar
   secao = {
@@ -10260,7 +10266,7 @@ local painel = {
               'Ponte', 'Virada', 'Final' },
     novaTag = '',
     menuT = 0, abrirMenu = false, abrirInput = false,
-    pendente = nil, pediuFoco = false,
+    pendente = nil, movendo = nil, pediuFoco = false,
     faixaX0 = nil, faixaLarg = nil, faixaFrom = nil, faixaDur = nil,
     faixaY = nil,
   },
@@ -10810,6 +10816,52 @@ function painel.drawSecaoMenu()
     return idx
   end
 
+  -- A SEÇÃO SOB O CLIQUE VEM PRIMEIRO.
+  --
+  -- Estava no fim, depois da paleta inteira, e a distância era medida em
+  -- SEGUNDOS (três) — o que num zoom afastado é meia tela e num zoom
+  -- aproximado é um fio de pixel. Quem clicava na bandeirola para apagar
+  -- não achava a opção. Agora a distância é em PIXELS, como todo alcance
+  -- de mouse deste arquivo, e o que é daquela marca aparece no topo.
+  local segPx = (s.faixaDur and s.faixaLarg and s.faixaLarg > 0)
+                and (s.faixaDur / s.faixaLarg) or 0.05
+  local perto = Transport.nearestMarker(s.menuT, 0, regions)
+  if perto and math.abs(perto.startTime - s.menuT) > segPx * 18 then
+    perto = nil
+  end
+
+  if perto then
+    local rot = perto.name ~= '' and perto.name or '(sem nome)'
+    ImGui.TextColored(ctx, 0x6B7280FF, rot)
+    ImGui.Separator(ctx)
+    -- O SALTO ATRAVESSA O QUADRO numa variável, como o pedido de menu:
+    -- `saltarPara` só é declarada bem mais abaixo neste arquivo, e daqui
+    -- ela seria uma global inexistente (é o defeito que test_globals
+    -- existe para pegar).
+    if ImGui.Selectable(ctx, 'Ir para esta seção') then
+      s.irPara = perto.startTime
+      ImGui.CloseCurrentPopup(ctx)
+    end
+    if ImGui.Selectable(ctx, 'Renomear…') then
+      s.pendente = { idx = perto.index, pos = perto.startTime,
+                     texto = perto.name or '', viva = false, sel = 0 }
+      s.pediuFoco = true
+      s.abrirInput = true
+      ImGui.CloseCurrentPopup(ctx)
+    end
+    if ImGui.Selectable(ctx, 'Apagar') then
+      Transport.deleteMarker(perto.index)
+      quadro.recheckAt = 0
+      log('seção apagada: ' .. rot)
+      ImGui.CloseCurrentPopup(ctx)
+    end
+    ImGui.Separator(ctx)
+    ImGui.TextColored(ctx, 0x6B7280FF, 'Arraste a bandeirola para mover.')
+    ImGui.Separator(ctx)
+  end
+
+  ImGui.TextColored(ctx, 0x6B7280FF, 'Marcar seção aqui')
+  ImGui.Separator(ctx)
   for _, nome in ipairs(s.nomes) do
     if ImGui.Selectable(ctx, nome) then
       criar(nome)
@@ -10827,27 +10879,6 @@ function painel.drawSecaoMenu()
       s.abrirInput = true
     end
     ImGui.CloseCurrentPopup(ctx)
-  end
-
-  -- A SEÇÃO MAIS PRÓXIMA do ponto clicado: renomear ou apagar sem ter de
-  -- acertar o pixel da bandeirola.
-  local perto = Transport.nearestMarker(s.menuT, 0, regions)
-  if perto and math.abs(perto.startTime - s.menuT) < 3.0 then
-    ImGui.Separator(ctx)
-    local rot = perto.name ~= '' and perto.name or '(sem nome)'
-    if ImGui.Selectable(ctx, 'Renomear "' .. rot .. '"') then
-      s.pendente = { idx = perto.index, pos = perto.startTime,
-                     texto = perto.name or '', viva = false, sel = 0 }
-      s.pediuFoco = true
-      s.abrirInput = true
-      ImGui.CloseCurrentPopup(ctx)
-    end
-    if ImGui.Selectable(ctx, 'Apagar "' .. rot .. '"') then
-      Transport.deleteMarker(perto.index)
-      quadro.recheckAt = 0
-      log('seção apagada: ' .. rot)
-      ImGui.CloseCurrentPopup(ctx)
-    end
   end
 
   ImGui.EndPopup(ctx)
@@ -12064,24 +12095,63 @@ local function drawTimeline(xF, yF, larguraF)
     return
   end
 
+  -- PEGAR A BANDEIROLA E ARRASTAR MOVE A SEÇÃO.
+  --
+  -- O clique começa dentro de oito pixels de uma marca: em vez de mover
+  -- o cursor, a marca fica na mão. Soltar SEM ter andado leva o cursor
+  -- até ela — que era o que o clique na bandeirola já fazia —, então o
+  -- gesto antigo não se perde, só ganha um segundo significado.
+  local pxSeg = largura / duracao
+  do
+    local ini = Compat.get(ImGui, 'IsItemActivated')
+    if ini and ini(ctx) and not recording and not painel.secao.movendo then
+      local tc = from + (ImGui.GetMousePos(ctx) - x0) / largura * duracao
+      local perto = Transport.nearestMarker(tc, 0, regions)
+      if perto and math.abs((perto.startTime - tc) * pxSeg) <= 8 then
+        painel.secao.movendo = { idx = perto.index, nome = perto.name or '',
+                                 pos = perto.startTime,
+                                 original = perto.startTime }
+      end
+    end
+  end
+
+  if painel.secao.movendo then
+    local mv = painel.secao.movendo
+    if ImGui.IsItemActive(ctx) then
+      local t = from + (ImGui.GetMousePos(ctx) - x0) / largura * duracao
+      if region then
+        t = math.max(region.startTime, math.min(region.endTime, t))
+      end
+      mv.pos = t
+      local pxm = math.floor(x0 + (mv.pos - from) / duracao * largura)
+      ImGui.DrawList_AddLine(dl, pxm, y0, pxm, y0 + ALTURA, 0xF5A524FF, 2)
+      ImGui.DrawList_AddTriangleFilled(dl, pxm, yOnda, pxm + 7, yOnda,
+        pxm, yOnda + 7, 0xF5A524FF)
+    else
+      -- ANDOU? move. NÃO ANDOU? era um clique na marca: leva o cursor.
+      -- Sem esta distinção, todo clique numa bandeirola escreveria um
+      -- passo de desfazer que não mudou nada.
+      if math.abs(mv.pos - mv.original) * pxSeg > 3 then
+        Transport.renameMarker(mv.idx, mv.pos, mv.nome)
+        quadro.recheckAt = 0
+        log(('seção movida: %s para %s'):format(
+          mv.nome ~= '' and mv.nome or '(sem nome)',
+          Transport.formatTime(mv.pos)))
+      else
+        saltarPara(mv.original, false)
+      end
+      painel.secao.movendo = nil
+    end
+    saltoEmCurso = false
+    return
+  end
+
   local ativo = ImGui.IsItemActive(ctx)
   if ativo then
     local mx = ImGui.GetMousePos(ctx)
     local frac = (mx - x0) / largura
     if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
     saltoDestino = from + frac * duracao
-    -- ÍMÃ NA SEÇÃO: começar o clique a poucos pixels de uma bandeirola
-    -- vai exatamente para ela — é assim que se pula de seção em seção.
-    -- Só no começo do clique, não durante o arrasto, senão a onda ficaria
-    -- grudenta perto das marcas.
-    local ini = Compat.get(ImGui, 'IsItemActivated')
-    if ini and ini(ctx) then
-      local perto = Transport.nearestMarker(saltoDestino, 0, regions)
-      if perto and math.abs((perto.startTime - saltoDestino)
-                            / duracao * largura) <= 6 then
-        saltoDestino = perto.startTime
-      end
-    end
     saltarPara(saltoDestino, true)
   elseif saltoEmCurso then
     saltarPara(saltoDestino or Transport.position(), false)
@@ -15939,6 +16009,13 @@ local function desenharIconeAba(dl, chave, cx, cy, cor)
     ImGui.DrawList_AddLine(dl, cx + 3, cy - 6, cx + 3, cy + 6, cor, 1)
     ImGui.DrawList_AddRectFilled(dl, cx - 5.5, cy - 3, cx - 0.5, cy - 1, cor)
     ImGui.DrawList_AddRectFilled(dl, cx + 0.5, cy + 1, cx + 5.5, cy + 3, cor)
+  elseif chave == 'edicao' then
+    -- Três blocos escalonados: é a lista de programação vista de longe,
+    -- que é justamente o que esta aba governa. Só retângulos — nada de
+    -- ponta fina, pela mesma razão do cabeçalho desta função.
+    ImGui.DrawList_AddRectFilled(dl, cx - 6, cy - 6, cx + 1, cy - 3, cor)
+    ImGui.DrawList_AddRectFilled(dl, cx - 2, cy - 1.5, cx + 6, cy + 1.5, cor)
+    ImGui.DrawList_AddRectFilled(dl, cx - 6, cy + 3, cx + 3, cy + 6, cor)
   elseif chave == 'midi' then
     ImGui.DrawList_AddCircleFilled(dl, cx - 4, cy, 1.7, cor)
     ImGui.DrawList_AddCircleFilled(dl, cx,     cy, 1.7, cor)
@@ -20752,6 +20829,13 @@ local function frame()
     ImGui.OpenPopup(ctx, 'secaoInput')
   end
   painel.drawSecaoInput()
+
+  -- "Ir para esta seção", pedido pelo menu no quadro anterior.
+  if painel.secao.irPara then
+    local alvo = painel.secao.irPara
+    painel.secao.irPara = nil
+    saltarPara(alvo, false)
+  end
 
 
   -- POR ÚLTIMO: desenhado depois do canvas, no mesmo DrawList, para

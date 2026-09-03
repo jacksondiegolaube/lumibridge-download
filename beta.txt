@@ -1,4 +1,4 @@
-1.4.0b6
+1.4.0b7
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Realce mais claro na interface, e o campo de nome da seção voltou a aparecer no popup.
+Aba Edição ganhou ícone; e agora dá para apagar uma seção pelo menu e mover arrastando a bandeirola.
 ID-7171-61AF
