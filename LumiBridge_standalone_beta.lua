@@ -1,4 +1,4 @@
--- LumiBridge 1.3.0b1  (compilado em 2026-09-03 09:05)
+-- LumiBridge 1.3.1b1  (compilado em 2026-09-03 09:47)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -50,7 +50,7 @@ local Version = {}
 
 Version.MAIOR    = 1
 Version.MENOR    = 3
-Version.CORRECAO = 0
+Version.CORRECAO = 1
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
 --
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 09:05"
+Version.COMPILACAO = "2026-09-03 09:47"
 
 --- Onde o programa procura por versão nova.
 --
@@ -9836,6 +9836,7 @@ local quadro = {
   ultimaQN    = nil,   -- última posição enquanto tocava, em semínimas
   regiaoAt    = 0,     -- próxima releitura da região
   preparada   = nil,   -- nome da região já preparada
+  vivoEm      = nil,   -- segundo do último sinal de vida escrito
 }
 -- O ESPELHO: acender na tela o que está gravado, conforme o cursor passa.
 --
@@ -13390,7 +13391,6 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     end
   end
 
-  Window.__dbgClick = { acertou ~= nil, sobreCorpo, mx, my, yc, corpo }
   -- BOTÃO DIREITO: LAÇO SE ANDAR, MENU SE NÃO ANDAR.
   --
   -- É o gesto do editor MIDI do próprio REAPER, e foi assim que ele foi
@@ -20290,7 +20290,20 @@ local function loop()
   --
   -- Escrito com persist = false: é estado de execução, não preferência,
   -- e não faz sentido sobreviver ao fechamento do REAPER.
-  reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(os.time()), false)
+  --
+  -- UMA VEZ POR SEGUNDO, e não uma vez por quadro. O carimbo guarda
+  -- os.time(), que tem resolução de um segundo: das ~30 escritas por
+  -- segundo que havia aqui, 29 gravavam exatamente o mesmo texto —
+  -- 29 alocações de string e 29 idas ao ExtState por segundo, das quais
+  -- nenhuma mudava nada.
+  --
+  -- A guarda de instância única continua igual: ela aceita um carimbo de
+  -- até 2 segundos atrás, e este nunca fica mais de 1 segundo velho.
+  local agora = os.time()
+  if agora ~= quadro.vivoEm then
+    quadro.vivoEm = agora
+    reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(agora), false)
+  end
 
   -- A ação foi executada com o LumiBridge já aberto: em vez de uma
   -- segunda janela, desminimiza (se estiver) e pula pra frente.
@@ -20369,7 +20382,6 @@ function Window.__comecoDeSessao()
   quadro.recheckAt = math.huge
 end
 
-function Window.__assistDecidirDeNovo() painel.assist.decidido = false end
 function Window.__assistDeveAbrir() return painel.assistDeveAbrir() end
 function Window.__assistRegioes() return painel.assist.regioes end
 function Window.__assistente(abrir, passo)
@@ -20415,8 +20427,6 @@ end
 --  de esticar as notas por cima do trecho pulado.
 function Window.__saltarPara(seg) saltarPara(seg, false) end
 function Window.__zoom() return state.zoom end
-function Window.__fontMode() return state.fonts and state.fonts.mode end
-function Window.__hasLayout() return layout ~= nil end
 function Window.__setAutoZoom(v) opcoes.zoom = v; state.zoom = 1.0 end
 function Window.__setVerbose(v) painel.verbose = v; painel.linhas = {} end
 function Window.__clearLog() painel.linhas = {} end
@@ -20485,8 +20495,6 @@ function Window.__faixasLado() return faixas.lado end
 function Window.__faixasRolagem() return faixas.rolagem end
 function Window.__faixasRemontagens() return faixas.remontagens or 0 end
 function Window.__zoomMudou() return encaixe.mudou or 0 end
-function Window.__pico() return pico.ultimo or {} end
-function Window.__geoMudou() return geo.contadas or 0 end
 --- Geometria do miolo das faixas: onde o corpo começa e quanto mede a
 --  coluna de nomes. Existe para o teste conferir que nada é submetido
 --  acima do corpo — o cabeçalho fica logo ali em cima.
@@ -20534,7 +20542,6 @@ function Window.__usadoBarra() return encaixe.barraUsado end
 --  ligado: sem isto, um teste não teria como chegar a eles.
 function Window.__setOpcao(nome, valor) opcoes[nome] = valor end
 function Window.__opcao(nome) return opcoes[nome] end
-function Window.__gutter() return faixas.gutter end
 function Window.__setGutter(v) faixas.gutter = v; faixas.salvarEm = 0 end
 function Window.__ocultos() return faixas.nomesOcultos or {} end
 function Window.__painelAberto() return painel.aberto end
@@ -20566,9 +20573,6 @@ function Window.__valorFader(tag)
   if not el then return nil end
   return Session.faderValue(session, el)
 end
-function Window.__faixasDesenho()
-  return faixas.desenhadas or 0, faixas.segmentos or 0
-end
 
 --- Pede uma remontagem imediata, como fazem os `faixas.at = 0`
 --  espalhados pelo arquivo (trocar de música, mudar a cor de uma faixa,
@@ -20595,7 +20599,6 @@ function Window.__limparAcao() state.lastAction = nil end
 --- Devolve o programa ao estado de quem acabou de abrir o script: o modo
 --- da lista ainda não foi posto nesta sessão.
 function Window.__faixasEsquecerModo() faixas.modoPosto = nil end
-function Window.__abrirModo() return opcoes.abrirModo end
 function Window.__setAbrirModo(v) opcoes.abrirModo = v; faixas.modoPosto = nil end
 function Window.__setAbrirFiltro(v) opcoes.abrirFiltro = v; faixas.modoPosto = nil end
 function Window.__faixasSemCC() return not faixas.comCC end
