@@ -1,4 +1,4 @@
-1.4.1b1
+1.4.1b2
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Parar o fader no meio do movimento agora fica parado na luz.
+Os pontos do fader agora seguem o gesto: só as quinas e as paradas.
 ID-7171-61AF

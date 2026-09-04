@@ -1,4 +1,4 @@
--- LumiBridge 1.4.1b1  (compilado em 2026-09-04 07:03)
+-- LumiBridge 1.4.1b2  (compilado em 2026-09-04 08:12)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 1
+Version.BETA = 2
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 07:03"
+Version.COMPILACAO = "2026-09-04 08:12"
 
 --- Onde o programa procura por versão nova.
 --
@@ -2917,14 +2917,27 @@ package.preload["core.curve"] = function(...)
   Apagar quase tudo também não serve — perde-se o desenho do gesto.
 
   ------------------------------------------------------------------
-  A SOLUÇÃO
+  A SOLUÇÃO: AS QUINAS DO GESTO
   ------------------------------------------------------------------
-  Douglas–Peucker: mantém os pontos que definem a FORMA da curva e
-  descarta os que estão sobre a linha entre eles.
+  Um ponto de automação só nasce onde o gesto muda de assunto:
 
-  Um movimento simples de subida vira dois pontos — começo e fim. Um
-  movimento que sobe, para e desce vira três, preservando o pico. O
-  gesto é reconhecido, o tremor some.
+      onde ele começou,
+      onde VIROU de direção,
+      onde PAROU e de onde saiu depois de parado,
+      onde terminou.
+
+  Dentro de um movimento não entra ponto nenhum, por mais lento ou
+  torto que ele seja: descer de 100% a 0% em cinco segundos são dois
+  pontos, e a rampa entre eles faz o resto. Um movimento simples vira
+  dois pontos; um que sobe e desce vira três, preservando o pico.
+
+  JÁ TENTEI O DOUGLAS–PEUCKER AQUI, que é a resposta de livro para
+  "simplificar uma curva": guarda-se o ponto mais distante da reta
+  entre dois outros enquanto ele passar de uma tolerância. Preserva o
+  desenho da mão fielmente demais — numa descida lenta, o desenho da
+  mão é uma escadinha de pontos que ninguém pediu, e era isso que
+  aparecia na tela. Foi trocado por esta leitura de quinas, que
+  responde à pergunta que o usuário faz: "o que eu fiz com o fader?".
 
   Os pontos que restam recebem curva "slow start/end", que liga um ao
   outro com uma rampa em S em vez de um degrau. É isso que dá o
@@ -2947,10 +2960,13 @@ package.preload["core.curve"] = function(...)
 
   Hoje o gesto é amostrado enquanto o fader está na mão, parado ou não
   (Curve.registrar), e uma parada aparece como DOIS pontos no mesmo
-  valor: onde ela começou e até onde foi. Douglas–Peucker preserva os
-  dois — a quina de uma parada é tão real quanto um pico —, e o
-  movimento com pausa vira quatro pontos, contra os três do movimento
-  contínuo.
+  valor: onde ela começou e até onde foi. O movimento com pausa vira
+  quatro pontos, contra os três do movimento contínuo.
+
+  A PARADA NO FIM DO GESTO é a exceção, e não ganha o segundo ponto:
+  dali em diante o valor fica onde está sozinho. Segurar o fader no
+  alto por um instante antes de soltar é o fim de todo gesto, e era um
+  ponto a mais em 100% em cima da linha reta.
 
   A VELOCIDADE se preserva sozinha: cada ponto guarda o QN em que a
   leitura aconteceu, então uma descida rápida e uma lenta chegam ao
@@ -2959,16 +2975,15 @@ package.preload["core.curve"] = function(...)
 
 local Curve = {}
 
---- Distância vertical máxima, em unidades de CC, para um ponto ser
---  considerado "em cima da linha" e portanto descartável.
+--- O quanto o fader precisa VOLTAR, em unidades de CC, para aquilo
+--  contar como uma virada de direção.
 --
---  3 de 127 é cerca de 2%: abaixo disso o olho não vê diferença na luz,
---  e o que sobra é tremor de mão.
---  12 de 127 é cerca de 10%. Com a tolerância antiga (3), uma subida
---  feita à mão gerava pontos intermediários que o usuário não pediu.
+--  12 de 127 é cerca de 10%. Abaixo disso é a mão tremendo dentro do
+--  mesmo movimento: com 3 (2%), uma subida feita à mão virava uma
+--  escadinha de pontos que ninguém pediu.
 --
 --  O gesto típico é "saí daqui e cheguei ali": dois pontos. Só uma
---  inversão de verdade — subir e depois descer — sobrevive e vira três.
+--  inversão de verdade — subir e depois descer — vira três.
 Curve.TOLERANCE = 12
 
 --- Quanto tempo parado, em SEGUNDOS, conta como parada de propósito.
@@ -3018,80 +3033,118 @@ function Curve.registrar(pontos, qn, valor)
   return true
 end
 
---- O quanto a automação erraria neste ponto se ele fosse descartado.
+--- Os trechos em que o fader FICOU PARADO.
 --
---  Mede NO INSTANTE DO PONTO: onde a reta entre `a` e `b` passa no QN
---  dele, contra o valor que ele tem. É a diferença que se veria na
---  linha, em unidades de CC — a mesma unidade da tolerância.
+--  Uma parada é um trecho em que o valor não sai de uma faixa estreita
+--  (PLATO) por pelo menos `pausaQN`. A faixa é estreita de propósito:
+--  com o mouse segurado o valor fica exatamente onde está, e o que
+--  sobra de folga é para a mão que encosta no controle.
 --
---  POR QUE NÃO É A DISTÂNCIA PERPENDICULAR, que é o Douglas–Peucker de
---  livro. Aqui os dois eixos não são a mesma coisa: um é tempo em QN,
---  o outro é valor em 0..127. A projeção perpendicular mistura os dois
---  e o eixo maior manda — num trecho que sobe 127 em 4 QN, o tempo
---  pesa trinta vezes menos que o valor, e um ponto A QUATRO TEMPOS DE
---  DISTÂNCIA, no mesmo nível do início, projetava a 0,14 de distância
---  da reta.
---
---  Era exatamente o ponto que segura uma PAUSA: descer até 0%, ficar
---  ali dois segundos e subir dava a mesma coisa que descer e subir na
---  hora, porque o segundo ponto do chão era jogado fora por "estar em
---  cima da reta". Ele não estava: no instante dele, a reta já ia em
---  110 de 127.
-local function distanceToLine(p, a, b)
-  local dx = b.qn - a.qn
-  if math.abs(dx) < 1e-9 then
-    -- Sem tempo entre os dois extremos não há reta que interpolar.
-    return math.abs(p.value - a.value)
+--  @return table { { de = índice, ate = índice }, ... } na ordem do tempo
+local function paradas(points, pausaQN)
+  local out, n = {}, #points
+  local i = 1
+
+  while i <= n do
+    -- Estica enquanto tudo couber na faixa, a partir deste ponto.
+    local baixo, alto, j = points[i].value, points[i].value, i
+    while j < n do
+      local v = points[j + 1].value
+      local nb = (v < baixo) and v or baixo
+      local na = (v > alto) and v or alto
+      if na - nb > PLATO then break end
+      baixo, alto, j = nb, na, j + 1
+    end
+
+    if points[j].qn - points[i].qn >= pausaQN then
+      out[#out + 1] = { de = i, ate = j }
+      i = j + 1
+    else
+      i = i + 1
+    end
   end
 
-  local t = (p.qn - a.qn) / dx
-  if t < 0 then t = 0 elseif t > 1 then t = 1 end
-
-  local naReta = a.value + t * (b.value - a.value)
-  return math.abs(p.value - naReta)
+  return out
 end
 
---- Douglas–Peucker sobre um trecho.
-local function simplifySegment(points, first, last, tolerance, keep)
-  if last <= first + 1 then return end
-
-  local maxDist, maxIndex = -1, nil
-  for i = first + 1, last - 1 do
-    local d = distanceToLine(points[i], points[first], points[last])
-    if d > maxDist then maxDist, maxIndex = d, i end
-  end
-
-  if maxDist > tolerance and maxIndex then
-    keep[maxIndex] = true
-    simplifySegment(points, first, maxIndex, tolerance, keep)
-    simplifySegment(points, maxIndex, last, tolerance, keep)
-  end
-end
-
---- Reduz uma sequência de leituras aos pontos que definem a forma.
+--- Reduz as leituras às QUINAS do gesto: onde ele começou, onde virou
+--  de direção, onde parou (e por quanto tempo) e onde terminou.
 --
---  @param points table { { qn = número, value = 0..127 }, ... }
---  @param tolerance opcional, em unidades de CC
---  @return table os pontos preservados, na ordem original
-function Curve.simplify(points, tolerance)
+--  DENTRO DE UM MOVIMENTO NÃO ENTRA PONTO NENHUM, por mais devagar ou
+--  torto que ele tenha sido. Descer de 100% a 0% em cinco segundos é um
+--  gesto só — dois pontos —, e a rampa slow start/end faz o resto. Foi
+--  a lição da primeira tentativa: medir o quanto cada leitura se afasta
+--  da reta preserva o desenho da mão, e o desenho da mão numa descida
+--  lenta é uma escadinha de pontos que ninguém pediu.
+--
+--  O que conta como VIRADA é a volta de mais de `tolerance` (10% do
+--  curso). Abaixo disso é a mão tremendo dentro do mesmo movimento.
+--
+--  @param pausaQN quanto tempo parado conta como parada
+--  @param tolerance o quanto o fader precisa voltar para ser uma virada
+--  @return table os pontos, na ordem do tempo
+function Curve.moldar(points, pausaQN, tolerance)
   if type(points) ~= 'table' or #points == 0 then return {} end
-  if #points <= 2 then return points end
 
+  local n = #points
+  if n == 1 then return { points[1] } end
+
+  pausaQN   = pausaQN or Curve.PAUSA_QN
   tolerance = tolerance or Curve.TOLERANCE
 
-  local keep = { [1] = true, [#points] = true }
-  simplifySegment(points, 1, #points, tolerance, keep)
-
   local out = {}
-  for i = 1, #points do
-    if keep[i] then out[#out + 1] = points[i] end
+  local function guardar(p)
+    local ultimo = out[#out]
+    if ultimo and ultimo.qn == p.qn then return end
+    out[#out + 1] = p
   end
+
+  --- As viradas de direção entre dois índices.
+  local function viradas(a, b)
+    local dir, ext = 0, points[a]
+    for k = a + 1, b do
+      local d = points[k].value - ext.value
+      if dir == 0 then
+        if math.abs(d) > tolerance then
+          dir, ext = (d > 0) and 1 or -1, points[k]
+        end
+      elseif d * dir > 0 then
+        ext = points[k]              -- segue no mesmo sentido
+      elseif math.abs(d) > tolerance then
+        guardar(ext)                 -- virou: o extremo é uma quina
+        dir, ext = -dir, points[k]
+      end
+    end
+  end
+
+  guardar(points[1])
+
+  local paradinhas = paradas(points, pausaQN)
+  local cursor = 1
+  for _, par in ipairs(paradinhas) do
+    viradas(cursor, par.de)
+    guardar(points[par.de])          -- onde a parada começou
+
+    -- A PARADA NO FIM DO GESTO NÃO GANHA O SEGUNDO PONTO. Dali em
+    -- diante o valor fica onde está sozinho — o fim da música já
+    -- carrega esse mesmo valor —, e um ponto a mais em cima da linha
+    -- reta é o que aparecia na tela como "um ponto extra em 100%"
+    -- toda vez que se segurava o fader no alto antes de soltar.
+    if par.ate < n then guardar(points[par.ate]) end
+    cursor = par.ate
+  end
+
+  viradas(cursor, n)
+
+  local ultima = paradinhas[#paradinhas]
+  if not (ultima and ultima.ate == n) then guardar(points[n]) end
+
   return out
 end
 
 --- Prepara os pontos de um movimento para virar automação.
 --
---  Além de simplificar, resolve dois casos que a simplificação sozinha
+--  Além de moldar o gesto, resolve dois casos que a moldagem sozinha
 --  não trata:
 --
 --    Movimento SEM mudança real (a mão tremeu mas o valor é o mesmo):
@@ -3102,32 +3155,12 @@ end
 --    quadradinho viram uma só, com o último valor. Automação com dois
 --    pontos no mesmo lugar é ambígua.
 --
---    Parada curta demais: dois pontos seguidos no mesmo valor descrevem
---    uma PAUSA — o fader ficou ali, e a luz com ele. Só que uma
---    inversão de direção também encosta no valor e sai, e aí os dois
---    pontos descreveriam uma parada que ninguém fez. Menos de `pausaQN`
---    no mesmo lugar é a mão virando o movimento, e o segundo ponto cai.
---
 --  @param gridQN tamanho do quadradinho, para o espaçamento mínimo
---  @param pausaQN quanto tempo parado conta como pausa (ver PAUSA_SEG)
+--  @param pausaQN quanto tempo parado conta como parada (ver PAUSA_SEG)
 --  @return table pontos finais
 function Curve.polish(points, gridQN, tolerance, pausaQN)
-  local simples = Curve.simplify(points, tolerance)
+  local simples = Curve.moldar(points, pausaQN, tolerance)
   if #simples == 0 then return {} end
-
-  -- AS PARADINHAS SAEM ANTES DO ESPAÇAMENTO: o que sobreviver aqui é
-  -- pausa de verdade, e daí para frente é ponto como qualquer outro.
-  pausaQN = pausaQN or Curve.PAUSA_QN
-  local firmes = { simples[1] }
-  for i = 2, #simples do
-    local p = simples[i]
-    local anterior = firmes[#firmes]
-    local mesmoLugar = math.abs(p.value - anterior.value) <= PLATO
-    if not (mesmoLugar and (p.qn - anterior.qn) < pausaQN) then
-      firmes[#firmes + 1] = p
-    end
-  end
-  simples = firmes
 
   local minimo = (gridQN or 0.25) * 0.5
 
@@ -20906,9 +20939,9 @@ local function frame()
         -- de verdade, só sai quando o arrasto termina: aí Curve.polish
         -- simplifica tudo e substitui o rascunho (ver o fechamento do
         -- gesto, mais abaixo).
-        local lido = nil
+        local lido, andou = nil, false
         for _, intent in ipairs(intents) do
-          if intent.faderValue then lido = intent.faderValue end
+          if intent.faderValue then lido, andou = intent.faderValue, true end
         end
 
         -- PARADO TAMBÉM É LEITURA.
@@ -20920,11 +20953,10 @@ local function frame()
         --
         -- Só que o gesto não é a lista de mensagens: segurar o fader
         -- em 0% por dois segundos não gera mensagem nenhuma, e a
-        -- espera simplesmente não existia nos dados. Douglas–Peucker
-        -- então devolvia os mesmos três pontos de quem passou por 0%
-        -- sem parar, e a automação subia de volta no instante em que
-        -- encostava no chão. Aqui a leitura é a POSIÇÃO do fader, e
-        -- ela vale a cada quadro — parada inclusive.
+        -- espera simplesmente não existia nos dados — a automação
+        -- subia de volta no instante em que encostava no chão. Aqui a
+        -- leitura é a POSIÇÃO do fader, e ela vale a cada quadro,
+        -- parada inclusive.
         if not lido and ev.kind == 'fader' and e.tag and faderMov[e.tag] then
           lido = Session.faderCC(session, e.tag)
         end
@@ -20937,7 +20969,18 @@ local function frame()
           end
           Curve.registrar(mov.pontos, rctx.qn, lido)
           mov.ultimo = reaper.time_precise and reaper.time_precise() or 0
-          liveWriteFader(mov, rctx, lido)
+
+          -- O RASCUNHO SÓ ACOMPANHA O QUE ANDA.
+          --
+          -- Enquanto o fader está parado não há traço novo para ver, e
+          -- um rascunho ali sobrevive à limpeza do fim do gesto: ela
+          -- vai até a última LEITURA, com as bordas de fora
+          -- (clearCCRange), e a última leitura de uma parada é o
+          -- próprio instante em que o rascunho caiu. Antes ele morria
+          -- por cima do ponto final, que ficava no mesmo lugar; agora
+          -- que uma parada no fim do gesto não vira ponto, ele sobrava
+          -- sozinho — era o ponto extra em 100% depois de soltar.
+          if andou then liveWriteFader(mov, rctx, lido) end
         end
       else
         record(intents, rctx)
