@@ -1,4 +1,4 @@
--- LumiBridge 1.4.1b2  (compilado em 2026-09-04 08:12)
+-- LumiBridge 1.5.0b1  (compilado em 2026-09-04 15:51)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -49,8 +49,8 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 4
-Version.CORRECAO = 1
+Version.MENOR    = 5
+Version.CORRECAO = 0
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
 --
@@ -70,7 +70,7 @@ Version.CORRECAO = 1
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 2
+Version.BETA = 1
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 08:12"
+Version.COMPILACAO = "2026-09-04 15:51"
 
 --- Onde o programa procura por versão nova.
 --
@@ -10238,7 +10238,7 @@ local region      = nil  -- região em que se está trabalhando
 -- estourou duas vezes. Ver PROJECT_CONTEXT.md e a verificação de
 -- folga em tests/test_integridade.lua.
 local chrome = {
-  minimizado = false,  -- encolhida na pastilha
+  oculto     = false,  -- minimizada: fora da vista, mas ainda rodando
   aoAlto     = true,   -- manter a janela acima do REAPER
   fechar     = false,  -- o X da barra própria foi clicado
   -- FECHAR PARA VOLTAR, depois de uma atualização instalada. Lido no
@@ -10246,11 +10246,13 @@ local chrome = {
   -- desarma a guarda de instância única e deixa a ação abrir de novo.
   reiniciar  = false,
   cmdID      = nil,    -- a identidade desta ação no REAPER, para chamá-la
+  -- A SEÇÃO A QUE O cmdID PERTENCE (0 = a principal). Vai junto porque
+  -- SetToggleCommandState e RefreshToolbar2 pedem as duas coisas: é o
+  -- par (seção, comando) que identifica um botão de barra de ferramentas.
+  secID      = nil,
   arrastando = false,  -- a barra de título está sendo arrastada
   offX = 0, offY = 0,  -- distância do mouse ao canto, no arrasto
-  normalW = 1200, normalH = 800,  -- tamanho antes de minimizar
   pendW = nil, pendH = nil,       -- tamanho a aplicar no quadro seguinte
-  restaurando = 0,     -- quadros de transição ao voltar da pastilha
   -- LICENÇA, aqui e não num local próprio.
   --
   -- Ela é do mesmo tipo que `minimizado`: decide se a janela mostra o
@@ -10260,10 +10262,28 @@ local chrome = {
   lic = { ativa = false, codigo = nil, digitada = '', erro = nil,
           aviso = nil },
 }
--- MINIMIZADO: a janela encolhe até virar uma pastilha com o ícone, em
--- vez de sumir. NÃO é lembrado entre sessões, de propósito — abrir o
--- programa e encontrar só uma pastilha, sem lembrar por quê, seria
--- confuso.
+-- OCULTO: minimizar tira a janela da vista e o programa CONTINUA
+-- RODANDO — o laço de quadros segue, a gravação segue, a porta MIDI
+-- segue aberta. O que para é o desenho.
+--
+-- ATÉ A 1.4.1 ISTO ERA OUTRA COISA: a janela encolhia até virar uma
+-- pastilha de 54x42 com o ícone, arrastável e sempre por cima. A
+-- pastilha existia por medo — uma janela do ReaImGui escondida podia
+-- ficar sem caminho de volta —, e o medo já não se justifica: rodar a
+-- ação de novo restaura a janela que existe (ver Window.start), e o
+-- botão da barra de ferramentas fica ACESO enquanto o programa roda
+-- (chrome.acenderBotao), que é o mesmo que a barra de tarefas do
+-- Windows faz. O caminho de volta é o ícone, e ele está sempre lá.
+--
+-- E some junto um defeito que a pastilha causava: como ela encolhia a
+-- janela DE VERDADE, o ini do ReaImGui — que guarda o tamanho pelo nome
+-- da janela — passava a lembrar 54x42, e bastava ter minimizado uma vez
+-- para o programa reabrir minúsculo num canto. Escondida, a janela não
+-- muda de tamanho, e não há o que o ini aprenda de errado.
+--
+-- NÃO é lembrado entre sessões, de propósito — abrir o programa e não
+-- encontrar janela nenhuma, sem lembrar por quê, seria pior ainda do
+-- que era com a pastilha.
 -- FAIXAS DE PROGRAMAÇÃO — o que está gravado nesta música, por controle
 -- do .form. Ver drawFaixas e core/lanes.lua.
 --
@@ -10406,13 +10426,9 @@ local M = {
 -- antes ficam guardados, para restaurar devolver a janela ao lugar em
 -- que ela estava — não a um tamanho padrão.
 local maxi = { on = false, x = nil, y = nil, w = nil, h = nil }
--- Arrasto da pastilha. Como ela é pequena e clicar nela restaura, é
--- preciso distinguir clique de arrasto: guarda-se onde o mouse desceu e
--- só se restaura se ele não tiver andado (ver drawPastilha).
-local pastilhaAtivaAntes = false
-local pastilhaMoveu = false
--- Quadros restantes da transição de volta ao tamanho normal. Ver o
--- comentário em frame(): o SetWindowSize só vale no quadro seguinte.
+-- O corpo do maximizar é `maxi.alternar`, definido adiante, depois de
+-- `areaDoMonitor` — que é de quem ele depende.
+
 -- PAINEL DE CONFIGURAÇÕES E REGISTRO, numa tabela só.
 --
 -- Estado irmão, e o teto de 200 locais por chunk do Lua não sobra para
@@ -11780,10 +11796,10 @@ end
 -- Desenhado com retângulos, e só: nenhuma linha fina, nenhum triângulo
 -- — as formas que PROJECT_CONTEXT.md registra como as que sofrem com a
 -- suavização do ImGui. Isso o mantém nítido em 18px, o menor tamanho
--- em que ele aparece (a pastilha do chrome.minimizado).
+-- em que ele aparece (a lista de faixas).
 --
 -- Declarado AQUI, no alto, porque é usado em três lugares bem
--- separados: a aba Sobre, a barra de título e a pastilha. Já esteve
+-- separados: a aba Sobre, a barra de título e a lista de faixas. Já esteve
 -- mais abaixo e o test_globals pegou — a aba Sobre o chamava antes da
 -- declaração.
 --
@@ -12123,7 +12139,7 @@ local function drawTimeline(xF, yF, larguraF)
   local yOnda = y0 + ALTURA_REGUA
 
   -- Gravando, a faixa inteira avermelha — mesmo código de cor da
-  -- pastilha e da barra de título, pra o estado ser o mesmo em toda a
+  -- barra de título, pra o estado ser o mesmo em toda a
   -- interface.
   local corRegua  = recording and 0x1F1518FF or 0x1A1D23FF
   local corLinha  = recording and 0x3A2226FF or 0x22252CFF
@@ -17605,13 +17621,140 @@ local function areaDoMonitor(jx, jy, jw, jh)
   return nil
 end
 
+--- Maximiza, ou devolve a janela ao tamanho e ao lugar de antes.
+--
+--  NUMA FUNÇÃO, e não no corpo do botão, porque desde a 1.5.0 há DOIS
+--  gestos que fazem isto: o botão da barra e o duplo clique na barra de
+--  título. Copiado nos dois lugares, o defeito é conhecido de antemão —
+--  os dois saem de sincronia numa correção futura e o duplo clique passa
+--  a restaurar para um lugar diferente do que o botão restaura.
+--
+--  MÉTODO DE `maxi`, e não `local function`: este arquivo está no teto
+--  de 200 locais do Lua (ver PROJECT_CONTEXT.md). E definido AQUI, e não
+--  junto da tabela `maxi`, porque depende de `areaDoMonitor`, que é
+--  local e só existe a partir da linha acima.
+--
+--  @return true se algo mudou; false se esta versão do REAPER não
+--          informa a área do monitor e não houve como maximizar.
+function maxi.alternar()
+  if maxi.on then
+    if maxi.w then
+      chrome.pendW, chrome.pendH = maxi.w, maxi.h
+      if ImGui.SetWindowPos and maxi.x then
+        pcall(ImGui.SetWindowPos, ctx, maxi.x, maxi.y)
+      end
+    end
+    maxi.on = false
+    encaixe.w = 0
+    return true
+  end
+
+  local jx, jy = ImGui.GetWindowPos(ctx)
+  local jw, jh = ImGui.GetWindowSize(ctx)
+  local mx, my, mw, mh = areaDoMonitor(jx, jy, jw, jh)
+  if not mw then
+    -- Sem a API do monitor não dá para adivinhar o tamanho da tela, e
+    -- chutar deixaria a janela pela metade ou fora dela. Dizer por que
+    -- não funcionou é melhor que um botão que não faz nada.
+    log('maximizar indisponível: esta versão do REAPER não informa a '
+      .. 'área do monitor')
+    return false
+  end
+
+  maxi.x, maxi.y = jx, jy
+  maxi.w, maxi.h = jw, jh
+  if ImGui.SetWindowPos then pcall(ImGui.SetWindowPos, ctx, mx, my) end
+  chrome.pendW, chrome.pendH = mw, mh
+  maxi.on = true
+  encaixe.w = 0
+  return true
+end
+
+--- Acende ou apaga o botão desta ação na barra de ferramentas.
+--
+--  É O QUE SUBSTITUI A PASTILHA. Minimizada, a janela some inteira; sem
+--  nada aceso, não haveria sinal nenhum de que o programa continua
+--  rodando, e o caminho de volta seria adivinhação. Com o botão aceso,
+--  a barra de ferramentas do REAPER faz o papel da barra de tarefas do
+--  Windows: o ícone aceso diz "está aberto", e clicar nele traz de volta
+--  (a guarda de instância única em Window.start manda restaurar).
+--
+--  RefreshToolbar2 é o que faz o botão REDESENHAR: sem ele o estado
+--  muda e a tela não, que na prática é o mesmo que não ter feito nada.
+--
+--  Tudo por pcall e sob `if`: nem toda execução é por ação registrada
+--  (aí não há cmdID), e um enfeite de barra de ferramentas não pode
+--  derrubar o programa.
+function chrome.acenderBotao(aceso)
+  if not chrome.cmdID or chrome.cmdID == 0 then return end
+  local sec = chrome.secID or 0
+  pcall(function()
+    reaper.SetToggleCommandState(sec, chrome.cmdID, aceso and 1 or 0)
+    if reaper.RefreshToolbar2 then
+      reaper.RefreshToolbar2(sec, chrome.cmdID)
+    end
+  end)
+end
+
+--- Tira a janela da vista, sem encerrar o programa.
+--
+--  Ver o comentário grande em `chrome` sobre OCULTO. Quem desenha o
+--  quadro respeita esta bandeira e não chama Begin nenhum; o laço
+--  continua correndo (ver `loop`).
+function chrome.esconder()
+  chrome.oculto = true
+  chrome.arrastando = false
+  encaixe.w = 0   -- ao voltar, a área é recalculada do zero
+end
+
+--- Traz a janela de volta à vista.
+function chrome.mostrar()
+  chrome.oculto = false
+  encaixe.w = 0
+end
+
+--- Toca no contexto do ImGui, para o ReaImGui não o descartar.
+--
+--  POR QUE ISSO É PRECISO. O ReaImGui recolhe os objetos que ficam sem
+--  uso por alguns segundos — o contexto e as fontes junto. Enquanto a
+--  janela é desenhada isso nunca acontece, porque o quadro toca no
+--  contexto dezenas de vezes por segundo. Minimizada, o desenho para: um
+--  laço que só chamasse `reaper.defer` perderia o contexto por abandono,
+--  e o retorno, dez minutos depois, seria uma janela morta ou um erro
+--  longe de qualquer coisa que o explicasse.
+--
+--  QUAL FUNÇÃO, DESCOBERTO E NÃO SUPOSTO. Serve qualquer chamada que
+--  receba o contexto e não desenhe nada; qual delas existe depende da
+--  geração do ReaImGui (ver ui/imgui_compat.lua), então tenta-se uma
+--  lista e guarda-se a primeira que houver. `false` quer dizer "já
+--  procurei e não achei nenhuma" — a busca não se repete a cada quadro.
+--
+--  E SEMPRE POR Compat.get: o shim do ReaImGui LANÇA ERRO ao acessar um
+--  campo que não existe, então `if ImGui.GetTime then` é justamente o
+--  que derrubaria o programa (PROJECT_CONTEXT.md registra a armadilha).
+function chrome.manterVivo()
+  if chrome.tocar == nil then
+    chrome.tocar = false
+    for _, nome in ipairs({ 'GetTime', 'GetFrameCount', 'GetFramerate' }) do
+      local fn = Compat.get(ImGui, nome)
+      if type(fn) == 'function' then chrome.tocar = fn break end
+    end
+    if not chrome.tocar then
+      log('minimizado: nenhuma função de toque no contexto disponível '
+        .. 'nesta versão do ReaImGui — a janela pode não voltar depois '
+        .. 'de muito tempo minimizada')
+    end
+  end
+  if chrome.tocar then pcall(chrome.tocar, ctx) end
+end
+
 --- Barra de título PRÓPRIA, no lugar da decoração padrão do ImGui.
 --
 --  Por que trocar: a barra do ImGui trazia dois controles que não
 --  serviam aqui. O triângulo de "collapse" escondia tudo menos a
 --  própria barra de título, e não minimizava nada de fato — no lugar
 --  dele há o botão de minimizar, que esconde a janela para valer (ver
---  minimizarJanela). E o X era o botão genérico do ImGui, destoando de
+--  chrome.esconder). E o X era o botão genérico do ImGui, destoando de
 --  uma interface inteira desenhada à mão.
 --
 --  O CUSTO: sem a barra do ImGui, a janela não se arrasta sozinha. O
@@ -17829,10 +17972,18 @@ local function drawBarraTitulo()
   ImGui.SetCursorScreenPos(ctx, x0, y0)
   ImGui.InvisibleButton(ctx, '##arrastarJanela', larguraArrasto, ALTURA)
 
-  -- DUPLO CLIQUE MINIMIZA, como em qualquer janela. Conferido ANTES do
-  -- arrasto: o duplo clique também deixa o item ativo, e sem sair aqui
-  -- o segundo clique iniciaria um arrasto de um pixel antes de
-  -- minimizar.
+  -- DUPLO CLIQUE MAXIMIZA E RESTAURA, como no Windows.
+  --
+  -- ATÉ A 1.4.1 ELE MINIMIZAVA, a pedido dele e de propósito, contra o
+  -- costume do Windows. Mudou junto com o minimizar: minimizado passou a
+  -- esconder a janela inteira, e um duplo clique acidental na barra —
+  -- que acontece — fazia o programa SUMIR da tela. Encolher para uma
+  -- pastilha visível perdoava o engano; sumir, não. Então o gesto foi
+  -- para onde ele erra barato, que é o maximizar.
+  --
+  -- Conferido ANTES do arrasto: o duplo clique também deixa o item
+  -- ativo, e sem sair aqui o segundo clique iniciaria um arrasto de um
+  -- pixel antes de maximizar.
   --
   -- IsMouseDoubleClicked sondada por Compat.get, nunca acessada direto:
   -- o shim do ReaImGui LANÇA ERRO num campo inexistente (ver
@@ -17842,11 +17993,7 @@ local function drawBarraTitulo()
   if duploClique and ImGui.IsItemHovered(ctx) then
     local ok, foi = pcall(duploClique, ctx, 0)
     if ok and foi then
-      local jw, jh = ImGui.GetWindowSize(ctx)
-      chrome.normalW, chrome.normalH = jw, jh
-      chrome.minimizado = true
-      chrome.pendW, chrome.pendH = 54, 42
-      encaixe.w = 0
+      maxi.alternar()
       chrome.arrastando = false
       return ALTURA
     end
@@ -17866,7 +18013,7 @@ local function drawBarraTitulo()
     chrome.arrastando = false
   end
 
-  -- O ÍCONE DO PROGRAMA, o mesmo da pastilha do chrome.minimizado: é o que
+  -- O ÍCONE DO PROGRAMA: é o que
   -- identifica a janela de relance. Fica vermelho gravando, então
   -- continua servindo de indicador de estado, que era o papel do
   -- quadradinho que havia aqui antes.
@@ -17919,24 +18066,36 @@ local function drawBarraTitulo()
   local bxMaximizar = x0 + largura - (BOTAO_W * 2 + 10)
   local bxFechar    = x0 + largura - (BOTAO_W + 6)
 
-  -- MINIMIZAR — a janela encolhe até virar uma pastilha com o ícone.
+  -- MINIMIZAR — a janela sai da vista e o programa continua rodando.
   --
-  -- Duas tentativas anteriores foram descartadas em uso: o "collapse"
-  -- do ImGui (escondia tudo menos a barra de título) e o minimizar do
+  -- Três tentativas anteriores foram descartadas em uso: o "collapse" do
+  -- ImGui (escondia tudo menos a barra de título), o minimizar do
   -- Windows via SWS (a janela é filha da do REAPER, então virava um
-  -- tocinho de barra nativa no canto inferior — destoando de tudo).
-  -- Encolher é o único caminho em que a aparência continua sendo nossa
-  -- E a janela continua visível pra ser clicada de volta.
-  if botaoBarra('##btMinimizar', bxMinimizar, function(cx, cy, cor)
-      ImGui.DrawList_AddLine(dl, cx - 5, cy + 4, cx + 5, cy + 4, cor, 1.4)
+  -- tocinho de barra nativa no canto inferior — destoando de tudo) e a
+  -- pastilha de 54x42 com o ícone, que resolvia a aparência mas
+  -- continuava ocupando a tela e por cima de tudo. Ver o comentário
+  -- OCULTO em `chrome`.
+  --
+  -- DESLIGADO DURANTE A GRAVAÇÃO. Escondida, a única coisa que dizia
+  -- "está gravando" era o ícone vermelho da janela; sem janela, a
+  -- gravação correria invisível e o cliente descobriria depois, na
+  -- automação errada. O botão da barra de ferramentas acende, mas
+  -- aceso ele já está desde que o programa abriu — não distingue os
+  -- dois estados. Enquanto grava, o jeito de tirar da frente é parar de
+  -- gravar.
+  local clicouMinimizar = botaoBarra('##btMinimizar', bxMinimizar,
+    function(cx, cy, cor)
+      ImGui.DrawList_AddLine(dl, cx - 5, cy + 4, cx + 5, cy + 4,
+        recording and 0x4A505CFF or cor, 1.4)
     end,
-    'Minimizar\n\nA janela vira uma pastilha com o ícone, que você arrasta\n'
-    .. 'para onde quiser. Clique nela para voltar ao tamanho normal.') then
-    local jw, jh = ImGui.GetWindowSize(ctx)
-    chrome.normalW, chrome.normalH = jw, jh
-    chrome.minimizado = true
-    chrome.pendW, chrome.pendH = 54, 42
-    encaixe.w = 0   -- a área muda de tamanho: recalcula a escala
+    recording
+      and 'Minimizar\n\nIndisponível durante a gravação: escondida, a janela\n'
+          .. 'não teria como mostrar que ainda está gravando.'
+      or  'Minimizar\n\nA janela sai da vista e o LumiBridge continua rodando.\n'
+          .. 'O botão dele na barra de ferramentas do REAPER fica aceso —\n'
+          .. 'clique nele para trazer a janela de volta.')
+  if clicouMinimizar and not recording then
+    chrome.esconder()
   end
 
   -- MAXIMIZAR — enche a área útil do monitor, e restaura de volta.
@@ -17945,8 +18104,9 @@ local function drawBarraTitulo()
   -- devolver a janela EXATAMENTE onde ela estava, e não a um tamanho
   -- padrão qualquer. É o que se espera de um maximizar.
   --
-  -- Ele NÃO é o duplo clique na barra: ali o duplo clique minimiza, a
-  -- pedido — o contrário do costume do Windows, mas foi o combinado.
+  -- É O MESMO GESTO do duplo clique na barra de título, e por isso os
+  -- dois chamam a MESMA função (maxi.alternar). Até a 1.4.1 o duplo
+  -- clique minimizava; ver o comentário lá em cima.
   local iconeMax = function(cx, cy, cor)
     if maxi.on then
       -- Dois quadrados sobrepostos: o desenho universal de "restaurar".
@@ -17963,51 +18123,33 @@ local function drawBarraTitulo()
       or  'Maximizar\n\nEnche a tela em que a janela está agora.\n'
           .. 'Com dois monitores, arraste a janela para o outro antes:\n'
           .. 'ela maximiza no monitor onde estiver.') then
-    if maxi.on then
-      if maxi.w then
-        chrome.pendW, chrome.pendH = maxi.w, maxi.h
-        if ImGui.SetWindowPos and maxi.x then
-          pcall(ImGui.SetWindowPos, ctx, maxi.x, maxi.y)
-        end
-      end
-      maxi.on = false
-      encaixe.w = 0
-    else
-      local jx, jy = ImGui.GetWindowPos(ctx)
-      local jw, jh = ImGui.GetWindowSize(ctx)
-      local mx, my, mw, mh = areaDoMonitor(jx, jy, jw, jh)
-      if mw then
-        maxi.x, maxi.y = jx, jy
-        maxi.w, maxi.h = jw, jh
-        if ImGui.SetWindowPos then pcall(ImGui.SetWindowPos, ctx, mx, my) end
-        chrome.pendW, chrome.pendH = mw, mh
-        maxi.on = true
-        encaixe.w = 0
-      else
-        -- Sem a API do monitor não dá para adivinhar o tamanho da tela, e
-        -- chutar deixaria a janela pela metade ou fora dela. Dizer por
-        -- que não funcionou é melhor que um botão que não faz nada.
-        log('maximizar indisponível: esta versão do REAPER não informa a '
-          .. 'área do monitor')
-      end
-    end
+    maxi.alternar()
   end
 
-  -- FECHAR pede confirmação DURANTE A GRAVAÇÃO, e só nela: fechar sem
-  -- querer no meio de uma música perderia o trabalho em curso. Parado,
-  -- confirmar a cada fechamento seria só atrito.
+  -- FECHAR PEDE CONFIRMAÇÃO SEMPRE, desde a 1.5.0.
+  --
+  -- Antes ele só perguntava durante a gravação, e a conta fazia sentido
+  -- enquanto minimizar deixava uma pastilha na tela: o X era um dos dois
+  -- jeitos de tirar a janela da frente, e confirmar toda vez seria
+  -- atrito puro. Agora o X é o ÚNICO gesto que encerra o programa —
+  -- minimizar não encerra mais nada —, e é o botão mais fácil de acertar
+  -- sem querer, no canto da barra. Um clique errado ali derruba a porta
+  -- MIDI, o histórico de Ctrl+Z e o que estiver por salvar.
+  --
+  -- A pergunta muda de texto conforme o que há a perder: dizer "fechar
+  -- mesmo?" e dizer O QUE se perde não custam o mesmo ao leitor.
   if botaoBarra('##btFechar', bxFechar, function(cx, cy, cor)
       ImGui.DrawList_AddLine(dl, cx - 5, cy - 5, cx + 5, cy + 5, cor, 1.4)
       ImGui.DrawList_AddLine(dl, cx + 5, cy - 5, cx - 5, cy + 5, cor, 1.4)
-    end, 'Fechar o LumiBridge', true) then
-    if recording then
-      local r = reaper.MB(
-        'A gravação está ligada. Fechar agora encerra o LumiBridge.\n\n'
-        .. 'Fechar mesmo assim?', 'LumiBridge', 4)
-      if r == 6 then chrome.fechar = true end
-    else
-      chrome.fechar = true
-    end
+    end, 'Fechar o LumiBridge\n\nEncerra o programa. Para só tirar da frente,\n'
+      .. 'use o minimizar.', true) then
+    local aviso = recording
+      and 'A GRAVAÇÃO ESTÁ LIGADA. Fechar agora encerra o LumiBridge e a '
+          .. 'gravação em curso se perde.\n\nFechar mesmo assim?'
+      or  'Fechar encerra o LumiBridge.\n\nPara só tirar a janela da frente '
+          .. 'sem encerrar, use o minimizar — o programa continua rodando e '
+          .. 'volta pelo botão da barra de ferramentas.\n\nFechar mesmo assim?'
+    if reaper.MB(aviso, 'LumiBridge', 4) == 6 then chrome.fechar = true end
   end
 
   ImGui.SetCursorScreenPos(ctx, x0, y0 + ALTURA + 4)
@@ -19497,74 +19639,6 @@ end
 
 -- ---------------------------------------------------------- quadro
 
---- A janela minimizada: só o ícone, clicável, arrastável.
---
---  Sem texto de propósito — em 54px de largura o nome não caberia sem
---  encolher a ponto de não se ler. O ícone sozinho identifica, e a
---  dica diz o resto.
---  @param soPintar  desenha sem reagir ao mouse. Usado no quadro de
---                   transição, quando a janela já não está mais
---                   minimizada mas o SetWindowSize ainda não valeu.
-local function drawPastilha(soPintar)
-  local largura, altura = ImGui.GetContentRegionAvail(ctx)
-  local x0, y0 = ImGui.GetCursorScreenPos(ctx)
-  x0, y0 = math.floor(x0), math.floor(y0)
-  local dl = ImGui.GetWindowDrawList(ctx)
-
-  local sobre, ativo = false, false
-  if not soPintar then
-    ImGui.SetCursorScreenPos(ctx, x0, y0)
-    ImGui.InvisibleButton(ctx, '##pastilha', math.max(1, largura), math.max(1, altura))
-    sobre = ImGui.IsItemHovered(ctx)
-    ativo = ImGui.IsItemActive and ImGui.IsItemActive(ctx) or false
-  end
-
-  -- CLIQUE x ARRASTO. Restaurar no clique e mover no arrasto disputam o
-  -- mesmo botão do mouse, e IsItemClicked dispara já na descida — usá-lo
-  -- faria a janela restaurar no instante em que se tentasse arrastá-la.
-  -- Então: enquanto segurado, move; ao soltar, restaura SÓ se não tiver
-  -- andado.
-  if ativo then
-    local mx, my = ImGui.GetMousePos(ctx)
-    local wx, wy = ImGui.GetWindowPos(ctx)
-    if not pastilhaAtivaAntes then
-      pastilhaMoveu = false
-      chrome.offX, chrome.offY = mx - wx, my - wy
-    else
-      local novoX, novoY = mx - chrome.offX, my - chrome.offY
-      if math.abs(novoX - wx) > 2 or math.abs(novoY - wy) > 2 then
-        pastilhaMoveu = true
-      end
-      if pastilhaMoveu and ImGui.SetWindowPos then
-        pcall(ImGui.SetWindowPos, ctx, novoX, novoY)
-      end
-    end
-  elseif pastilhaAtivaAntes and not pastilhaMoveu then
-    chrome.minimizado = false
-    chrome.restaurando = 2
-    chrome.pendW, chrome.pendH = chrome.normalW, chrome.normalH
-    encaixe.w = 0
-  end
-  pastilhaAtivaAntes = ativo
-
-  local corBorda = recording and Theme.UI.rec
-    or (sobre and Theme.UI.accent or 0x2A2F3AFF)
-  ImGui.DrawList_AddRectFilled(dl, x0, y0, x0 + largura, y0 + altura,
-    Theme.UI.bg, 6)
-  ImGui.DrawList_AddRect(dl, x0, y0, x0 + largura, y0 + altura, corBorda, 6, 0, 1)
-
-  local TAM = 22
-  desenharIconeApp(dl,
-    x0 + (largura - TAM) * 0.5, y0 + (altura - TAM) * 0.5, TAM,
-    recording and Theme.UI.rec or nil)
-
-  if sobre then
-    dicaSe(
-      recording and 'LumiBridge — GRAVANDO\n\nClique para voltar ao tamanho normal.'
-      or 'LumiBridge\n\nClique para voltar ao tamanho normal.\nArraste para mover.')
-  end
-end
-
 --- Faz o trabalho de rede que os botões da aba Sobre pediram.
 --
 --  FORA DO DESENHO, e depois dele. O curl bloqueia por alguns segundos;
@@ -20071,31 +20145,6 @@ local function frame()
   if chrome.pendW and ImGui.SetWindowSize then
     pcall(ImGui.SetWindowSize, ctx, chrome.pendW, chrome.pendH)
     chrome.pendW, chrome.pendH = nil, nil
-  end
-
-  if chrome.minimizado then
-    drawPastilha(false)
-    return
-  end
-
-  -- QUADRO DE TRANSIÇÃO. O SetWindowSize acima só tem efeito no quadro
-  -- SEGUINTE: logo depois de restaurar, a janela ainda tem o tamanho da
-  -- pastilha. Desenhar a barra de título nela punha o × bem em cima do
-  -- ícone — era o "X que aparecia rapidinho" ao restaurar. Enquanto ela
-  -- não tiver crescido, continua-se pintando a pastilha, só que sem
-  -- reagir ao mouse (o clique que restaurou já foi consumido).
-  --
-  -- As DUAS condições importam: o contador sozinho pintaria a pastilha
-  -- por um quadro mesmo se a janela já tivesse crescido, e a largura
-  -- sozinha transformaria em pastilha uma janela que o usuário tivesse
-  -- encolhido na mão.
-  if chrome.restaurando > 0 then
-    chrome.restaurando = chrome.restaurando - 1
-    local larguraJanela = ImGui.GetWindowSize(ctx)
-    if (larguraJanela or 0) < 200 then
-      drawPastilha(true)
-      return
-    end
   end
 
   -- O trabalho de rede pedido no quadro anterior, antes de desenhar
@@ -21066,8 +21115,9 @@ local function frame()
   -- A JANELA MUDOU DE TAMANHO OU DE LUGAR NESTE QUADRO?
   --
   -- Medido no fim do quadro, depois de tudo o que poderia tê-la movido.
-  -- Minimizada não conta: ali a janela muda de tamanho de propósito.
-  if not chrome.minimizado and ImGui.GetWindowPos and ImGui.GetWindowSize then
+  -- Minimizada este trecho nem roda: o quadro oculto sai do laço antes
+  -- de desenhar coisa alguma.
+  if ImGui.GetWindowPos and ImGui.GetWindowSize then
     local jx, jy = ImGui.GetWindowPos(ctx)
     local jw, jh = ImGui.GetWindowSize(ctx)
     if geo.x and (jx ~= geo.x or jy ~= geo.y or jw ~= geo.w or jh ~= geo.h) then
@@ -21080,9 +21130,9 @@ local function frame()
     end
     -- LEMBRA O TAMANHO E O LUGAR entre sessões.
     --
-    -- Só quando NÃO está maximizada nem minimizada: nesses dois estados
-    -- a geometria é do estado, não da escolha de quem arrastou a borda —
-    -- guardar 54x42 da pastilha faria a janela reabrir do tamanho dela.
+    -- Só quando NÃO está maximizada: aí a geometria é do estado, não da
+    -- escolha de quem arrastou a borda, e guardar a tela inteira faria a
+    -- janela reabrir maximizada sem ninguém ter pedido.
     --
     -- E não a cada quadro: gravar ExtState sessenta vezes por segundo é
     -- trabalho por nada. Meio segundo depois da última mudança já é
@@ -21106,7 +21156,122 @@ end
 
 -- ------------------------------------------------------------- laço
 
-local function loop()
+-- DECLARADO ANTES, definido depois. `chrome.pulso` precisa reagendar o
+-- laço, e é chamada de dentro dele — uma das duas tem de vir primeiro, e
+-- só esta forma resolve. Continua sendo UM local, o mesmo de antes.
+local loop
+
+--- O fim de todo quadro: sinal de vida, pedido de restauração, e a
+--  decisão de continuar ou encerrar.
+--
+--  NUMA FUNÇÃO À PARTE porque desde a 1.5.0 há DOIS caminhos que chegam
+--  aqui: o quadro normal, que desenhou a janela, e o quadro OCULTO, que
+--  não desenhou nada. O segundo depende disto tanto quanto o primeiro —
+--  é justamente o sinal de vida e o pedido de restauração que fazem o
+--  botão da barra de ferramentas trazer a janela de volta. Deixar esta
+--  parte só no caminho do desenho seria minimizar sem ter como voltar.
+function chrome.pulso(open)
+  -- O carimbo diz "existe uma instância rodando agora" — é o que faz a
+  -- segunda execução da ação se recusar a abrir uma janela nova (ver
+  -- Window.start). E é justamente por ela pedir restauração em vez de
+  -- abrir que uma janela oculta nunca fica inalcançável.
+  --
+  -- Escrito com persist = false: é estado de execução, não preferência,
+  -- e não faz sentido sobreviver ao fechamento do REAPER.
+  --
+  -- UMA VEZ POR SEGUNDO, e não uma vez por quadro. O carimbo guarda
+  -- os.time(), que tem resolução de um segundo: das ~30 escritas por
+  -- segundo que havia aqui, 29 gravavam exatamente o mesmo texto —
+  -- 29 alocações de string e 29 idas ao ExtState por segundo, das quais
+  -- nenhuma mudava nada.
+  --
+  -- A guarda de instância única continua igual: ela aceita um carimbo de
+  -- até 2 segundos atrás, e este nunca fica mais de 1 segundo velho.
+  local agora = os.time()
+  if agora ~= quadro.vivoEm then
+    quadro.vivoEm = agora
+    reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(agora), false)
+  end
+
+  -- A ação foi executada com o LumiBridge já aberto: em vez de uma
+  -- segunda janela, mostra a que existe e pula pra frente. É ESTE o
+  -- caminho de volta do minimizar — clicar no botão aceso da barra de
+  -- ferramentas executa a ação, e a ação cai aqui.
+  if reaper.GetExtState(EXT_SECTION, 'restaurar') == '1' then
+    reaper.DeleteExtState(EXT_SECTION, 'restaurar', false)
+    if chrome.oculto then chrome.mostrar() end
+    trazerParaFrente()
+  end
+
+  -- Sem a barra do ImGui não há X dele, então `open` nunca vira false
+  -- por conta própria: quem encerra é o nosso botão (ver
+  -- drawBarraTitulo), pelo chrome.fechar.
+  if open and not chrome.fechar then
+    reaper.defer(loop)
+    return
+  end
+
+  -- APAGA O BOTÃO da barra de ferramentas: o programa está saindo, e um
+  -- ícone aceso apontando para nada seria pior que ícone nenhum.
+  chrome.acenderBotao(false)
+
+  -- Some o sinal de vida: sem isto, a próxima execução da ação veria
+  -- um carimbo recente e se recusaria a abrir, por até dois segundos.
+  reaper.DeleteExtState(EXT_SECTION, 'vivo_em', false)
+
+  -- REINICIAR, e por que é AQUI que isso pode acontecer.
+  --
+  -- Rodar a ação com o LumiBridge aberto NÃO abre uma segunda janela:
+  -- a guarda de instância única (ver Window.start) vê o sinal de vida
+  -- recente e só manda restaurar a janela que já existe. Chamada em
+  -- qualquer outro ponto, `Main_OnCommand` faria exatamente isso —
+  -- restaurar em vez de reiniciar, e o botão pareceria não funcionar.
+  --
+  -- Nesta linha o sinal já foi apagado, uma linha acima, e este quadro
+  -- é o último: não há `defer` depois dele. A ação nova encontra o
+  -- carimbo vazio, passa pela guarda e abre, com o código novo.
+  if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
+    -- SEM A CAIXA DE DIÁLOGO DO REAPER, E VOLTANDO DEPOIS.
+    --
+    -- Chamada a ação, o REAPER via que o script ainda constava como
+    -- rodando e abria a sua própria janela: "LumiBridge_standalone.lua
+    -- is running in background — terminate all instances, or launch a
+    -- new instance?". Três botões em inglês, no meio de um reinício
+    -- que o programa acabou de prometer que faria sozinho.
+    --
+    -- O QUE OS VALORES SIGNIFICAM, DESCOBERTO TESTANDO E NÃO LENDO.
+    --
+    -- A documentação oficial lista `set_action_options` e não descreve
+    -- os parâmetros. Duas versões de teste na máquina dele deram a
+    -- resposta, e o registro fica aqui porque não está em lugar nenhum:
+    --
+    --   sem chamada nenhuma  -> a caixa aparece
+    --   set_action_options(1) -> SEM caixa; encerra e NÃO volta
+    --
+    -- Ou seja: 1 é "pode encerrar esta execução sem perguntar". Sozinho
+    -- ele resolve a caixa e deixa o programa fechado — que foi
+    -- exatamente o relato: "fechou o script, mas não abriu novamente".
+    --
+    -- 2 é a outra metade: reabrir depois de encerrar. Daí 1|2.
+    --
+    -- SÓ AQUI, e nunca ao iniciar. Ligado o tempo todo, apertar o
+    -- botão da barra de ferramentas com o LumiBridge aberto MATARIA o
+    -- programa em vez de trazer a janela para a frente — que é
+    -- justamente o caminho de volta de uma janela oculta. Nesta
+    -- linha o programa já está terminando, então não há o que perder.
+    pcall(function() reaper.set_action_options(1 | 2) end)
+
+    -- E A CHAMADA DIRETA, não mais pelo `atexit`.
+    --
+    -- O atexit foi uma tentativa de fugir da caixa adiando a chamada
+    -- para depois do desmonte. Ela não era necessária: quem tirava a
+    -- caixa era o `1` acima, e adiar só afastava a chamada do momento
+    -- em que o REAPER ainda sabe quem a pediu.
+    reaper.Main_OnCommand(chrome.cmdID, 0)
+  end
+end
+
+function loop()
   local tTotal = cronometro()
   -- Mede o intervalo REAL entre quadros. O script roda a ~30 fps, mas a
   -- taxa varia com a carga da máquina — supor um valor fixo deixaria um
@@ -21143,6 +21308,29 @@ local function loop()
       math.min(quadro.media * 0.5, Timeline.MAX_FRAME_COMPENSATION)
   end
 
+  -- MINIMIZADA: o laço corre, o desenho não.
+  --
+  -- Nenhum Begin, nenhum End, nenhum quadro do ImGui — a janela some da
+  -- tela porque simplesmente não é desenhada. O resto do programa segue
+  -- inteiro: `chrome.pulso` mantém o sinal de vida (é ele que faz o
+  -- botão da barra de ferramentas trazer a janela de volta) e reagenda
+  -- o próximo quadro.
+  --
+  -- O TOQUE NO CONTEXTO NÃO É ENFEITE. O ReaImGui descarta objetos que
+  -- ficam sem uso por alguns segundos — contexto e fontes inclusive. Um
+  -- laço que roda sem tocar em nada do ImGui perderia o contexto no meio
+  -- do minimizado, e o retorno seria uma janela morta ou um erro, dez
+  -- minutos depois de minimizar e longe de qualquer coisa que explique.
+  -- Uma chamada barata por quadro é o que renova o prazo.
+  --
+  -- Ver chrome.manterVivo: qual chamada serve depende da geração do
+  -- ReaImGui, e sondar o nome direto é o que derrubaria o programa.
+  if chrome.oculto then
+    chrome.manterVivo()
+    chrome.pulso(true)
+    return
+  end
+
   -- O TAMANHO E O LUGAR DA ÚLTIMA VEZ, se houver.
   --
   -- 1200x800 é um chute razoável para a primeira abertura e um estorvo
@@ -21156,9 +21344,10 @@ local function loop()
   -- guardado para esta janela". E ele guarda: o ReaImGui mantém um ini
   -- próprio, indexado pelo NOME da janela. Ou seja, a geometria que nós
   -- salvávamos com tanto cuidado nunca era aplicada — quem mandava era o
-  -- ini dele, com o último tamanho que a janela teve. Como a pastilha
-  -- encolhe a janela de verdade, bastava tê-la minimizado uma vez para
-  -- ela reabrir minúscula para sempre, num canto.
+  -- ini dele, com o último tamanho que a janela teve. Até a 1.4.1 isso
+  -- era pior do que parece: a pastilha do minimizar encolhia a janela de
+  -- verdade, e bastava tê-la minimizado uma vez para o programa reabrir
+  -- minúsculo para sempre, num canto. Minimizar já não mexe no tamanho.
   --
   -- Com Cond_Always aqui, o nosso valor vale no primeiro quadro e nunca
   -- mais: redimensionar continua livre depois disso.
@@ -21186,17 +21375,17 @@ local function loop()
   --
   -- O ReaImGui guarda o tamanho de cada janela pelo NOME dela, no ini
   -- dele, e não no nosso ExtState. FirstUseEver só vale enquanto não
-  -- houver nada guardado ali: uma janela que um dia ficou pequena (a
-  -- pastilha encolhe a janela de verdade) reabre pequena para sempre.
+  -- houver nada guardado ali: uma janela que um dia ficou pequena reabre
+  -- pequena para sempre.
   --
   -- Na tela de ativação isso é intolerável — é a primeira coisa que o
   -- cliente vê do que acabou de comprar, e a primeira instalação de
   -- verdade abriu encolhida num canto, com o dono tendo de caçá-la e
-  -- esticá-la para conseguir ativar. Aqui o tamanho é imposto, e a
-  -- pastilha fica desligada: minimizado sem ter como ativar seria uma
+  -- esticá-la para conseguir ativar. Aqui o tamanho é imposto, e o
+  -- minimizar fica desligado: escondido sem ter como ativar seria uma
   -- armadilha.
   if not chrome.lic.ativa then
-    chrome.minimizado = false
+    chrome.oculto = false
     ImGui.SetNextWindowSize(ctx, 880, 620, Compat.const(ImGui, 'Cond_Always', 1))
   end
 
@@ -21244,16 +21433,9 @@ local function loop()
     'WindowFlags_NoScrollbar',
     'WindowFlags_NoScrollWithMouse',
   }
-  -- MINIMIZADA, sempre por cima — mesmo com "Sempre visível" desligado.
-  -- Uma pastilha de 54px que escorregasse pra trás do REAPER seria
-  -- exatamente o problema que ela existe pra resolver: uma janela que
-  -- some e não se acha mais.
-  if chrome.aoAlto or chrome.minimizado then
+  if chrome.aoAlto then
     nomes[#nomes + 1] = 'WindowFlags_TopMost'
   end
-  -- Minimizada não se redimensiona pelo canto: o tamanho é o da
-  -- pastilha, e arrastar a borda dela só produziria um retângulo torto.
-  if chrome.minimizado then nomes[#nomes + 1] = 'WindowFlags_NoResize' end
   local flags = Compat.windowFlags(ImGui, nomes)
 
   -- Maximizada, sem cantos redondos: eles deixariam o desktop
@@ -21306,105 +21488,10 @@ local function loop()
     end
   end
 
-  -- SINAL DE VIDA + PEDIDO DE RESTAURAÇÃO.
-  --
-  -- O carimbo diz "existe uma instância rodando agora" — é o que faz a
-  -- segunda execução da ação se recusar a abrir uma janela nova (ver
-  -- Window.start). E é justamente por ela pedir restauração em vez de
-  -- abrir que uma janela minimizada nunca fica inalcançável, mesmo que
-  -- o Windows não lhe dê botão na barra de tarefas.
-  --
-  -- Escrito com persist = false: é estado de execução, não preferência,
-  -- e não faz sentido sobreviver ao fechamento do REAPER.
-  --
-  -- UMA VEZ POR SEGUNDO, e não uma vez por quadro. O carimbo guarda
-  -- os.time(), que tem resolução de um segundo: das ~30 escritas por
-  -- segundo que havia aqui, 29 gravavam exatamente o mesmo texto —
-  -- 29 alocações de string e 29 idas ao ExtState por segundo, das quais
-  -- nenhuma mudava nada.
-  --
-  -- A guarda de instância única continua igual: ela aceita um carimbo de
-  -- até 2 segundos atrás, e este nunca fica mais de 1 segundo velho.
-  local agora = os.time()
-  if agora ~= quadro.vivoEm then
-    quadro.vivoEm = agora
-    reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(agora), false)
-  end
-
-  -- A ação foi executada com o LumiBridge já aberto: em vez de uma
-  -- segunda janela, desminimiza (se estiver) e pula pra frente.
-  if reaper.GetExtState(EXT_SECTION, 'restaurar') == '1' then
-    reaper.DeleteExtState(EXT_SECTION, 'restaurar', false)
-    if chrome.minimizado then
-      chrome.minimizado = false
-      chrome.restaurando = 2
-      chrome.pendW, chrome.pendH = chrome.normalW, chrome.normalH
-      encaixe.w = 0
-    end
-    trazerParaFrente()
-  end
-
-  -- Sem a barra do ImGui não há X dele, então `open` nunca vira false
-  -- por conta própria: quem encerra é o nosso botão (ver
-  -- drawBarraTitulo), pelo chrome.fechar.
-  if open and not chrome.fechar then
-    reaper.defer(loop)
-  else
-    -- Some o sinal de vida: sem isto, a próxima execução da ação veria
-    -- um carimbo recente e se recusaria a abrir, por até dois segundos.
-    reaper.DeleteExtState(EXT_SECTION, 'vivo_em', false)
-
-    -- REINICIAR, e por que é AQUI que isso pode acontecer.
-    --
-    -- Rodar a ação com o LumiBridge aberto NÃO abre uma segunda janela:
-    -- a guarda de instância única (ver Window.start) vê o sinal de vida
-    -- recente e só manda restaurar a janela que já existe. Chamada em
-    -- qualquer outro ponto, `Main_OnCommand` faria exatamente isso —
-    -- restaurar em vez de reiniciar, e o botão pareceria não funcionar.
-    --
-    -- Nesta linha o sinal já foi apagado, uma linha acima, e este quadro
-    -- é o último: não há `defer` depois dele. A ação nova encontra o
-    -- carimbo vazio, passa pela guarda e abre, com o código novo.
-    if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
-      -- SEM A CAIXA DE DIÁLOGO DO REAPER, E VOLTANDO DEPOIS.
-      --
-      -- Chamada a ação, o REAPER via que o script ainda constava como
-      -- rodando e abria a sua própria janela: "LumiBridge_standalone.lua
-      -- is running in background — terminate all instances, or launch a
-      -- new instance?". Três botões em inglês, no meio de um reinício
-      -- que o programa acabou de prometer que faria sozinho.
-      --
-      -- O QUE OS VALORES SIGNIFICAM, DESCOBERTO TESTANDO E NÃO LENDO.
-      --
-      -- A documentação oficial lista `set_action_options` e não descreve
-      -- os parâmetros. Duas versões de teste na máquina dele deram a
-      -- resposta, e o registro fica aqui porque não está em lugar nenhum:
-      --
-      --   sem chamada nenhuma  -> a caixa aparece
-      --   set_action_options(1) -> SEM caixa; encerra e NÃO volta
-      --
-      -- Ou seja: 1 é "pode encerrar esta execução sem perguntar". Sozinho
-      -- ele resolve a caixa e deixa o programa fechado — que foi
-      -- exatamente o relato: "fechou o script, mas não abriu novamente".
-      --
-      -- 2 é a outra metade: reabrir depois de encerrar. Daí 1|2.
-      --
-      -- SÓ AQUI, e nunca ao iniciar. Ligado o tempo todo, apertar o
-      -- botão da barra de ferramentas com o LumiBridge aberto MATARIA o
-      -- programa em vez de trazer a janela para a frente — que é
-      -- justamente o caminho de volta de uma janela minimizada. Nesta
-      -- linha o programa já está terminando, então não há o que perder.
-      pcall(function() reaper.set_action_options(1 | 2) end)
-
-      -- E A CHAMADA DIRETA, não mais pelo `atexit`.
-      --
-      -- O atexit foi uma tentativa de fugir da caixa adiando a chamada
-      -- para depois do desmonte. Ela não era necessária: quem tirava a
-      -- caixa era o `1` acima, e adiar só afastava a chamada do momento
-      -- em que o REAPER ainda sabe quem a pediu.
-      reaper.Main_OnCommand(chrome.cmdID, 0)
-    end
-  end
+  -- O FIM DO QUADRO: sinal de vida, pedido de restauração e a decisão
+  -- de continuar ou encerrar. Compartilhado com o quadro OCULTO, que
+  -- não passa por nada acima disto. Ver chrome.pulso.
+  chrome.pulso(open)
 end
 
 -- Ganchos de teste. Existem para que tests/test_window_record.lua possa
@@ -21430,7 +21517,12 @@ function Window.__lerLicenca() return chrome.lerLicenca() end
 function Window.__licencaAtiva() return chrome.lic.ativa end
 function Window.__codigoDaMaquina() return chrome.lic.codigo end
 function Window.__digitarChave(v) chrome.lic.digitada = v end
-function Window.__setMinimizado(v) chrome.minimizado = v end
+--- Esconde ou mostra a janela, para o teste. Ver o comentário OCULTO em
+--  `chrome`: oculto quer dizer minimizado — fora da vista, ainda rodando.
+function Window.__setOculto(v)
+  if v then chrome.esconder() else chrome.mostrar() end
+end
+function Window.__oculto() return chrome.oculto end
 --- O assistente de primeiros ajustes, para os testes.
 --  Sem argumento, só conta o estado.
 --- Devolve o programa ao estado de quem acabou de abrir a janela: sem a
@@ -21793,9 +21885,25 @@ function Window.start()
   -- e uma janela que não abre por causa de um botão de conveniência
   -- seria uma troca ruim.
   do
-    local ok, _, _, _, cmd = pcall(reaper.get_action_context)
+    local ok, _, _, sec, cmd = pcall(reaper.get_action_context)
     chrome.cmdID = ok and tonumber(cmd) or nil
+    chrome.secID = ok and tonumber(sec) or 0
   end
+
+  -- ACENDE O BOTÃO DA BARRA DE FERRAMENTAS, e o deixa aceso enquanto o
+  -- programa estiver de pé — visível ou minimizado. É o que substitui a
+  -- pastilha: o sinal de "está aberto" e o caminho de volta são o mesmo
+  -- ícone, como na barra de tarefas do Windows. Apagado em chrome.pulso,
+  -- na saída.
+  chrome.acenderBotao(true)
+
+  -- E APAGADO TAMBÉM SE O SCRIPT MORRER DE OUTRO JEITO. Um erro no
+  -- quadro, um "terminate all instances" do REAPER, o REAPER fechando —
+  -- nenhum desses passa pela saída limpa, e o botão ficaria aceso
+  -- apontando para um programa que não existe mais. Aí o clique seguinte
+  -- pareceria não fazer nada (na verdade abriria, mas com o ícone já
+  -- aceso ninguém entende o que aconteceu).
+  pcall(reaper.atexit, function() chrome.acenderBotao(false) end)
 
   local im, err = Compat.load()
   if not im then

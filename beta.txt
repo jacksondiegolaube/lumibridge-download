@@ -1,4 +1,4 @@
-1.4.1b2
+1.5.0b1
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Os pontos do fader agora seguem o gesto: só as quinas e as paradas.
+Minimizar agora esconde a janela — ela volta pelo botão aceso da barra de ferramentas.
 ID-7171-61AF
