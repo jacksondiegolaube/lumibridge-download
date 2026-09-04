@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b1  (compilado em 2026-09-04 15:51)
+-- LumiBridge 1.5.0b2  (compilado em 2026-09-04 16:09)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 1
+Version.BETA = 2
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 15:51"
+Version.COMPILACAO = "2026-09-04 16:09"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4548,10 +4548,14 @@ package.preload["core.atualizacao"] = function(...)
       O que mudou, numa frase.
 
   COMO O DOWNLOAD ACONTECE
-    Pelo `curl`, que o Windows 10 traz de fábrica desde 2018, chamado por
-    os.execute. O ReaScript não tem cliente HTTP próprio, e depender de
-    uma extensão a mais para atualizar seria uma dependência que só
-    aparece na hora de resolver um problema.
+    Pelo `curl`, que o Windows 10 traz de fábrica desde 2018. O ReaScript
+    não tem cliente HTTP próprio, e depender de uma extensão a mais para
+    atualizar seria uma dependência que só aparece na hora de resolver um
+    problema.
+
+    QUEM EXECUTA O CURL depende de onde este módulo está rodando: aqui,
+    os.execute; dentro do REAPER, o ExecProcess, injetado por
+    ui/window.lua. Ver `Atualizacao.baixar`.
 
   O CUIDADO QUE ESTE ARQUIVO EXISTE PARA TER
     Baixar por cima do programa que está rodando é a operação mais
@@ -4583,15 +4587,37 @@ Atualizacao.ESPERA = 10
 --  bastante para recusar qualquer coisa que não seja ele.
 Atualizacao.MINIMO = 100000
 
+--- A linha de comando do download, montada num lugar só.
+--
+--  NUMA FUNÇÃO porque há DOIS jeitos de executá-la: este módulo, por
+--  os.execute, e ui/window.lua, pelo ExecProcess do REAPER (ver
+--  chrome.instalarDownloader). Escrita duas vezes, uma correção de
+--  parâmetro do curl entraria em uma só — e a que ficasse para trás
+--  seria justamente a que roda na máquina do cliente.
+--
+--  -L segue redirecionamento (o GitHub usa), -f falha em erro HTTP em
+--  vez de gravar a página de erro, -s cala a barra de progresso.
+function Atualizacao.comando(url, destino)
+  return ('curl -L -f -s --max-time %d -o "%s" "%s"')
+    :format(Atualizacao.ESPERA, destino, url)
+end
+
 --- Baixa uma URL para um arquivo. Trocável nos testes.
+--
+--  DENTRO DO REAPER ESTA VERSÃO NÃO É A QUE RODA. os.execute no Windows
+--  passa por cmd.exe, e cmd.exe abre um console de verdade — a janela
+--  preta que piscava atrás do programa a cada "Procurar atualização".
+--  ui/window.lua troca esta função por uma que chama o mesmo curl pelo
+--  ExecProcess do REAPER, sem console nenhum.
+--
+--  ELA CONTINUA AQUI, E NÃO É CÓDIGO MORTO: `core/` é Lua puro e nunca
+--  referencia `reaper` (PROJECT_CONTEXT.md), que é o que deixa a suíte
+--  rodar no terminal. Esta é a versão que funciona em qualquer lugar; a
+--  outra é a que funciona bonito no lugar que importa.
 --  @return boolean
 function Atualizacao.baixar(url, destino)
   if not url or url == '' or not destino then return false end
-  -- -L segue redirecionamento (o GitHub usa), -f falha em erro HTTP em
-  -- vez de gravar a página de erro, -s cala a barra de progresso.
-  local comando = ('curl -L -f -s --max-time %d -o "%s" "%s"')
-    :format(Atualizacao.ESPERA, destino, url)
-  local ok = os.execute(comando)
+  local ok = os.execute(Atualizacao.comando(url, destino))
   return ok == true or ok == 0
 end
 
@@ -10275,11 +10301,11 @@ local chrome = {
 -- (chrome.acenderBotao), que é o mesmo que a barra de tarefas do
 -- Windows faz. O caminho de volta é o ícone, e ele está sempre lá.
 --
--- E some junto um defeito que a pastilha causava: como ela encolhia a
--- janela DE VERDADE, o ini do ReaImGui — que guarda o tamanho pelo nome
--- da janela — passava a lembrar 54x42, e bastava ter minimizado uma vez
--- para o programa reabrir minúsculo num canto. Escondida, a janela não
--- muda de tamanho, e não há o que o ini aprenda de errado.
+-- COMO A JANELA SOME: ela vai para -20000,-20000, com um pixel de
+-- tamanho. O quadro continua acontecendo inteiro — Begin e End, todo
+-- quadro, como sempre —, só o conteúdo é que não se desenha. Ver o
+-- comentário no laço: pular o ciclo do ImGui derrubou o REAPER na
+-- 1.5.0b1, e o preço de um ciclo pela metade não é um erro de Lua.
 --
 -- NÃO é lembrado entre sessões, de propósito — abrir o programa e não
 -- encontrar janela nenhuma, sem lembrar por quê, seria pior ainda do
@@ -17701,51 +17727,67 @@ end
 --  Ver o comentário grande em `chrome` sobre OCULTO. Quem desenha o
 --  quadro respeita esta bandeira e não chama Begin nenhum; o laço
 --  continua correndo (ver `loop`).
+--  A GEOMETRIA É GUARDADA AQUI porque esta função roda DENTRO do quadro,
+--  com a janela aberta pelo Begin — é o único momento em que o ImGui
+--  responde onde ela está. Um quadro depois ela já estará em
+--  -20000,-20000 com um pixel, e não haveria como saber para onde
+--  devolvê-la.
 function chrome.esconder()
+  if ImGui.GetWindowPos and ImGui.GetWindowSize then
+    local x, y = ImGui.GetWindowPos(ctx)
+    local w, h = ImGui.GetWindowSize(ctx)
+    if w and w > 200 then chrome.antes = { x = x, y = y, w = w, h = h } end
+  end
   chrome.oculto = true
   chrome.arrastando = false
   encaixe.w = 0   -- ao voltar, a área é recalculada do zero
 end
 
 --- Traz a janela de volta à vista.
+--
+--  `voltando` é lido uma vez pelo laço, no quadro seguinte, para
+--  reimpor tamanho e posição. Sem ele a janela voltaria como o quadro
+--  oculto a deixou: um pixel, fora de qualquer monitor.
 function chrome.mostrar()
   chrome.oculto = false
+  chrome.voltando = chrome.antes
   encaixe.w = 0
 end
 
---- Toca no contexto do ImGui, para o ReaImGui não o descartar.
+--- Troca o download do núcleo por um que não pisca uma janela preta.
 --
---  POR QUE ISSO É PRECISO. O ReaImGui recolhe os objetos que ficam sem
---  uso por alguns segundos — o contexto e as fontes junto. Enquanto a
---  janela é desenhada isso nunca acontece, porque o quadro toca no
---  contexto dezenas de vezes por segundo. Minimizada, o desenho para: um
---  laço que só chamasse `reaper.defer` perderia o contexto por abandono,
---  e o retorno, dez minutos depois, seria uma janela morta ou um erro
---  longe de qualquer coisa que o explicasse.
+--  O CASO: clicar em "Procurar atualização" fazia um console aparecer e
+--  sumir atrás da janela do programa. Quem baixa é core/atualizacao.lua,
+--  chamando o curl por os.execute — e os.execute no Windows passa por
+--  cmd.exe, que abre um console DE VERDADE só para fechá-lo em seguida.
+--  Não havia o que esconder ali: a janela é do cmd.exe, não nossa.
 --
---  QUAL FUNÇÃO, DESCOBERTO E NÃO SUPOSTO. Serve qualquer chamada que
---  receba o contexto e não desenhe nada; qual delas existe depende da
---  geração do ReaImGui (ver ui/imgui_compat.lua), então tenta-se uma
---  lista e guarda-se a primeira que houver. `false` quer dizer "já
---  procurei e não achei nenhuma" — a busca não se repete a cada quadro.
+--  POR QUE A TROCA MORA AQUI, E NÃO LÁ. `core/` é Lua puro e nunca
+--  referencia `reaper` (PROJECT_CONTEXT.md) — é o que deixa a suíte
+--  inteira rodar no terminal sem abrir o REAPER. ExecProcess é do
+--  REAPER. Então o núcleo fica com o os.execute, que funciona em
+--  qualquer lugar, e a camada que PODE falar com o REAPER injeta o
+--  caminho melhor. É para isso que `Atualizacao.baixar` já era trocável.
 --
---  E SEMPRE POR Compat.get: o shim do ReaImGui LANÇA ERRO ao acessar um
---  campo que não existe, então `if ImGui.GetTime then` é justamente o
---  que derrubaria o programa (PROJECT_CONTEXT.md registra a armadilha).
-function chrome.manterVivo()
-  if chrome.tocar == nil then
-    chrome.tocar = false
-    for _, nome in ipairs({ 'GetTime', 'GetFrameCount', 'GetFramerate' }) do
-      local fn = Compat.get(ImGui, nome)
-      if type(fn) == 'function' then chrome.tocar = fn break end
-    end
-    if not chrome.tocar then
-      log('minimizado: nenhuma função de toque no contexto disponível '
-        .. 'nesta versão do ReaImGui — a janela pode não voltar depois '
-        .. 'de muito tempo minimizada')
-    end
+--  O CÓDIGO DE SAÍDA VEM NA PRIMEIRA LINHA da saída do ExecProcess,
+--  quando o tempo limite é >= 0. Zero é sucesso; o resto é o curl
+--  dizendo que não deu (22 para erro HTTP, 28 para tempo esgotado).
+--  Sem número legível, o download é dado por FALHO — mentir "deu certo"
+--  aqui faria a conferência do arquivo acusar um programa corrompido
+--  onde o problema era a rede, e a mensagem apontaria para o lugar
+--  errado no pior momento possível.
+function chrome.instalarDownloader()
+  if not reaper.ExecProcess then return end
+  local Atualizacao = require('core.atualizacao')
+  Atualizacao.baixar = function(url, destino)
+    if not url or url == '' or not destino then return false end
+    -- O limite daqui é folgado de propósito: quem decide desistir é o
+    -- curl, pelo --max-time que já está no comando. Este é só a rede de
+    -- segurança para o processo que trava e não morre.
+    local saida = reaper.ExecProcess(Atualizacao.comando(url, destino),
+                                     (Atualizacao.ESPERA + 5) * 1000)
+    return tonumber(saida and saida:match('^%s*(%-?%d+)')) == 0
   end
-  if chrome.tocar then pcall(chrome.tocar, ctx) end
 end
 
 --- Barra de título PRÓPRIA, no lugar da decoração padrão do ImGui.
@@ -21308,29 +21350,6 @@ function loop()
       math.min(quadro.media * 0.5, Timeline.MAX_FRAME_COMPENSATION)
   end
 
-  -- MINIMIZADA: o laço corre, o desenho não.
-  --
-  -- Nenhum Begin, nenhum End, nenhum quadro do ImGui — a janela some da
-  -- tela porque simplesmente não é desenhada. O resto do programa segue
-  -- inteiro: `chrome.pulso` mantém o sinal de vida (é ele que faz o
-  -- botão da barra de ferramentas trazer a janela de volta) e reagenda
-  -- o próximo quadro.
-  --
-  -- O TOQUE NO CONTEXTO NÃO É ENFEITE. O ReaImGui descarta objetos que
-  -- ficam sem uso por alguns segundos — contexto e fontes inclusive. Um
-  -- laço que roda sem tocar em nada do ImGui perderia o contexto no meio
-  -- do minimizado, e o retorno seria uma janela morta ou um erro, dez
-  -- minutos depois de minimizar e longe de qualquer coisa que explique.
-  -- Uma chamada barata por quadro é o que renova o prazo.
-  --
-  -- Ver chrome.manterVivo: qual chamada serve depende da geração do
-  -- ReaImGui, e sondar o nome direto é o que derrubaria o programa.
-  if chrome.oculto then
-    chrome.manterVivo()
-    chrome.pulso(true)
-    return
-  end
-
   -- O TAMANHO E O LUGAR DA ÚLTIMA VEZ, se houver.
   --
   -- 1200x800 é um chute razoável para a primeira abertura e um estorvo
@@ -21404,6 +21423,40 @@ function loop()
     pcall(ImGui.SetNextWindowDockID, ctx, 0)
   end
 
+  -- MINIMIZADA: A JANELA VAI PARA FORA DA TELA, e o quadro acontece
+  -- exatamente como sempre aconteceu.
+  --
+  -- A PRIMEIRA TENTATIVA FOI PULAR O DESENHO — sem Begin, sem End, só o
+  -- laço correndo. Era mais limpo de ler e derrubou o REAPER inteiro na
+  -- máquina dele, na 1.5.0b1: minimizava, e ao pedir a janela de volta o
+  -- REAPER fechava. Um ciclo de quadro pela metade não é uma coisa que o
+  -- ReaImGui tolere, e o preço não é um erro de Lua que a gente pega com
+  -- pcall — é o processo do REAPER morrendo, com o projeto aberto.
+  --
+  -- Aqui não há nada de especial acontecendo: Begin, End, a mesma
+  -- sequência de todo quadro. A janela só está em -20000,-20000, que não
+  -- é canto de monitor nenhum, com um pixel de tamanho e sem receber
+  -- clique. E como o ciclo é o de sempre, o contexto nunca fica sem uso:
+  -- some junto a preocupação de o ReaImGui recolhê-lo por abandono.
+  --
+  -- O CONTEÚDO É QUE NÃO SE DESENHA (ver o `visible and not oculto`
+  -- adiante). Custo de um quadro minimizado: um Begin e um End.
+  local voltando = chrome.voltando
+  chrome.voltando = nil
+  if chrome.oculto or voltando then
+    local sempre = Compat.const(ImGui, 'Cond_Always', 1)
+    -- Guardado ao esconder e reimposto ao voltar: sem isto a janela
+    -- voltaria com um pixel, lá em -20000, e estaria perdida de vez.
+    local x, y, w, h = -20000, -20000, 1, 1
+    if voltando then x, y, w, h = voltando.x, voltando.y, voltando.w, voltando.h end
+    -- Por Compat.get, nunca `if ImGui.SetNextWindowPos then`: o shim do
+    -- ReaImGui LANÇA ERRO ao acessar um campo inexistente, e o teste de
+    -- compatibilidade apanhou exatamente isto aqui.
+    local porPos = Compat.get(ImGui, 'SetNextWindowPos')
+    if porPos then pcall(porPos, ctx, x, y, sempre) end
+    ImGui.SetNextWindowSize(ctx, w, h, sempre)
+  end
+
   -- SEM a barra de título do ImGui: a nossa é desenhada dentro do quadro
   -- (ver drawBarraTitulo). Com ela vinham o X genérico e o triângulo de
   -- "collapse", que escondia tudo menos a própria barra — no lugar dele
@@ -21433,8 +21486,17 @@ function loop()
     'WindowFlags_NoScrollbar',
     'WindowFlags_NoScrollWithMouse',
   }
-  if chrome.aoAlto then
+  if chrome.aoAlto and not chrome.oculto then
     nomes[#nomes + 1] = 'WindowFlags_TopMost'
+  end
+  -- Minimizada: um pixel fora da tela, que não se redimensiona, não
+  -- recebe clique e não pinta fundo nenhum. Flags que não existirem na
+  -- versão instalada são ignoradas por Compat.windowFlags.
+  if chrome.oculto then
+    nomes[#nomes + 1] = 'WindowFlags_NoResize'
+    nomes[#nomes + 1] = 'WindowFlags_NoInputs'
+    nomes[#nomes + 1] = 'WindowFlags_NoBackground'
+    nomes[#nomes + 1] = 'WindowFlags_NoFocusOnAppearing'
   end
   local flags = Compat.windowFlags(ImGui, nomes)
 
@@ -21445,10 +21507,14 @@ function loop()
 
   local ok, err = true, nil
   if visible then
-    -- xpcall com traceback: sem a pilha, um erro de API vira adivinhação.
-    ok, err = xpcall(frame, function(e)
-      return tostring(e) .. '\n\n' .. debug.traceback('', 2)
-    end)
+    -- MINIMIZADA, O QUADRO ABRE E FECHA VAZIO. O ciclo Begin/End é o que
+    -- não pode faltar (ver o comentário acima); o conteúdo, sim.
+    if not chrome.oculto then
+      -- xpcall com traceback: sem a pilha, um erro de API vira adivinhação.
+      ok, err = xpcall(frame, function(e)
+        return tostring(e) .. '\n\n' .. debug.traceback('', 2)
+      end)
+    end
     ImGui.End(ctx)
   end
 
@@ -21904,6 +21970,37 @@ function Window.start()
   -- pareceria não fazer nada (na verdade abriria, mas com o ícone já
   -- aceso ninguém entende o que aconteceu).
   pcall(reaper.atexit, function() chrome.acenderBotao(false) end)
+
+  -- O download da atualização sem a janela preta do cmd.exe.
+  chrome.instalarDownloader()
+
+  -- A CAIXA "ReaScript task control", que o REAPER mostra ANTES do nosso
+  -- código.
+  --
+  -- Rodar a ação com o script já rodando faz o REAPER perguntar
+  -- "terminate all instances, or launch a new instance?", em inglês, com
+  -- três botões. Isso sempre existiu; até a 1.4.1 quase ninguém via,
+  -- porque o caminho de volta do dia a dia era clicar na pastilha. Com o
+  -- minimizar da 1.5.0 o botão da barra de ferramentas VIROU o caminho
+  -- do dia a dia, e a caixa passou a aparecer toda vez.
+  --
+  -- O QUE PRECISAMOS é que ele abra a instância nova sem perguntar: ela
+  -- nasce, vê o sinal de vida, pede a restauração e morre em seguida
+  -- (ver a guarda no alto desta função). Quem volta é o programa que já
+  -- estava aberto, inteiro.
+  --
+  -- O VALOR 4 É HIPÓTESE, e está aqui declarado como tal. A documentação
+  -- do `set_action_options` não descreve os parâmetros — este projeto já
+  -- descobriu na marra que 1 é "encerre esta execução sem perguntar" e
+  -- 2 é "reabra depois" (ver chrome.pulso). 4 é o candidato para "não
+  -- encerre, e abra a nova sem perguntar". Se estiver errado, o pior que
+  -- acontece é o botão da barra encerrar o programa em vez de trazê-lo
+  -- de volta — chato, e nada se perde: é só abrir de novo.
+  --
+  -- NUNCA 1 AQUI. Ligado na abertura, ele MATA o programa a cada clique
+  -- no botão da barra de ferramentas, que é exatamente o gesto que
+  -- deveria trazer a janela de volta.
+  pcall(function() reaper.set_action_options(4) end)
 
   local im, err = Compat.load()
   if not im then

@@ -1,4 +1,4 @@
-1.5.0b1
+1.5.0b2
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Minimizar agora esconde a janela — ela volta pelo botão aceso da barra de ferramentas.
+A janela minimizada não derruba mais o REAPER ao voltar.
 ID-7171-61AF
