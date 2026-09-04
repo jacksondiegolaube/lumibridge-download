@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b4  (compilado em 2026-09-04 16:55)
+-- LumiBridge 1.5.0b5  (compilado em 2026-09-04 16:59)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 4
+Version.BETA = 5
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 16:55"
+Version.COMPILACAO = "2026-09-04 16:59"
 
 --- Onde o programa procura por versão nova.
 --
@@ -17805,19 +17805,29 @@ function chrome.diagnosticarJanela()
   }
 
   -- A TENTATIVA, só quando ela NÃO é filha: aí o bit resolve. Numa
-  -- janela filha isto não faria mal nenhum, mas também não faria efeito,
-  -- e o registro ficaria dizendo que tentamos algo que não era o caso.
+  -- janela filha isto não faria mal nenhum, mas também não faria efeito.
+  --
+  -- O ESCONDE-E-MOSTRA NÃO É SUPERSTIÇÃO. O Windows decide se uma janela
+  -- ganha botão na barra de tarefas no momento em que ela é EXIBIDA, e
+  -- não relê essa decisão depois. Trocar o WS_EX_APPWINDOW com a janela
+  -- já na tela grava o bit e não muda nada — foi o que aconteceu na
+  -- 1.5.0b4: o registro dizia "aplicado APPWINDOW" e a janela continuou
+  -- indo para o tocinho no canto. Um ciclo de SW_HIDE + SW_SHOWNA é o
+  -- que faz o Windows reavaliar.
+  --
+  -- SW_SHOWNA, e não SW_SHOW: mostrar SEM ativar. Ativar aqui roubaria o
+  -- foco do REAPER na abertura do programa, bem no momento em que o
+  -- usuário ainda está clicando em outra coisa.
   if not filha and reaper.BR_Win32_SetWindowLong then
     local novo = (extra | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
     pcall(reaper.BR_Win32_SetWindowLong, hwnd, GWL_EXSTYLE, novo)
-    -- Sem o SWP_FRAMECHANGED o Windows não relê o estilo, e o bit fica
-    -- gravado sem valer para nada.
-    if reaper.BR_Win32_SetWindowPos then
-      pcall(reaper.BR_Win32_SetWindowPos, hwnd, tostring(hwnd),
-            0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004)
+    if reaper.BR_Win32_ShowWindow then
+      pcall(reaper.BR_Win32_ShowWindow, hwnd, 0)  -- SW_HIDE
+      pcall(reaper.BR_Win32_ShowWindow, hwnd, 8)  -- SW_SHOWNA
     end
     linhas[#linhas + 1] =
-      ('  aplicado APPWINDOW -> EXSTYLE = 0x%08X'):format(novo)
+      ('  aplicado APPWINDOW -> EXSTYLE = 0x%08X, janela reexibida')
+        :format(novo)
   elseif filha then
     linhas[#linhas + 1] =
       '  janela FILHA do REAPER: não há botão de barra de tarefas possível'

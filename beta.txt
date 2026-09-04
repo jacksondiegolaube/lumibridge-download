@@ -1,4 +1,4 @@
-1.5.0b4
+1.5.0b5
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Diagnóstico: por que a janela não vai para a barra de tarefas.
+Segunda tentativa de levar a janela para a barra de tarefas.
 ID-7171-61AF
