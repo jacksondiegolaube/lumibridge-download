@@ -4,6 +4,12 @@ Cada versão do LumiBridge e o que mudou nela, a mais nova em cima.
 
 A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
+## 1.4.1
+
+_setembro/2026_
+
+As pausas do fader agora ficam na luz, e a curva sai sem pontos sobrando.
+
 ## 1.4.0
 
 _setembro/2026_
