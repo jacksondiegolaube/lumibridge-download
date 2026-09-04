@@ -1,4 +1,4 @@
-1.5.0b5
+1.5.0b6
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Segunda tentativa de levar a janela para a barra de tarefas.
+Minimizar some com a janela; o botão a traz de volta sem perguntar; fechar confirma dentro do programa.
 ID-7171-61AF

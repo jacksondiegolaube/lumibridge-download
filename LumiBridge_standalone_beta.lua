@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b5  (compilado em 2026-09-04 16:59)
+-- LumiBridge 1.5.0b6  (compilado em 2026-09-04 17:20)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 5
+Version.BETA = 6
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 16:59"
+Version.COMPILACAO = "2026-09-04 17:20"
 
 --- Onde o programa procura por versão nova.
 --
@@ -17703,153 +17703,53 @@ function chrome.acenderBotao(aceso)
   end)
 end
 
---- Minimiza a janela PELO WINDOWS, para a barra de tarefas.
+
+--- Minimizar: a janela some da tela por completo.
 --
---  É O MINIMIZAR DE VERDADE, e ele não é nosso: quem esconde a janela é
---  o sistema, e quem a traz de volta é a barra de tarefas ou o Alt+Tab,
---  como em qualquer programa. Nós não desenhamos pastilha nenhuma, não
---  paramos o laço, não mexemos em tamanho — o quadro continua saindo
---  igual, só que numa janela que o Windows guardou.
+--  SW_HIDE, e não o minimizar do Windows. Duas tentativas de usar o
+--  minimizar nativo foram feitas e descartadas com o mesmo resultado:
 --
---  POR QUE ISTO FUNCIONA AGORA, se já foi descartado uma vez. Havia no
---  código a nota de que "a janela é filha da do REAPER, então virava um
---  tocinho de barra nativa no canto inferior" — o sintoma clássico de
---  janela-filha. Mas `acharJanelaPropria` a encontra procurando a partir
---  da ÁREA DE TRABALHO ('0' como pai), o que só acha janela de topo:
---  em algum momento o ReaImGui passou a criar janelas de verdade e a
---  premissa daquela nota caiu. Ninguém tinha voltado para conferir.
+--    1. Sozinho, ele manda a janela para um "tocinho" com o título, no
+--       canto de baixo da tela. Feio e nada prático de clicar.
+--    2. Marcando WS_EX_APPWINDOW e reexibindo a janela, ela ganha lugar
+--       na barra de tarefas — mas AGRUPADA sob o botão do REAPER, com o
+--       ícone dele. O Windows agrupa por identificador de aplicativo, que
+--       pertence ao PROCESSO, e a janela mora dentro do processo do
+--       REAPER. Trocar esse identificador exige uma interface COM que
+--       nenhuma extensão de ReaScript expõe. Foi até onde dava.
 --
---  DEPENDE DA SWS, que até a 1.4.1 era só conveniência (trazer para a
---  frente, devolver o foco, achar o monitor). Por isso o instalador
---  passou a trazê-la junto, como já traz o ReaImGui. Quem atualizar sem
---  reinstalar pode não tê-la: aí `acharJanelaPropria` devolve nil e o
---  botão avisa em vez de fingir que fez algo.
---  @return true se o Windows minimizou
+--  Escondida, a janela não aparece em lugar nenhum — nem na barra de
+--  tarefas, nem no Alt+Tab. O caminho de volta é o botão do LumiBridge
+--  na barra de ferramentas do REAPER, que está sempre no mesmo lugar e a
+--  um clique. Ver LumiBridge_abrir.lua: é ele que faz esse botão
+--  funcionar sem o REAPER perguntar nada.
+--
+--  DEPENDE DA SWS. Sem ela não há como esconder a janela, e o botão
+--  avisa em vez de fingir que fez algo — foi assim que uma versão
+--  anterior, que escondia a janela por conta própria, derrubou o REAPER.
+--  @return true se a janela sumiu
 function chrome.esconder()
   local hwnd = acharJanelaPropria()
   if not hwnd or not reaper.BR_Win32_ShowWindow then
     log('minimizar indisponível: a extensão SWS não está instalada')
     return false
   end
-  -- SW_SHOWMINIMIZED pelo nome, e não pelo número: o valor é do Win32 e
-  -- a SWS já o traduz. Cair para 2 se ela não souber o nome é melhor que
-  -- não minimizar — 2 é SW_SHOWMINIMIZED desde sempre.
-  local sw = 2
-  if reaper.BR_Win32_GetConstant then
-    local ok, v = pcall(reaper.BR_Win32_GetConstant, 'SW_SHOWMINIMIZED')
-    if ok and tonumber(v) then sw = tonumber(v) end
-  end
   chrome.arrastando = false
-  local ok = pcall(reaper.BR_Win32_ShowWindow, hwnd, sw)
-  if not ok then
-    log('minimizar falhou ao chamar ShowWindow')
-    return false
-  end
-  return true
+  return (pcall(reaper.BR_Win32_ShowWindow, hwnd, 0))  -- SW_HIDE
 end
 
---- Escreve no console o que o Windows pensa desta janela — e, se der,
---  conserta.
+--- Traz a janela de volta e para a frente.
 --
---  EXISTE PARA RESPONDER UMA PERGUNTA SÓ: por que a janela não vai para
---  a barra de tarefas ao ser minimizada. Duas causas dão o mesmo
---  sintoma (o tocinho encolhido no canto da janela do REAPER) e pedem
---  respostas opostas:
+--  Chamada pelo pedido de restauração — o recado que LumiBridge_abrir.lua
+--  deixa ao ser clicado na barra de ferramentas.
 --
---    WS_CHILD        a janela é FILHA da do REAPER. Não há botão de
---                    barra de tarefas para janela filha, e arrancá-la
---                    do pai é mexer no que o ReaImGui controla.
---    WS_EX_TOOLWINDOW  a janela é independente, só está marcada como
---                    "janela de ferramenta" — e o Windows não dá botão
---                    a essas. É um bit, e dá para trocar.
---
---  Quando é o segundo caso, esta função TROCA O BIT na hora: tira o
---  TOOLWINDOW, põe o APPWINDOW e pede ao Windows para reavaliar a
---  moldura. Se der certo, a janela ganha botão na barra de tarefas e o
---  minimizar passa a ser o do sistema, sem mais nada a fazer.
---
---  Roda UMA VEZ, e só depois de a janela existir de verdade — antes do
---  primeiro quadro não há HWND para perguntar nada.
-function chrome.diagnosticarJanela()
-  if chrome.diagnosticado then return end
-  local hwnd = acharJanelaPropria()
-  if not hwnd then
-    if not reaper.BR_Win32_GetWindowLong then
-      chrome.diagnosticado = true
-      reaper.ShowConsoleMsg('[LumiBridge] diagnóstico: SWS não instalada\n')
-    end
-    return  -- a janela ainda não existe; tenta no quadro seguinte
-  end
-  chrome.diagnosticado = true
-
-  local function longo(indice)
-    local ok, v = pcall(reaper.BR_Win32_GetWindowLong, hwnd, indice)
-    return ok and tonumber(v) or 0
-  end
-
-  local GWL_STYLE, GWL_EXSTYLE = -16, -20
-  local WS_CHILD          = 0x40000000
-  local WS_EX_TOOLWINDOW  = 0x00000080
-  local WS_EX_APPWINDOW   = 0x00040000
-
-  local estilo, extra = longo(GWL_STYLE), longo(GWL_EXSTYLE)
-  local filha  = (estilo & WS_CHILD) ~= 0
-  local ferram = (extra & WS_EX_TOOLWINDOW) ~= 0
-  local app    = (extra & WS_EX_APPWINDOW) ~= 0
-
-  local linhas = {
-    '[LumiBridge] diagnóstico da janela',
-    ('  STYLE   = 0x%08X   WS_CHILD %s'):format(estilo, filha and 'SIM' or 'não'),
-    ('  EXSTYLE = 0x%08X   TOOLWINDOW %s   APPWINDOW %s')
-      :format(extra, ferram and 'SIM' or 'não', app and 'SIM' or 'não'),
-  }
-
-  -- A TENTATIVA, só quando ela NÃO é filha: aí o bit resolve. Numa
-  -- janela filha isto não faria mal nenhum, mas também não faria efeito.
-  --
-  -- O ESCONDE-E-MOSTRA NÃO É SUPERSTIÇÃO. O Windows decide se uma janela
-  -- ganha botão na barra de tarefas no momento em que ela é EXIBIDA, e
-  -- não relê essa decisão depois. Trocar o WS_EX_APPWINDOW com a janela
-  -- já na tela grava o bit e não muda nada — foi o que aconteceu na
-  -- 1.5.0b4: o registro dizia "aplicado APPWINDOW" e a janela continuou
-  -- indo para o tocinho no canto. Um ciclo de SW_HIDE + SW_SHOWNA é o
-  -- que faz o Windows reavaliar.
-  --
-  -- SW_SHOWNA, e não SW_SHOW: mostrar SEM ativar. Ativar aqui roubaria o
-  -- foco do REAPER na abertura do programa, bem no momento em que o
-  -- usuário ainda está clicando em outra coisa.
-  if not filha and reaper.BR_Win32_SetWindowLong then
-    local novo = (extra | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
-    pcall(reaper.BR_Win32_SetWindowLong, hwnd, GWL_EXSTYLE, novo)
-    if reaper.BR_Win32_ShowWindow then
-      pcall(reaper.BR_Win32_ShowWindow, hwnd, 0)  -- SW_HIDE
-      pcall(reaper.BR_Win32_ShowWindow, hwnd, 8)  -- SW_SHOWNA
-    end
-    linhas[#linhas + 1] =
-      ('  aplicado APPWINDOW -> EXSTYLE = 0x%08X, janela reexibida')
-        :format(novo)
-  elseif filha then
-    linhas[#linhas + 1] =
-      '  janela FILHA do REAPER: não há botão de barra de tarefas possível'
-  end
-
-  reaper.ShowConsoleMsg(table.concat(linhas, '\n') .. '\n')
-end
-
---- Traz a janela de volta, se estiver minimizada.
---
---  Chamada pelo pedido de restauração (rodar a ação com o programa já
---  aberto). O caminho do dia a dia é a barra de tarefas do Windows, que
---  não passa por aqui — este é o de reserva.
+--  SW_SHOW e não SW_SHOWNA: aqui o usuário PEDIU a janela, então ativá-la
+--  é o certo. `trazerParaFrente` completa o serviço para o caso de ela
+--  reaparecer atrás do REAPER.
 function chrome.mostrar()
   local hwnd = acharJanelaPropria()
   if hwnd and reaper.BR_Win32_ShowWindow then
-    local sw = 9   -- SW_RESTORE
-    if reaper.BR_Win32_GetConstant then
-      local ok, v = pcall(reaper.BR_Win32_GetConstant, 'SW_SHOWNORMAL')
-      if ok and tonumber(v) then sw = tonumber(v) end
-    end
-    pcall(reaper.BR_Win32_ShowWindow, hwnd, sw)
+    pcall(reaper.BR_Win32_ShowWindow, hwnd, 5)  -- SW_SHOW
   end
 end
 
@@ -18232,9 +18132,9 @@ local function drawBarraTitulo()
     recording
       and 'Minimizar\n\nIndisponível durante a gravação: minimizada, a janela\n'
           .. 'não teria como mostrar que ainda está gravando.'
-      or  'Minimizar\n\nA janela vai para a barra de tarefas do Windows.\n'
-          .. 'O LumiBridge continua rodando; clique nele na barra de\n'
-          .. 'tarefas, ou use Alt+Tab, para trazê-la de volta.')
+      or  'Minimizar\n\nA janela some da tela e o LumiBridge continua\n'
+          .. 'rodando. Clique no botão dele na barra de ferramentas do\n'
+          .. 'REAPER para trazê-la de volta.')
   if clicouMinimizar and not recording then
     chrome.esconder()
   end
@@ -18279,18 +18179,31 @@ local function drawBarraTitulo()
   --
   -- A pergunta muda de texto conforme o que há a perder: dizer "fechar
   -- mesmo?" e dizer O QUE se perde não custam o mesmo ao leitor.
+  --
+  -- E É A NOSSA CONFIRMAÇÃO, não o reaper.MB. A caixa cinza do Windows
+  -- aparece FORA da janela — às vezes atrás dela, no outro monitor —, e
+  -- destoa de uma interface inteira desenhada à mão. O programa já sabe
+  -- desenhar a pergunta dentro de si (ver drawConfirmacao, usada pelo
+  -- apagar e pelo desfazer); fechar é a pergunta mais importante que ele
+  -- faz, e era a única ainda entregue ao Windows.
   if botaoBarra('##btFechar', bxFechar, function(cx, cy, cor)
       ImGui.DrawList_AddLine(dl, cx - 5, cy - 5, cx + 5, cy + 5, cor, 1.4)
       ImGui.DrawList_AddLine(dl, cx + 5, cy - 5, cx - 5, cy + 5, cor, 1.4)
     end, 'Fechar o LumiBridge\n\nEncerra o programa. Para só tirar da frente,\n'
       .. 'use o minimizar.', true) then
-    local aviso = recording
-      and 'A GRAVAÇÃO ESTÁ LIGADA. Fechar agora encerra o LumiBridge e a '
-          .. 'gravação em curso se perde.\n\nFechar mesmo assim?'
-      or  'Fechar encerra o LumiBridge.\n\nPara só tirar a janela da frente '
-          .. 'sem encerrar, use o minimizar — o programa continua rodando e '
-          .. 'volta pelo botão da barra de ferramentas.\n\nFechar mesmo assim?'
-    if reaper.MB(aviso, 'LumiBridge', 4) == 6 then chrome.fechar = true end
+    confirmar = {
+      titulo = recording and 'Fechar com a gravação ligada?'
+                          or 'Fechar o LumiBridge?',
+      texto  = recording
+        and 'A gravação está ligada. Fechar agora encerra o programa e a\n'
+            .. 'gravação em curso se perde.'
+        or  'O programa será encerrado.\n\n'
+            .. 'Para só tirar a janela da frente, use o minimizar: o\n'
+            .. 'LumiBridge continua rodando e volta pelo botão da barra\n'
+            .. 'de ferramentas do REAPER.',
+      rotulo = 'Fechar',
+      acao   = function() chrome.fechar = true end,
+    }
   end
 
   ImGui.SetCursorScreenPos(ctx, x0, y0 + ALTURA + 4)
@@ -21312,9 +21225,6 @@ local loop
 --  botão da barra de ferramentas trazer a janela de volta. Deixar esta
 --  parte só no caminho do desenho seria minimizar sem ter como voltar.
 function chrome.pulso(open)
-  -- O DIAGNÓSTICO DA JANELA, uma vez só, no fim de um quadro — que é
-  -- quando a janela já existe e o Windows tem o que responder.
-  chrome.diagnosticarJanela()
 
   -- O carimbo diz "existe uma instância rodando agora" — é o que faz a
   -- segunda execução da ação se recusar a abrir uma janela nova (ver
@@ -21882,6 +21792,10 @@ function Window.__setAbrirFiltro(v) opcoes.abrirFiltro = v; faixas.modoPosto = n
 function Window.__faixasSemCC() return not faixas.comCC end
 function Window.__faixasComCC() return faixas.comCC end
 function Window.__confirmando() return confirmar ~= nil end
+--- O X foi confirmado? Para o teste do fechar — sem isto, um X que
+--  encerrasse o programa DIRETO, sem passar pela confirmação, passaria
+--  verde: `__confirmando` sozinho não distingue "perguntou" de "fez".
+function Window.__fechando() return chrome.fechar == true end
 function Window.__layoutInfo()
   return { w = layout and layout.contentWidth or 0,
            h = layout and layout.contentHeight or 0,
