@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b3  (compilado em 2026-09-04 16:39)
+-- LumiBridge 1.5.0b4  (compilado em 2026-09-04 16:55)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 3
+Version.BETA = 4
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 16:39"
+Version.COMPILACAO = "2026-09-04 16:55"
 
 --- Onde o programa procura por versão nova.
 --
@@ -17748,6 +17748,84 @@ function chrome.esconder()
   return true
 end
 
+--- Escreve no console o que o Windows pensa desta janela — e, se der,
+--  conserta.
+--
+--  EXISTE PARA RESPONDER UMA PERGUNTA SÓ: por que a janela não vai para
+--  a barra de tarefas ao ser minimizada. Duas causas dão o mesmo
+--  sintoma (o tocinho encolhido no canto da janela do REAPER) e pedem
+--  respostas opostas:
+--
+--    WS_CHILD        a janela é FILHA da do REAPER. Não há botão de
+--                    barra de tarefas para janela filha, e arrancá-la
+--                    do pai é mexer no que o ReaImGui controla.
+--    WS_EX_TOOLWINDOW  a janela é independente, só está marcada como
+--                    "janela de ferramenta" — e o Windows não dá botão
+--                    a essas. É um bit, e dá para trocar.
+--
+--  Quando é o segundo caso, esta função TROCA O BIT na hora: tira o
+--  TOOLWINDOW, põe o APPWINDOW e pede ao Windows para reavaliar a
+--  moldura. Se der certo, a janela ganha botão na barra de tarefas e o
+--  minimizar passa a ser o do sistema, sem mais nada a fazer.
+--
+--  Roda UMA VEZ, e só depois de a janela existir de verdade — antes do
+--  primeiro quadro não há HWND para perguntar nada.
+function chrome.diagnosticarJanela()
+  if chrome.diagnosticado then return end
+  local hwnd = acharJanelaPropria()
+  if not hwnd then
+    if not reaper.BR_Win32_GetWindowLong then
+      chrome.diagnosticado = true
+      reaper.ShowConsoleMsg('[LumiBridge] diagnóstico: SWS não instalada\n')
+    end
+    return  -- a janela ainda não existe; tenta no quadro seguinte
+  end
+  chrome.diagnosticado = true
+
+  local function longo(indice)
+    local ok, v = pcall(reaper.BR_Win32_GetWindowLong, hwnd, indice)
+    return ok and tonumber(v) or 0
+  end
+
+  local GWL_STYLE, GWL_EXSTYLE = -16, -20
+  local WS_CHILD          = 0x40000000
+  local WS_EX_TOOLWINDOW  = 0x00000080
+  local WS_EX_APPWINDOW   = 0x00040000
+
+  local estilo, extra = longo(GWL_STYLE), longo(GWL_EXSTYLE)
+  local filha  = (estilo & WS_CHILD) ~= 0
+  local ferram = (extra & WS_EX_TOOLWINDOW) ~= 0
+  local app    = (extra & WS_EX_APPWINDOW) ~= 0
+
+  local linhas = {
+    '[LumiBridge] diagnóstico da janela',
+    ('  STYLE   = 0x%08X   WS_CHILD %s'):format(estilo, filha and 'SIM' or 'não'),
+    ('  EXSTYLE = 0x%08X   TOOLWINDOW %s   APPWINDOW %s')
+      :format(extra, ferram and 'SIM' or 'não', app and 'SIM' or 'não'),
+  }
+
+  -- A TENTATIVA, só quando ela NÃO é filha: aí o bit resolve. Numa
+  -- janela filha isto não faria mal nenhum, mas também não faria efeito,
+  -- e o registro ficaria dizendo que tentamos algo que não era o caso.
+  if not filha and reaper.BR_Win32_SetWindowLong then
+    local novo = (extra | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW
+    pcall(reaper.BR_Win32_SetWindowLong, hwnd, GWL_EXSTYLE, novo)
+    -- Sem o SWP_FRAMECHANGED o Windows não relê o estilo, e o bit fica
+    -- gravado sem valer para nada.
+    if reaper.BR_Win32_SetWindowPos then
+      pcall(reaper.BR_Win32_SetWindowPos, hwnd, tostring(hwnd),
+            0, 0, 0, 0, 0x0020 | 0x0002 | 0x0001 | 0x0004)
+    end
+    linhas[#linhas + 1] =
+      ('  aplicado APPWINDOW -> EXSTYLE = 0x%08X'):format(novo)
+  elseif filha then
+    linhas[#linhas + 1] =
+      '  janela FILHA do REAPER: não há botão de barra de tarefas possível'
+  end
+
+  reaper.ShowConsoleMsg(table.concat(linhas, '\n') .. '\n')
+end
+
 --- Traz a janela de volta, se estiver minimizada.
 --
 --  Chamada pelo pedido de restauração (rodar a ação com o programa já
@@ -21224,6 +21302,10 @@ local loop
 --  botão da barra de ferramentas trazer a janela de volta. Deixar esta
 --  parte só no caminho do desenho seria minimizar sem ter como voltar.
 function chrome.pulso(open)
+  -- O DIAGNÓSTICO DA JANELA, uma vez só, no fim de um quadro — que é
+  -- quando a janela já existe e o Windows tem o que responder.
+  chrome.diagnosticarJanela()
+
   -- O carimbo diz "existe uma instância rodando agora" — é o que faz a
   -- segunda execução da ação se recusar a abrir uma janela nova (ver
   -- Window.start). E é justamente por ela pedir restauração em vez de
