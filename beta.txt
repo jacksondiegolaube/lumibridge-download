@@ -1,4 +1,4 @@
-1.4.0b8
+1.4.1b1
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Corrige o item MIDI vazio que aparecia por cima do que tinha a programação.
+Parar o fader no meio do movimento agora fica parado na luz.
 ID-7171-61AF
