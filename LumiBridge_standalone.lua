@@ -1,4 +1,4 @@
--- LumiBridge 1.3.1  (compilado em 2026-09-03 11:13)
+-- LumiBridge 1.4.0  (compilado em 2026-09-03 22:20)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -49,8 +49,8 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 3
-Version.CORRECAO = 1
+Version.MENOR    = 4
+Version.CORRECAO = 0
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
 --
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-03 11:13"
+Version.COMPILACAO = "2026-09-03 22:20"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3884,8 +3884,13 @@ end
 --  ela colaria em si mesma e nada se moveria.
 --
 --  @param excluir  bloco a ignorar (o que está sendo arrastado)
+--  @param extras   instantes avulsos que também atraem (segundos). As
+--                  seções da música entram por aqui: cada marcador do
+--                  REAPER vira um ponto de encaixe, igual às bordas de
+--                  nota. Fica como parâmetro porque core/ não fala com o
+--                  REAPER — quem lê os marcadores é ui/, que passa a lista.
 --  @return o instante colado, ou o próprio destino se nada estiver perto
-function Lanes.imantar(linhas, destino, tolerancia, excluir)
+function Lanes.imantar(linhas, destino, tolerancia, excluir, extras)
   if not linhas or not tolerancia or tolerancia <= 0 then return destino end
   local melhor, dist = destino, tolerancia
   for _, ln in ipairs(linhas) do
@@ -3897,6 +3902,10 @@ function Lanes.imantar(linhas, destino, tolerancia, excluir)
         end
       end
     end
+  end
+  for _, t in ipairs(extras or {}) do
+    local d = math.abs(t - destino)
+    if d < dist then melhor, dist = t, d end
   end
   return melhor
 end
@@ -5505,15 +5514,44 @@ end
 --
 --  Sem região sob a posição, o item cobre a música inteira: é melhor um
 --  item grande e vazio do que vários pedaços.
+--- Folga usada quando a gravação não acha região nenhuma.
+--
+--  `prepareRegion` PRECISA conhecer este número: é a distância máxima que
+--  um item legítimo desta música pode estar das bordas da região. Enquanto
+--  os dois discordaram — oito segundos aqui, um lá —, preparar depois de
+--  gravar criava um segundo item, vazio, por cima do que tinha a
+--  programação.
+Timeline.RECORD_PAD = 8.0
+
 local function recordingBounds(startTime, endTime)
   local r = api()
 
   if r.EnumProjectMarkers3 and r.CountProjectMarkers then
     local _, markers, regions = r.CountProjectMarkers(0)
+
+    -- 1) A região que CONTÉM o início. É o caso normal.
     for i = 0, (markers or 0) + (regions or 0) - 1 do
       local ok, isRegion, pos, rgnEnd = r.EnumProjectMarkers3(0, i)
       if ok and ok ~= 0 and isRegion
          and startTime >= pos - 1e-9 and startTime < rgnEnd then
+        return pos, rgnEnd
+      end
+    end
+
+    -- 2) A região que a nota ATRAVESSA, quando o início dela caiu fora.
+    --
+    -- A compensação de latência desconta do instante do clique o atraso
+    -- de saída do áudio — o som ao qual você reagiu já era passado. Um
+    -- botão apertado no primeiro compasso escreve, então, ANTES do zero
+    -- da música. Com a busca só por "contém o início", essa nota ficava
+    -- sem região, o item nascia com oito segundos de folga para cada
+    -- lado, e a preparação seguinte não reconhecia mais o item da
+    -- música: nascia outro, vazio, por cima. Foi o defeito relatado como
+    -- "aparece um item MIDI em branco cobrindo o correto".
+    for i = 0, (markers or 0) + (regions or 0) - 1 do
+      local ok, isRegion, pos, rgnEnd = r.EnumProjectMarkers3(0, i)
+      if ok and ok ~= 0 and isRegion
+         and startTime < rgnEnd and (endTime or startTime) > pos then
         return pos, rgnEnd
       end
     end
@@ -5525,9 +5563,8 @@ local function recordingBounds(startTime, endTime)
   -- único item cobrindo todas elas, e gravar a terceira música mexeria
   -- no mesmo item da primeira. Sem região não há como saber onde a
   -- música começa e termina, então o mínimo é o mais seguro.
-  local pad = 8.0
-  local from = math.max(0, startTime - pad)
-  return from, endTime + pad
+  local from = math.max(0, startTime - Timeline.RECORD_PAD)
+  return from, (endTime or startTime) + Timeline.RECORD_PAD
 end
 
 local function takeFor(track, startTime, endTime)
@@ -5621,10 +5658,23 @@ function Timeline.prepareRegion(startTime, endTime, nomeRegiao)
     local pos  = r.GetMediaItemInfo_Value(item, 'D_POSITION')
     local len  = r.GetMediaItemInfo_Value(item, 'D_LENGTH')
 
-    -- Só reaproveita item que já está DENTRO da região, com folga de um
-    -- segundo. Antes bastava sobrepor, então um item grande de outra
-    -- parte do projeto era arrastado para cá e redimensionado.
-    local dentro = pos > startTime - 1.0 and pos + len < endTime + 1.0
+    -- Só reaproveita item que já está DENTRO da região. Antes bastava
+    -- sobrepor, então um item grande de outra parte do projeto era
+    -- arrastado para cá e redimensionado.
+    --
+    -- A FOLGA É A MESMA DA GRAVAÇÃO, e não um segundo como era. Sem
+    -- região casando, `takeFor` cria (e estica) o item com
+    -- Timeline.RECORD_PAD de folga para cada lado — e um item assim
+    -- ficava "fora" deste teste. O que acontecia então era o pior
+    -- resultado possível: em vez de reaproveitar, nascia um SEGUNDO
+    -- item, vazio, exatamente do tamanho da região, DEITADO POR CIMA do
+    -- que tinha a programação inteira. Relatado como "aparece um item
+    -- MIDI em branco cobrindo o correto", depois de gravar e regravar.
+    --
+    -- Um item de outra música continua recusado: ele começa perto do
+    -- início da região DELE, muito além desta folga.
+    local folga = Timeline.RECORD_PAD + 1.0
+    local dentro = pos > startTime - folga and pos + len < endTime + folga
     if dentro and pos < endTime and pos + len > startTime then
       local take = r.GetActiveTake(item)
       if take and r.TakeIsMIDI(take) then
@@ -7634,6 +7684,80 @@ function Transport.currentRegion(lista)
   return Transport.regionAt(r.GetCursorPosition(), list)
 end
 
+-- ------------------------------------------------------- seções da música
+--
+-- Uma "seção" (refrão, solo, virada) é um MARCADOR do REAPER caindo
+-- dentro da região da música. Nada de formato novo: o REAPER já sabe
+-- guardar marcador, mostra na régua dele e leva junto no .rpp. O
+-- LumiBridge só desenha os que interessam e dá um jeito rápido de criar.
+
+--- Cria um marcador em `pos` (segundos) com o nome dado.
+--  @return o número de índice do marcador criado, ou nil se a API faltar
+function Transport.addMarker(pos, name)
+  local r = api()
+  if not r.AddProjectMarker2 then return nil end
+  local idx = r.AddProjectMarker2(0, false, pos or 0, 0, name or '', -1, 0)
+  return (type(idx) == 'number' and idx >= 0) and idx or nil
+end
+
+--- Grava nome E posição do marcador de índice `idx`.
+--
+--  É a mesma chamada para renomear e para MOVER: o REAPER não tem uma
+--  função só de mover marcador, `SetProjectMarker3` recebe os dois de
+--  uma vez. Quem só quer mover passa o nome que já estava lá.
+function Transport.renameMarker(idx, pos, name)
+  local r = api()
+  if not r.SetProjectMarker3 or not idx then return false end
+  local ok = r.SetProjectMarker3(0, idx, false, pos or 0, 0, name or '', 0)
+  return ok and true or false
+end
+
+--- Apaga o marcador de índice `idx`.
+function Transport.deleteMarker(idx)
+  local r = api()
+  if not r.DeleteProjectMarker or not idx then return false end
+  local ok = r.DeleteProjectMarker(0, idx, false)
+  return ok and true or false
+end
+
+--- Os marcadores (não regiões) entre `fromT` e `toT`, em ordem de tempo.
+--  @param list opcional: regiões já lidas, para não reler o projeto
+function Transport.markersInRange(fromT, toT, list)
+  local out = {}
+  for _, rg in ipairs(list or Transport.regions()) do
+    if not rg.isRegion and rg.startTime >= fromT and rg.startTime <= toT then
+      out[#out + 1] = rg
+    end
+  end
+  return out
+end
+
+--- Só os instantes dos marcadores (não regiões), para o ímã das faixas.
+--  @param list opcional: regiões já lidas
+function Transport.markerTimes(list)
+  local out = {}
+  for _, rg in ipairs(list or Transport.regions()) do
+    if not rg.isRegion then out[#out + 1] = rg.startTime end
+  end
+  return out
+end
+
+--- O marcador mais próximo de `pos`.
+--  @param dir  -1 só antes, 1 só depois, 0 qualquer lado
+--  @param list opcional: regiões já lidas
+function Transport.nearestMarker(pos, dir, list)
+  local melhor, menor = nil, math.huge
+  for _, rg in ipairs(list or Transport.regions()) do
+    if not rg.isRegion then
+      local d = rg.startTime - pos
+      local cabe = (dir == 0) or (dir < 0 and d < -0.001)
+                   or (dir > 0 and d > 0.001)
+      if cabe and math.abs(d) < menor then melhor, menor = rg, math.abs(d) end
+    end
+  end
+  return melhor
+end
+
 --- Localiza uma track pelo nome. Usada para achar a track da música.
 function Transport.findTrackByName(name)
   local r = api()
@@ -8001,8 +8125,17 @@ end
 Theme.UI = {
   bg          = 0x14161AFF,
   panel       = 0x1C1F26FF,
-  panelHover  = 0x252932FF,
-  panelActive = 0x2E333EFF,
+  -- O REALCE PRECISA SER VISTO. Estes dois eram 0x252932 e 0x2E333E —
+  -- nove pontos de cinza acima do painel (0x1C1F26), diferença que na
+  -- tela some: passar o mouse sobre uma linha de ajuste ou um botão não
+  -- se lia como realce nenhum.
+  --
+  -- Foram clareados em duas etapas, as duas conferidas na tela: primeiro
+  -- para 0x30353F/0x3C4351 (o passo dobrou, ainda discreto), depois para
+  -- estes. Agora são ~30 e ~46 pontos acima do painel — realce que se lê
+  -- de relance, sem virar um bloco claro no meio do escuro.
+  panelHover  = 0x3A4050FF,
+  panelActive = 0x4A5265FF,
   border      = 0x000000FF,
   text        = 0xD8DCE4FF,
   textDim     = 0x7A8290FF,
@@ -9693,6 +9826,14 @@ local opcoes = {
   --   relogio  a posição em minutos e segundos
   regioes = false,
   relogio = false,
+  -- TEMPO CONTADO A PARTIR DA MÚSICA, não do projeto.
+  --
+  -- A régua da onda e o relógio mostram o projeto inteiro: uma música que
+  -- começa aos 8 minutos tem o refrão "aos 9:12". Ligado, o começo da
+  -- música escolhida é 0:00 e o refrão vira "1:12" — que é como se fala
+  -- de um trecho ao montar a luz. Desligado por padrão: quem já lê pelo
+  -- tempo do projeto não é surpreendido numa atualização.
+  tempoRegiao = false,
   -- COMO A PROGRAMAÇÃO MIDI ABRE.
   --
   -- Quem abre a lista quase sempre vai EDITAR: quer a janela inteira
@@ -10028,6 +10169,11 @@ local faixas = {
   acionar   = {},
   segurando = {},   -- quem está com o nome pressionado, por tag
   arrasteFader = nil, -- fader sendo puxado pelo nome { tag, x0, v0 }
+  -- NOTA SENDO CRIADA POR ARRASTO no vazio de uma linha de botão:
+  -- { linha, t0, t1, mx0, y, h, arrastou }. Vira nota ao soltar, e só
+  -- se o ponteiro tiver andado — senão o gesto era o clique que leva o
+  -- cursor. Ver a criação por arrasto no corpo das faixas.
+  criando = nil,
   sobNome = nil,    -- linha sob o mouse na coluna de nomes
   seguirCursor = true, -- com zoom, a vista salta para acompanhar o play
   menuEl    = nil,  -- elemento do .form do menu de faixa aberto
@@ -10142,6 +10288,29 @@ local painel = {
   -- PROCURA POR VERSÃO NOVA, na aba Sobre. Aqui e não num local próprio:
   -- o corpo deste módulo está no teto de 200 locais do Lua.
   atualizacao = { recado = nil, achada = nil, ocupado = false },
+  -- SEÇÕES DA MÚSICA (marcadores do REAPER desenhados na onda).
+  --
+  --   nomes      a paleta de nomes prontos, editável em Configurações
+  --   novaTag    o que está sendo digitado no editor de nomes (tags)
+  --   menuT      instante onde o menu de clique direito foi aberto (s)
+  --   abrirMenu  pedido de abrir o menu no próximo quadro (OpenPopup
+  --              precisa do escopo de ID do quadro, não do da onda)
+  --   abrirInput idem, para o popup de nome com a lista de escolha
+  --   pendente   { idx, pos, texto, viva, sel } enquanto o nome está
+  --              sendo escolhido, logo após criar o marcador
+  --   movendo    { idx, nome, pos, original } enquanto a bandeirola está
+  --              sendo arrastada pela régua
+  --   pediuFoco  levar o cursor de teclado ao campo no próximo quadro
+  --   faixa*     geometria da régua da onda, para o popup se posicionar
+  secao = {
+    nomes = { 'Intro', 'Verso', 'Pré-refrão', 'Refrão', 'Solo',
+              'Ponte', 'Virada', 'Final' },
+    novaTag = '',
+    menuT = 0, abrirMenu = false, abrirInput = false,
+    pendente = nil, movendo = nil, pediuFoco = false,
+    faixaX0 = nil, faixaLarg = nil, faixaFrom = nil, faixaDur = nil,
+    faixaY = nil,
+  },
 }
 
 --- Registra uma linha de diagnóstico.
@@ -10664,6 +10833,276 @@ local function drawFKeyMenu()
 
   ImGui.EndPopup(ctx)
   if padF then pcall(ImGui.PopStyleVar, ctx, 1) end
+end
+
+--- Menu de clique direito na onda: a paleta de nomes de seção. Cada item
+--  cria um marcador do REAPER no instante clicado (painel.secao.menuT),
+--  já nomeado. "Outro nome…" cria em branco e abre o campo de texto.
+--  Aberto por painel.secao.abrirMenu, atendido no escopo do quadro.
+--
+--  Campo de `painel`, e não um `local` novo em coluna zero: este arquivo
+--  está no teto de 200 locais do Lua (ver CLAUDE.md).
+function painel.drawSecaoMenu()
+  local aberto, padS = abrirPopup('secaoMenu')
+  if not aberto then return end
+  local s = painel.secao
+
+  --- Cria o marcador e registra. Devolve o índice, ou nil.
+  local function criar(nome)
+    local idx = Transport.addMarker(s.menuT, nome or '')
+    quadro.recheckAt = 0
+    log(('seção: %s em %s'):format(
+      (nome and nome ~= '') and nome or '(sem nome)',
+      Transport.formatTime(s.menuT)))
+    return idx
+  end
+
+  -- A SEÇÃO SOB O CLIQUE VEM PRIMEIRO.
+  --
+  -- Estava no fim, depois da paleta inteira, e a distância era medida em
+  -- SEGUNDOS (três) — o que num zoom afastado é meia tela e num zoom
+  -- aproximado é um fio de pixel. Quem clicava na bandeirola para apagar
+  -- não achava a opção. Agora a distância é em PIXELS, como todo alcance
+  -- de mouse deste arquivo, e o que é daquela marca aparece no topo.
+  local segPx = (s.faixaDur and s.faixaLarg and s.faixaLarg > 0)
+                and (s.faixaDur / s.faixaLarg) or 0.05
+  local perto = Transport.nearestMarker(s.menuT, 0, regions)
+  if perto and math.abs(perto.startTime - s.menuT) > segPx * 18 then
+    perto = nil
+  end
+
+  if perto then
+    local rot = perto.name ~= '' and perto.name or '(sem nome)'
+    ImGui.TextColored(ctx, 0x6B7280FF, rot)
+    ImGui.Separator(ctx)
+    -- O SALTO ATRAVESSA O QUADRO numa variável, como o pedido de menu:
+    -- `saltarPara` só é declarada bem mais abaixo neste arquivo, e daqui
+    -- ela seria uma global inexistente (é o defeito que test_globals
+    -- existe para pegar).
+    if ImGui.Selectable(ctx, 'Ir para esta seção') then
+      s.irPara = perto.startTime
+      ImGui.CloseCurrentPopup(ctx)
+    end
+    if ImGui.Selectable(ctx, 'Renomear…') then
+      s.pendente = { idx = perto.index, pos = perto.startTime,
+                     texto = perto.name or '', viva = false, sel = 0 }
+      s.pediuFoco = true
+      s.abrirInput = true
+      ImGui.CloseCurrentPopup(ctx)
+    end
+    if ImGui.Selectable(ctx, 'Apagar') then
+      Transport.deleteMarker(perto.index)
+      quadro.recheckAt = 0
+      log('seção apagada: ' .. rot)
+      ImGui.CloseCurrentPopup(ctx)
+    end
+    ImGui.Separator(ctx)
+    ImGui.TextColored(ctx, 0x6B7280FF, 'Arraste a bandeirola para mover.')
+    ImGui.Separator(ctx)
+  end
+
+  ImGui.TextColored(ctx, 0x6B7280FF, 'Marcar seção aqui')
+  ImGui.Separator(ctx)
+  for _, nome in ipairs(s.nomes) do
+    if ImGui.Selectable(ctx, nome) then
+      criar(nome)
+      ImGui.CloseCurrentPopup(ctx)
+    end
+  end
+
+  ImGui.Separator(ctx)
+  if ImGui.Selectable(ctx, 'Outro nome…') then
+    local idx = criar('')
+    if idx then
+      s.pendente = { idx = idx, pos = s.menuT, texto = '', viva = false,
+                     sel = 0 }
+      s.pediuFoco = true
+      s.abrirInput = true
+    end
+    ImGui.CloseCurrentPopup(ctx)
+  end
+
+  ImGui.EndPopup(ctx)
+  if padS then pcall(ImGui.PopStyleVar, ctx, 1) end
+end
+
+--- Fecha o campo de nome da seção em edição, sem travar nada.
+--
+--  Com nome digitado, renomeia o marcador. EM BRANCO, o marcador FICA
+--  (sem nome, nomeável depois pelo clique direito) — é o que permite
+--  soltar vários marcadores tocando e nomear tudo depois. Só o Esc
+--  (`cancelar`) apaga um marcador ainda em branco.
+--
+--  Campo de `painel` e não `local` novo em coluna zero: teto de 200
+--  locais do Lua (ver CLAUDE.md).
+function painel.finalizarSecao(cancelar)
+  local p = painel.secao.pendente
+  if not p then return end
+  local nome = (p.texto or ''):gsub('^%s*(.-)%s*$', '%1')
+  if cancelar and nome == '' then
+    Transport.deleteMarker(p.idx)
+  elseif nome ~= '' then
+    Transport.renameMarker(p.idx, p.pos, nome)
+  end
+  painel.secao.pendente = nil
+  painel.secao.pediuFoco = false
+  quadro.recheckAt = 0
+end
+
+--- Popup de nome da seção: campo de texto em cima, a paleta de nomes
+--  logo abaixo. Confirmar tem TRÊS caminhos que não dependem do Enter,
+--  de propósito: clicar num nome da lista, o botão OK, ou clicar fora do
+--  popup (grava o que estiver digitado). Setas ↑/↓ movem a escolha
+--  (0 = "usar o que digitei") e o OK confirma a realçada. Esc cancela
+--  (e apaga o marcador se ele ainda estiver em branco).
+--
+--  POR QUE NÃO SÓ O ENTER. Uma extensão do REAPER com gancho de teclado
+--  (a VS Hook, na máquina onde isto apareceu) consome o Enter antes de
+--  qualquer janela, e um ReaScript não tem como ter prioridade sobre ela
+--  — o mesmo motivo do Shift+Espaço no transporte (ver PROJECT_CONTEXT).
+--  O Enter continua ligado aqui: onde não há gancho, ele funciona.
+--
+--  Aberto por painel.secao.abrirInput, no escopo do quadro (ver frame).
+--  Campo de `painel`, não `local` novo em coluna zero (teto de 200
+--  locais do Lua — ver CLAUDE.md).
+function painel.drawSecaoInput()
+  local s = painel.secao
+  local p = s.pendente
+  if not p then return end
+
+  -- No ponto do marcador, logo abaixo da faixa da onda.
+  if s.faixaX0 and s.faixaDur and s.faixaDur > 0 and ImGui.SetNextWindowPos then
+    local px = s.faixaX0 + (p.pos - s.faixaFrom) / s.faixaDur * s.faixaLarg
+    px = math.max(s.faixaX0, math.min(s.faixaX0 + s.faixaLarg - 190, px))
+    pcall(ImGui.SetNextWindowPos, ctx, math.floor(px), math.floor(s.faixaY))
+  end
+
+  local aberto, padI = abrirPopup('secaoInput')
+  if not aberto then
+    -- Fechou clicando fora: o marcador FICA, mesmo sem nome.
+    painel.finalizarSecao(false)
+    return
+  end
+
+  campoTextoAtivo = true
+  p.viva = true
+
+  --- Alguma destas teclas neste quadro? `rep` = aceitar repetição.
+  local function tecla(nome, rep)
+    local k = Compat.const(ImGui, nome, nil)
+    if not k or k == 0 or not ImGui.IsKeyPressed then return false end
+    local ok, v = pcall(ImGui.IsKeyPressed, ctx, k, rep == true)
+    return ok and v == true
+  end
+
+  -- Lista filtrada pelo que já foi digitado.
+  local alvo = (p.texto or ''):lower()
+  local filtradas = {}
+  for _, nome in ipairs(s.nomes) do
+    if alvo == '' or nome:lower():find(alvo, 1, true) then
+      filtradas[#filtradas + 1] = nome
+    end
+  end
+  p.sel = math.max(0, math.min(p.sel or 0, #filtradas))
+
+  if tecla('Key_DownArrow', true) then p.sel = math.min(#filtradas, p.sel + 1) end
+  if tecla('Key_UpArrow', true)   then p.sel = math.max(0, p.sel - 1) end
+
+  if tecla('Key_Escape') then
+    ImGui.CloseCurrentPopup(ctx)
+    ImGui.EndPopup(ctx)
+    if padI then pcall(ImGui.PopStyleVar, ctx, 1) end
+    painel.finalizarSecao(true)
+    return
+  end
+
+  -- ENTER PELO ESTADO FÍSICO DO TECLADO, contornando um gancho que engula
+  -- a tecla (a VS Hook faz isso — ver PROJECT_CONTEXT, "O Enter que não
+  -- chega"). SÓ com a js_ReaScriptAPI instalada e SÓ com este popup em
+  -- foco, para não sequestrar o Enter no resto do REAPER. Sem a extensão,
+  -- `enterFisico` fica falso e resta o botão OK, que basta.
+  local enterFisico = false
+  if reaper.JS_VKeys_GetDown and reaper.time_precise then
+    local emFoco = true
+    if ImGui.IsWindowFocused then
+      local okW, f = pcall(ImGui.IsWindowFocused, ctx)
+      emFoco = not okW or f
+    end
+    if emFoco then
+      local okV, est = pcall(reaper.JS_VKeys_GetDown,
+                             reaper.time_precise() - 0.20)
+      -- Byte 13 = VK_RETURN. GetDown só marca a tecla que BAIXOU desde o
+      -- corte, então isto já é "acabou de apertar", sem rastrear a borda.
+      enterFisico = okV and type(est) == 'string' and #est >= 13
+                    and est:byte(13) ~= 0
+    end
+  end
+
+  local escolhido
+  if tecla('Key_Enter') or tecla('Key_KeypadEnter') or enterFisico then
+    escolhido = (p.sel >= 1) and filtradas[p.sel] or (p.texto or '')
+  end
+
+  if s.pediuFoco then
+    local foco = Compat.get(ImGui, 'SetKeyboardFocusHere')
+    if foco then pcall(foco, ctx) end
+    s.pediuFoco = false
+  end
+
+  -- O CAMPO PRECISA SE DISTINGUIR DO POPUP.
+  --
+  -- `Col_FrameBg` é `Theme.UI.panel`, e `Col_PopupBg` também: dentro de
+  -- um popup o campo de texto ficava exatamente da cor do fundo e
+  -- desaparecia — sobrava um vazio ao lado do OK, e ninguém adivinha que
+  -- ali se digita. Aqui ele volta ao fundo escuro da janela, que é o
+  -- contraste que um campo tem no resto da interface.
+  local nFundo = 0
+  do
+    local idFrame = Compat.const(ImGui, 'Col_FrameBg', nil)
+    if idFrame and ImGui.PushStyleColor
+       and pcall(ImGui.PushStyleColor, ctx, idFrame, Theme.UI.bg) then
+      nFundo = 1
+    end
+  end
+  ImGui.SetNextItemWidth(ctx, 172)
+  local ch, txt = ImGui.InputText(ctx, '##secaoNome', p.texto or '')
+  if nFundo > 0 then pcall(ImGui.PopStyleColor, ctx, nFundo) end
+  if ch then p.texto = txt; p.sel = 0 end
+
+  -- O BOTÃO OK é o caminho que não passa pelo Enter. Confirma a linha
+  -- realçada pelas setas, ou o texto digitado se nenhuma estiver.
+  ImGui.SameLine(ctx)
+  if ImGui.Button(ctx, 'OK') then
+    escolhido = (p.sel >= 1) and filtradas[p.sel] or (p.texto or '')
+  end
+
+  ImGui.Separator(ctx)
+  if #filtradas == 0 then
+    ImGui.TextColored(ctx, 0x6B7280FF, p.texto ~= ''
+      and ('nome novo: "' .. p.texto .. '"') or '(sem nome ainda)')
+  end
+  for i, nome in ipairs(filtradas) do
+    if ImGui.Selectable(ctx, nome, i == p.sel) then escolhido = nome end
+  end
+
+  -- O JEITO DE CONFIRMAR que não depende do Enter, dito na tela: uma
+  -- extensão de gancho de teclado pode engolir o Enter aqui. A lista já
+  -- se explica como clicável — o que precisa ser dito é que o OK vale
+  -- tanto quanto o Enter, e não "clique num nome".
+  ImGui.Separator(ctx)
+  ImGui.TextColored(ctx, 0x6B7280FF, 'Enter ou OK confirmam')
+
+  if escolhido ~= nil then
+    p.texto = escolhido
+    ImGui.CloseCurrentPopup(ctx)
+    ImGui.EndPopup(ctx)
+    if padI then pcall(ImGui.PopStyleVar, ctx, 1) end
+    painel.finalizarSecao(false)
+    return
+  end
+
+  ImGui.EndPopup(ctx)
+  if padI then pcall(ImGui.PopStyleVar, ctx, 1) end
 end
 
 -- ------------------------------------------------------------ arquivo
@@ -11592,15 +12031,35 @@ local function drawTimeline(xF, yF, larguraF)
   -- pela onda (só pra guiar o olho, sem cortar o desenho do áudio).
   local passo = 10
   if duracao > 300 then passo = 60 elseif duracao > 120 then passo = 30 end
-  local t = math.ceil(from / passo) * passo
+  -- ZERO NA MÚSICA OU NO PROJETO. Com "tempo pela música" ligado, a
+  -- contagem começa no início da região escolhida — os rótulos caem em
+  -- múltiplos de `passo` a partir dali, e não do zero do projeto.
+  local base = (opcoes.tempoRegiao and region) and region.startTime or 0
+  local t = base + math.ceil((from - base) / passo) * passo
   while t < to do
     local px = math.floor(x0 + (t - from) / duracao * largura)
     ImGui.DrawList_AddLine(dl, px, y0 + 11, px, yOnda, 0x3A4150FF, 1)
     ImGui.DrawList_AddLine(dl, px, yOnda + 1, px, yOnda + ALTURA_ONDA,
       0x1E2129FF, 1)
     ImGui.DrawList_AddText(dl, px + 4, y0 + 3, 0x9199A6FF,
-                           Transport.formatTime(t))
+                           Transport.formatTime(t - base))
     t = t + passo
+  end
+
+  -- SEÇÕES: os marcadores do REAPER que caem neste trecho da música.
+  -- Bandeirola âmbar na régua, guia descendo pela onda. Aqui é só
+  -- desenho — criar e nomear é o menu de clique direito e o Ctrl+M.
+  for _, m in ipairs(Transport.markersInRange(from, to, regions)) do
+    local mx = math.floor(x0 + (m.startTime - from) / duracao * largura)
+    ImGui.DrawList_AddLine(dl, mx, yOnda, mx, y0 + ALTURA, 0xF5A52455, 1)
+    ImGui.DrawList_AddTriangleFilled(dl, mx, yOnda, mx + 7, yOnda,
+      mx, yOnda + 7, 0xF5A524FF)
+    if m.name and m.name ~= '' then
+      local wr = ImGui.CalcTextSize(ctx, m.name) or 0
+      ImGui.DrawList_AddRectFilled(dl, mx + 3, yOnda + 1,
+        mx + 8 + wr, yOnda + 15, 0x14161AE6, 2)
+      ImGui.DrawList_AddText(dl, mx + 5, yOnda + 2, 0xF5C877FF, m.name)
+    end
   end
 
   -- Cursor, com pegador no topo — o triângulo mostra que dá pra clicar
@@ -11641,6 +12100,30 @@ local function drawTimeline(xF, yF, larguraF)
     end
   end
 
+  -- BOTÃO DIREITO NA ONDA: abre o menu de seções no ponto clicado. O
+  -- OpenPopup de verdade acontece no escopo do quadro (ver frame), não
+  -- aqui dentro — separado do BeginPopup, o menu não abre.
+  if ImGui.IsItemHovered(ctx) and not recording and ImGui.IsMouseClicked then
+    local okR, foiDir = pcall(ImGui.IsMouseClicked, ctx, 1)
+    if okR and foiDir then
+      local frac = (ImGui.GetMousePos(ctx) - x0) / math.max(1, largura)
+      if frac < 0 then frac = 0 elseif frac > 1 then frac = 1 end
+      painel.secao.menuT = from + frac * duracao
+      painel.secao.abrirMenu = true
+    end
+  end
+
+  -- GEOMETRIA DA FAIXA para o popup de nome de seção se posicionar no
+  -- ponto do marcador. O popup é desenhado no escopo do quadro (ver
+  -- frame), não aqui — separado do BeginPopup, ele não abre; e a cópia
+  -- da onda que vai para o cabeçalho das faixas passa `xF`, então só a
+  -- régua de cima registra a geometria.
+  if not xF then
+    painel.secao.faixaX0, painel.secao.faixaLarg = x0, largura
+    painel.secao.faixaFrom, painel.secao.faixaDur = from, duracao
+    painel.secao.faixaY = y0 + ALTURA + 3
+  end
+
   if recording then
     -- Recusa explicada, não silenciosa: um clique que não faz nada e
     -- não diz por quê parece defeito.
@@ -11648,6 +12131,57 @@ local function drawTimeline(xF, yF, larguraF)
       dicaSe(
         'Durante a gravação o cursor não pode ser movido.\n'
         .. 'Pare o REC para navegar pela música.')
+    end
+    saltoEmCurso = false
+    return
+  end
+
+  -- PEGAR A BANDEIROLA E ARRASTAR MOVE A SEÇÃO.
+  --
+  -- O clique começa dentro de oito pixels de uma marca: em vez de mover
+  -- o cursor, a marca fica na mão. Soltar SEM ter andado leva o cursor
+  -- até ela — que era o que o clique na bandeirola já fazia —, então o
+  -- gesto antigo não se perde, só ganha um segundo significado.
+  local pxSeg = largura / duracao
+  do
+    local ini = Compat.get(ImGui, 'IsItemActivated')
+    if ini and ini(ctx) and not recording and not painel.secao.movendo then
+      local tc = from + (ImGui.GetMousePos(ctx) - x0) / largura * duracao
+      local perto = Transport.nearestMarker(tc, 0, regions)
+      if perto and math.abs((perto.startTime - tc) * pxSeg) <= 8 then
+        painel.secao.movendo = { idx = perto.index, nome = perto.name or '',
+                                 pos = perto.startTime,
+                                 original = perto.startTime }
+      end
+    end
+  end
+
+  if painel.secao.movendo then
+    local mv = painel.secao.movendo
+    if ImGui.IsItemActive(ctx) then
+      local t = from + (ImGui.GetMousePos(ctx) - x0) / largura * duracao
+      if region then
+        t = math.max(region.startTime, math.min(region.endTime, t))
+      end
+      mv.pos = t
+      local pxm = math.floor(x0 + (mv.pos - from) / duracao * largura)
+      ImGui.DrawList_AddLine(dl, pxm, y0, pxm, y0 + ALTURA, 0xF5A524FF, 2)
+      ImGui.DrawList_AddTriangleFilled(dl, pxm, yOnda, pxm + 7, yOnda,
+        pxm, yOnda + 7, 0xF5A524FF)
+    else
+      -- ANDOU? move. NÃO ANDOU? era um clique na marca: leva o cursor.
+      -- Sem esta distinção, todo clique numa bandeirola escreveria um
+      -- passo de desfazer que não mudou nada.
+      if math.abs(mv.pos - mv.original) * pxSeg > 3 then
+        Transport.renameMarker(mv.idx, mv.pos, mv.nome)
+        quadro.recheckAt = 0
+        log(('seção movida: %s para %s'):format(
+          mv.nome ~= '' and mv.nome or '(sem nome)',
+          Transport.formatTime(mv.pos)))
+      else
+        saltarPara(mv.original, false)
+      end
+      painel.secao.movendo = nil
     end
     saltoEmCurso = false
     return
@@ -13641,7 +14175,8 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       local puxado = tDe(mx) - (faixas.arraste.pega or 0)
       if opcoes.ima then
         puxado = Lanes.imantar(faixas.linhas, puxado, escala * 8,
-                               faixas.arraste.bloco)
+                               faixas.arraste.bloco,
+                               Transport.markerTimes(regions))
       end
       -- OS LIMITES SÃO OS DA LINHA DE DESTINO, quando há uma.
       --
@@ -13946,7 +14481,10 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- clique simples no vazio já tem dono: leva o cursor da música.
   --
   -- Nasce com uma célula da grade, como as notas da gravação: é a menor
-  -- duração que o Lumikit distingue, e esticar depois é um arrasto.
+  -- duração que o Lumikit distingue. Para nascer já do tamanho certo,
+  -- ARRASTE no vazio em vez de dar dois cliques (ver faixas.criando) —
+  -- os dois gestos convivem, e este continua sendo o atalho de quem só
+  -- quer uma nota curta ali.
   if sobreCorpo and apertou(duplo) and not acertou and not noFader
      and mx >= x0 + GUTTER then
     -- Qual linha está sob o ponteiro, pela mesma régua que desenhou as
@@ -13965,7 +14503,8 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
                    - region.startTime
     local t0 = tDe(mx)
     if opcoes.ima then
-      t0 = Lanes.imantar(faixas.linhas, t0, escala * 8)
+      t0 = Lanes.imantar(faixas.linhas, t0, escala * 8, nil,
+                         Transport.markerTimes(regions))
     end
     local criou = false
     Timeline.editar('LumiBridge: criar nota', function()
@@ -14076,6 +14615,79 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       faixas.selCC, faixas.selNotas = {}, {}
     else
       saltarPara(tDe(mx), false)
+
+      -- ARRASTAR NO VAZIO CRIA A NOTA DO TAMANHO ARRASTADO.
+      --
+      -- O duplo clique continua criando uma nota de uma célula; isto é
+      -- para quando já se sabe o tamanho: aperta, estica, solta — em vez
+      -- de criar pequeno e ir puxar a borda depois.
+      --
+      -- O CLIQUE SIMPLES NÃO MUDA. Só vira criação se o ponteiro andar
+      -- mais de quatro pixels com o botão apertado; abaixo disso continua
+      -- sendo o gesto de levar o cursor, que é o mais usado da tela. Por
+      -- isso o salto acima acontece do mesmo jeito: quem só clicou já
+      -- teve a resposta, e quem arrastou queria mesmo trabalhar dali.
+      local lc, hLc, yAcc = nil, 0, yc - faixas.rolagem
+      for iL, hL in ipairs((faixas.geom or {}).alturas or {}) do
+        if my >= yAcc and my < yAcc + hL then
+          lc, hLc = faixas.linhas[iL], hL
+          break
+        end
+        yAcc = yAcc + hL
+      end
+      if lc and lc.tipo ~= 'fader' and lc.pitch then
+        faixas.criando = { linha = lc, t0 = tDe(mx), mx0 = mx,
+                           y = yAcc, h = hLc, arrastou = false }
+      end
+    end
+  end
+
+  -- A CRIAÇÃO POR ARRASTO: prévia enquanto segura, escrita ao soltar.
+  --
+  -- Escrever a cada quadro encheria o desfazer de dezenas de passos para
+  -- um gesto só — mesma razão da prévia no arrasto de bloco.
+  if faixas.criando then
+    local c = faixas.criando
+    if ativoCorpo then
+      if math.abs(mx - c.mx0) > 4 then c.arrastou = true end
+      c.t1 = tDe(mx)
+      if c.arrastou then
+        local pa, pb = math.min(c.t0, c.t1), math.max(c.t0, c.t1)
+        ImGui.DrawList_AddRectFilled(dl, xDe(pa), c.y + 3,
+          xDe(pb), c.y + c.h - 3, 0x3D8BFD55, 3)
+        ImGui.DrawList_AddRect(dl, xDe(pa), c.y + 3,
+          xDe(pb), c.y + c.h - 3, Theme.UI.accent, 3, 0, 1)
+      end
+    else
+      if c.arrastou and region and c.t1 then
+        local celula = Timeline.qnToTime(Timeline.timeToQN(region.startTime)
+                                         + Timeline.projectGrid())
+                       - region.startTime
+        local a, b = math.min(c.t0, c.t1), math.max(c.t0, c.t1)
+        if opcoes.ima then
+          local imas = Transport.markerTimes(regions)
+          a = Lanes.imantar(faixas.linhas, a, escala * 8, nil, imas)
+          b = Lanes.imantar(faixas.linhas, b, escala * 8, nil, imas)
+        end
+        -- Uma célula da grade é o piso, como em toda borda daqui: abaixo
+        -- disso o Lumikit não distingue, e um arrasto trêmulo viraria
+        -- uma nota de duração zero.
+        local minimo = math.max(celula, 0.05)
+        if b - a < minimo then b = a + minimo end
+
+        local criou = false
+        Timeline.editar('LumiBridge: criar nota', function()
+          criou = Timeline.inserirNota(c.linha.pitch, c.linha.canal, a, b)
+        end)
+        if criou then
+          log(('%s: nota criada de %s a %s'):format(c.linha.nome,
+            Transport.formatTime(a), Transport.formatTime(b)))
+          faixas.at = 0
+        else
+          log('não consegui criar a nota: a música tem item MIDI aqui?')
+        end
+      end
+      faixas.criando = nil
     end
   end
 
@@ -14939,7 +15551,9 @@ local function drawTransportBar()
     ocupa(6)
     ImGui.SameLine(ctx)
     local comFonte = Theme.pushFont(ImGui, ctx, state.fonts, 20)
-    local texto = Transport.formatTime(Transport.position())
+    local rel = Transport.position()
+    if opcoes.tempoRegiao and region then rel = rel - region.startTime end
+    local texto = Transport.formatTime(rel)
     ImGui.Text(ctx, texto)
     local larguraRelogio = ImGui.CalcTextSize(ctx, texto)
     if comFonte then ImGui.PopFont(ctx) end
@@ -15347,6 +15961,7 @@ local function drawTransportBar()
     if faixas.abertas then
       faixas.abertas = false
       faixas.sel = nil
+      faixas.criando = nil
       faixas.at = 0
       encaixe.w = 0
     else
@@ -15435,6 +16050,13 @@ local function desenharIconeAba(dl, chave, cx, cy, cor)
     ImGui.DrawList_AddLine(dl, cx + 3, cy - 6, cx + 3, cy + 6, cor, 1)
     ImGui.DrawList_AddRectFilled(dl, cx - 5.5, cy - 3, cx - 0.5, cy - 1, cor)
     ImGui.DrawList_AddRectFilled(dl, cx + 0.5, cy + 1, cx + 5.5, cy + 3, cor)
+  elseif chave == 'edicao' then
+    -- Três blocos escalonados: é a lista de programação vista de longe,
+    -- que é justamente o que esta aba governa. Só retângulos — nada de
+    -- ponta fina, pela mesma razão do cabeçalho desta função.
+    ImGui.DrawList_AddRectFilled(dl, cx - 6, cy - 6, cx + 1, cy - 3, cor)
+    ImGui.DrawList_AddRectFilled(dl, cx - 2, cy - 1.5, cx + 6, cy + 1.5, cor)
+    ImGui.DrawList_AddRectFilled(dl, cx - 6, cy + 3, cx + 3, cy + 6, cor)
   elseif chave == 'midi' then
     ImGui.DrawList_AddCircleFilled(dl, cx - 4, cy, 1.7, cor)
     ImGui.DrawList_AddCircleFilled(dl, cx,     cy, 1.7, cor)
@@ -15485,6 +16107,12 @@ local function drawAbas()
     -- ali, e a aba passou a misturar duas perguntas diferentes: "qual
     -- tela estou usando" e "como o programa se comporta".
     { chave = 'geral',    titulo = 'Geral'    },
+    -- EDIÇÃO: o comportamento da ÁREA DE TRABALHO — a Programação MIDI e
+    -- as seções da música. Saiu de dentro de Geral, que tinha juntado
+    -- quinze controles de cinco assuntos diferentes numa rolagem só:
+    -- "como a janela se comporta" e "como a lista de notas se comporta"
+    -- são duas perguntas, e quem procura uma não quer ler a outra.
+    { chave = 'edicao',   titulo = 'Edição'   },
     { chave = 'midi',     titulo = 'MIDI'     },
     { chave = 'gravacao', titulo = 'Gravação' },
     { chave = 'preparo',  titulo = 'Preparo'  },
@@ -15659,6 +16287,18 @@ local function drawAbaAtual()
       reaper.SetExtState(EXT_SECTION, 'op_relogio', rl and '1' or '0', true)
     end
 
+    local chTR, tr = ajusteToggle('Tempo pela música',
+      'contar de 0:00 no início da música, não do projeto.',
+      opcoes.tempoRegiao,
+      'A régua da onda e o relógio passam a mostrar minutos e\n'
+      .. 'segundos a partir do começo da música escolhida — que é\n'
+      .. 'como se fala de um trecho ao montar a luz.')
+    if chTR then
+      opcoes.tempoRegiao = tr
+      reaper.SetExtState(EXT_SECTION, 'op_tempo_regiao', tr and '1' or '0',
+        true)
+    end
+
     local chRep, rp = ajusteToggle('Repetir a música',
       'ao saltar para uma música, repetir só ela.', opcoes.repetir,
       'Programar é repetir o mesmo trecho; por isso vem ligado.')
@@ -15668,6 +16308,16 @@ local function drawAbaAtual()
     end
 
     ImGui.Dummy(ctx, 1, 10)
+    grupo('TECLADO')
+
+    local chSc, sc = ajusteToggle('Atalhos',
+      'ativa as teclas da tela e as F1-F12.', opcoes.atalhos,
+      'Ativa as teclas da Tela Personalizada (A-Z, 0-9, Espaço)\n'
+      .. 'e as F1-F12\n'
+      .. 'definidas na aba Atalhos.')
+    if chSc then opcoes.atalhos = sc end
+
+  elseif abaAtual == 'edicao' then
     grupo('PROGRAMAÇÃO MIDI')
 
     -- COMO ELA ABRE.
@@ -15767,14 +16417,80 @@ local function drawAbaAtual()
     end
 
     ImGui.Dummy(ctx, 1, 10)
-    grupo('TECLADO')
+    grupo('SEÇÕES DA MÚSICA')
 
-    local chSc, sc = ajusteToggle('Atalhos',
-      'ativa as teclas da tela e as F1-F12.', opcoes.atalhos,
-      'Ativa as teclas da Tela Personalizada (A-Z, 0-9, Espaço)\n'
-      .. 'e as F1-F12\n'
-      .. 'definidas na aba Atalhos.')
-    if chSc then opcoes.atalhos = sc end
+    -- A PALETA DE NOMES do menu de clique direito na onda e do popup do
+    -- Ctrl+M. Quem faz teatro troca por "cena 1, blackout, coro".
+    --
+    -- PÍLULAS DESENHADAS À MÃO, e não SmallButton com "nome  x" no
+    -- rótulo. Com o botão pronto, o "x" era só mais uma letra do texto:
+    -- não dava para saber que ele removia, não acendia ao passar o mouse
+    -- e clicar em qualquer parte do nome apagava a etiqueta. Aqui o "x"
+    -- tem zona própria à direita, acende em vermelho sob o cursor, e o
+    -- resto da pílula não faz nada — remover é destrutivo e não pode
+    -- disparar num clique em qualquer ponto.
+    rotulo('Nomes prontos ao marcar uma seção.')
+    ImGui.Dummy(ctx, 1, 4)
+    do
+      local nomes = painel.secao.nomes
+      local mudou, remover = false, nil
+      local dlT = ImGui.GetWindowDrawList(ctx)
+      local avail = ImGui.GetContentRegionAvail(ctx)
+      local ALT, PADX, ZONAX = 24, 11, 20
+      local usado = 0
+      for i, nome in ipairs(nomes) do
+        local wTx, hTx = ImGui.CalcTextSize(ctx, nome)
+        wTx, hTx = wTx or 40, hTx or 14
+        local wChip = math.floor(wTx + PADX * 2 + ZONAX)
+        if i > 1 then
+          if usado + wChip <= avail then ImGui.SameLine(ctx, 0, 6)
+          else usado = 0 end
+        end
+        local cx, cy = ImGui.GetCursorScreenPos(ctx)
+        cx, cy = math.floor(cx), math.floor(cy)
+
+        ImGui.InvisibleButton(ctx, '##secTag' .. i, wChip, ALT)
+        local sobre = ImGui.IsItemHovered(ctx)
+        local sobreX = false
+        if sobre then
+          local mtx = ImGui.GetMousePos(ctx)
+          sobreX = mtx >= cx + wChip - ZONAX
+        end
+        if sobreX and ImGui.IsItemClicked(ctx) then remover = i end
+
+        ImGui.DrawList_AddRectFilled(dlT, cx, cy, cx + wChip, cy + ALT,
+          sobre and Theme.UI.panelActive or Theme.UI.panelHover, ALT * 0.5)
+        local ty = math.floor(cy + (ALT - hTx) * 0.5)
+        ImGui.DrawList_AddText(dlT, cx + PADX, ty, Theme.UI.text, nome)
+        ImGui.DrawList_AddText(dlT, cx + wChip - ZONAX + 5, ty,
+          sobreX and Theme.UI.rec or Theme.UI.textDim, 'x')
+
+        usado = usado + wChip + 6
+      end
+      if remover then table.remove(nomes, remover); mudou = true end
+
+      ImGui.Dummy(ctx, 1, 6)
+      ImGui.SetNextItemWidth(ctx, 180)
+      local chNT, txtNT = ImGui.InputText(ctx, '##secNovaTag',
+        painel.secao.novaTag)
+      if ImGui.IsItemActive(ctx) then campoTextoAtivo = true end
+      if chNT then painel.secao.novaTag = txtNT end
+      local nova = (painel.secao.novaTag or ''):gsub('^%s*(.-)%s*$', '%1')
+      ImGui.SameLine(ctx, 0, 6)
+      if ImGui.Button(ctx, 'Acrescentar') and nova ~= '' then
+        local existe = false
+        for _, n in ipairs(nomes) do
+          if n:lower() == nova:lower() then existe = true end
+        end
+        if not existe then nomes[#nomes + 1] = nova; mudou = true end
+        painel.secao.novaTag = ''
+      end
+
+      if mudou then
+        reaper.SetExtState(EXT_SECTION, 'sec_nomes',
+          table.concat(nomes, ','), true)
+      end
+    end
 
   elseif abaAtual == 'midi' then
     grupo('MOTOR DE ÁUDIO')
@@ -16451,15 +17167,6 @@ local function drawAbaAtual()
     -- Cursor de volta abaixo do ícone, que é mais alto que as duas
     -- linhas de texto ao lado.
     ImGui.SetCursorScreenPos(ctx, ix, iy + ICONE + 4)
-
-    ImGui.Dummy(ctx, 1, 14)
-    grupo('O QUE É')
-    ImGui.TextColored(ctx, 0x8A93A3FF,
-      'Programação de iluminação dentro do REAPER, usando o mesmo layout da\n'
-      .. 'Janela Personalizada do Lumikit Show. Lê o arquivo .form —\n'
-      .. 'a Tela Personalizada —, reconstrói\n'
-      .. 'a tela, envia MIDI ao clicar e grava a operação na timeline — para a\n'
-      .. 'luz acompanhar a música na hora do show.')
 
     -- --------------------------------------------------- atualização
     ImGui.Dummy(ctx, 1, 14)
@@ -17956,6 +18663,7 @@ local function handleShortcuts()
        and faixas.abertas then
       faixas.abertas = false
       faixas.sel = nil
+      faixas.criando = nil
       encaixe.w = 0
       log('Programação MIDI: fechada (- do numérico)')
     end
@@ -18023,6 +18731,38 @@ local function handleShortcuts()
     end
   end
 
+  -- CTRL+M MARCA UMA SEÇÃO na posição de escrita e abre o campo de nome.
+  -- Tocando, o marcador cai onde você OUVIU a virada; parado, no cursor.
+  --
+  -- M de marcador, a própria tecla do REAPER para isto; com Ctrl porque a
+  -- regra da casa reserva as letras soltas ao .form.
+  --
+  -- FUNCIONA COM UM CAMPO DE NOME JÁ ABERTO: fecha o anterior (mantendo o
+  -- marcador, mesmo sem nome) e abre outro — é assim que se solta uma
+  -- sequência tocando. O `or painel.secao.pendente` deixa o Ctrl+M passar
+  -- mesmo enquanto o nosso campo tem o foco do teclado; outros campos de
+  -- texto continuam barrando.
+  if (not digitando or painel.secao.pendente) and ctrlDown and region
+     and not recording and ImGui.IsKeyPressed then
+    local teclaM = Compat.const(ImGui, 'Key_M', nil)
+    if teclaM and teclaM ~= 0 then
+      local ok, apertouM = pcall(ImGui.IsKeyPressed, ctx, teclaM, false)
+      if ok and apertouM then
+        painel.finalizarSecao(false)
+        local tSec = posicaoDeEscrita()
+        local idx = Transport.addMarker(tSec, '')
+        if idx then
+          painel.secao.pendente = { idx = idx, pos = tSec, texto = '',
+                                    viva = false, sel = 0 }
+          painel.secao.pediuFoco = true
+          painel.secao.abrirInput = true
+          quadro.recheckAt = 0
+          log('seção: marcador em ' .. Transport.formatTime(tSec))
+        end
+      end
+    end
+  end
+
   -- DEL APAGA O BLOCO SELECIONADO nas faixas de programação.
   --
   -- SEM MODIFICADOR, o que contraria a regra geral dos atalhos daqui —
@@ -18057,25 +18797,14 @@ local function handleShortcuts()
   if not digitando then
     -- Espaço toca e para; Ctrl+Espaço pausa. Se o .form usar ESPAÇO para
     -- algum botão, o .form manda e o transporte abre mão dele.
-    -- SHIFT+ESPAÇO TAMBÉM PAUSA.
     --
-    -- Existe porque o Enter pode NÃO CHEGAR até aqui, e isso não tem
-    -- conserto do lado do script: uma extensão do REAPER que instale um
-    -- GANCHO DE TECLADO recebe a tecla antes de qualquer janela, e um
-    -- ReaScript não tem como ter prioridade sobre ela. Na máquina onde
-    -- isto foi investigado era a reaper_VSHookExt.dll, que usa o Enter
-    -- para gerenciar as músicas.
-    --
-    -- Foi um bom tempo de investigação até aparecer a pergunta que
-    -- matou as teorias todas: "como pode o Ctrl+Espaço funcionar?".
-    -- Foco perdido e estado de tecla preso teriam derrubado os dois
-    -- atalhos; só uma captura ESPECÍFICA do Enter explica um funcionar
-    -- e o outro não.
-    --
-    -- O Enter continua mapeado de propósito: onde não há gancho
-    -- disputando, ele funciona. Shift+Espaço é a porta que não depende
-    -- disso, para quem tenha o Ctrl+Espaço tomado por outro programa.
-    local pausar = ctrlDown or (state.shiftDown or false)
+    -- HOUVE UM SHIFT+ESPAÇO aqui, como terceira porta para o pausar,
+    -- para quem tivesse tanto o Enter (gancho de teclado) quanto o
+    -- Ctrl+Espaço (atalho global de outro programa) tomados. Foi removido
+    -- a pedido em 1.4.0: o Enter voltou a ser confiável mesmo sob gancho,
+    -- pelo estado físico do teclado via js_ReaScriptAPI (ver mais abaixo
+    -- e em PROJECT_CONTEXT), e três teclas para uma função só é ruído.
+    local pausar = ctrlDown
     aoSoltar('Key_Space', 32, pausar, function(comModificador)
       if comModificador then
         Transport.togglePlayPause()
@@ -18124,6 +18853,15 @@ local function handleShortcuts()
     end
 
     local function playPausa()
+      -- ANTI-DOBRO. Chegam DOIS caminhos aqui: o do ReaImGui (aoSoltar) e
+      -- o do estado físico (JS_VKeys, abaixo). Numa máquina SEM gancho de
+      -- teclado os dois disparam para o mesmo Enter e o transporte
+      -- alternava duas vezes — piscava e voltava. O primeiro a chegar
+      -- age; o segundo, dentro da janela, é engolido.
+      local agora = reaper.time_precise and reaper.time_precise() or 0
+      if agora > 0 and agora - (quadro.enterAgiuEm or 0) < 0.30 then return end
+      quadro.enterAgiuEm = agora
+
       local antes = Transport.isPlaying() and 'tocando'
         or (Transport.isPaused() and 'pausado' or 'parado')
       Transport.togglePlayPause()
@@ -18138,6 +18876,21 @@ local function handleShortcuts()
     -- ficava sem o atalho sem entender por quê.
     aoSoltar('Key_Enter', 13, false, playPausa)
     aoSoltar('Key_KeypadEnter', 13, false, playPausa)
+
+    -- ENTER PELO ESTADO FÍSICO DO TECLADO — o mesmo contorno do popup de
+    -- nome de seção, agora para o play/pausa: um gancho de extensão (a VS
+    -- Hook) engole a MENSAGEM do Enter, mas não costuma apagar o estado
+    -- FÍSICO da tecla. Só com a `js_ReaScriptAPI` e só com a janela do
+    -- LumiBridge em foco; sem a extensão, `JS_VKeys_GetState` é nil e
+    -- isto não roda. Soma-se ao Ctrl+Espaço e ao Enter do ReaImGui; o
+    -- `playPausa` acima cuida de não agir duas vezes.
+    if reaper.JS_VKeys_GetState and focado then
+      local okS, st = pcall(reaper.JS_VKeys_GetState, 0)
+      local baixo = okS and type(st) == 'string' and #st >= 13
+                    and st:byte(13) ~= 0
+      if baixo and not quadro.enterFisAntes then playPausa() end
+      quadro.enterFisAntes = baixo or false
+    end
 
     -- Ctrl+R grava, como no REAPER.
     --
@@ -20104,6 +20857,27 @@ local function frame()
   -- precisam do mesmo escopo de ID — separados, o menu não abre.
   drawFKeyMenu()
 
+  -- O MENU DE SEÇÕES, aberto pelo clique direito na onda. Mesma razão de
+  -- o OpenPopup morar aqui: o escopo de ID tem de ser o do quadro.
+  if painel.secao.abrirMenu then
+    painel.secao.abrirMenu = false
+    ImGui.OpenPopup(ctx, 'secaoMenu')
+  end
+  painel.drawSecaoMenu()
+
+  if painel.secao.abrirInput then
+    painel.secao.abrirInput = false
+    ImGui.OpenPopup(ctx, 'secaoInput')
+  end
+  painel.drawSecaoInput()
+
+  -- "Ir para esta seção", pedido pelo menu no quadro anterior.
+  if painel.secao.irPara then
+    local alvo = painel.secao.irPara
+    painel.secao.irPara = nil
+    saltarPara(alvo, false)
+  end
+
 
   -- POR ÚLTIMO: desenhado depois do canvas, no mesmo DrawList, para
   -- ficar visualmente por cima dele (ver drawSettingsPanel).
@@ -20751,6 +21525,19 @@ function Window.__faixasInfo()
   end
   return out
 end
+--- Todos os blocos de uma linha, para o teste conferir DURAÇÃO.
+--  __faixasInfo devolve só o primeiro, o que não basta para verificar
+--  uma nota criada por arrasto: ela nasce no fim da linha, não no começo.
+function Window.__blocos(i)
+  local l = faixas.linhas[i]
+  if not l then return {} end
+  local out = {}
+  for k, b in ipairs(l.blocos or {}) do
+    out[k] = { t0 = b.t0, t1 = b.t1 }
+  end
+  return out
+end
+
 function Window.__escalaV() return faixas.escalaV or 1 end
 function Window.__faixasLinhas() return #faixas.linhas end
 
@@ -20897,6 +21684,21 @@ function Window.start()
   opcoes.repetir = reaper.GetExtState(EXT_SECTION, 'op_repetir') ~= '0'
   opcoes.zoomNoMouse = reaper.GetExtState(EXT_SECTION, 'op_zoom_mouse') == '1'
   opcoes.ima = reaper.GetExtState(EXT_SECTION, 'op_ima') ~= '0'
+  opcoes.tempoRegiao = reaper.GetExtState(EXT_SECTION, 'op_tempo_regiao') == '1'
+
+  -- A PALETA DE NOMES DE SEÇÃO, se o usuário já editou a dele. Vazio =
+  -- fica com a lista padrão de painel.secao.
+  do
+    local guardados = reaper.GetExtState(EXT_SECTION, 'sec_nomes')
+    if guardados ~= '' then
+      local lista = {}
+      for parte in guardados:gmatch('[^,]+') do
+        parte = parte:gsub('^%s*(.-)%s*$', '%1')
+        if parte ~= '' then lista[#lista + 1] = parte end
+      end
+      if #lista > 0 then painel.secao.nomes = lista end
+    end
+  end
   -- COMO A PROGRAMAÇÃO MIDI ABRE.
   --
   -- O padrão é o modo de trabalho: só a lista, sem filtro, faders à

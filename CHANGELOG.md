@@ -4,6 +4,12 @@ Cada versão do LumiBridge e o que mudou nela, a mais nova em cima.
 
 A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
+## 1.4.0
+
+_setembro/2026_
+
+Marque as seções da música na onda e crie notas já do tamanho certo arrastando.
+
 ## 1.3.1
 
 _setembro/2026_
