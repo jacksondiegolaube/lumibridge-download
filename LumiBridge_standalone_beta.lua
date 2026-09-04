@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b2  (compilado em 2026-09-04 16:09)
+-- LumiBridge 1.5.0b3  (compilado em 2026-09-04 16:39)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 2
+Version.BETA = 3
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 16:09"
+Version.COMPILACAO = "2026-09-04 16:39"
 
 --- Onde o programa procura por versão nova.
 --
@@ -10264,7 +10264,10 @@ local region      = nil  -- região em que se está trabalhando
 -- estourou duas vezes. Ver PROJECT_CONTEXT.md e a verificação de
 -- folga em tests/test_integridade.lua.
 local chrome = {
-  oculto     = false,  -- minimizada: fora da vista, mas ainda rodando
+  -- MINIMIZAR NÃO TEM ESTADO AQUI, de propósito: quem esconde a janela é
+  -- o Windows, e é ele quem sabe se ela está minimizada. Guardar uma
+  -- bandeira nossa seria uma segunda verdade, que sai de sincronia no
+  -- primeiro Alt+Tab. Ver chrome.esconder.
   aoAlto     = true,   -- manter a janela acima do REAPER
   fechar     = false,  -- o X da barra própria foi clicado
   -- FECHAR PARA VOLTAR, depois de uma atualização instalada. Lido no
@@ -10288,28 +10291,6 @@ local chrome = {
   lic = { ativa = false, codigo = nil, digitada = '', erro = nil,
           aviso = nil },
 }
--- OCULTO: minimizar tira a janela da vista e o programa CONTINUA
--- RODANDO — o laço de quadros segue, a gravação segue, a porta MIDI
--- segue aberta. O que para é o desenho.
---
--- ATÉ A 1.4.1 ISTO ERA OUTRA COISA: a janela encolhia até virar uma
--- pastilha de 54x42 com o ícone, arrastável e sempre por cima. A
--- pastilha existia por medo — uma janela do ReaImGui escondida podia
--- ficar sem caminho de volta —, e o medo já não se justifica: rodar a
--- ação de novo restaura a janela que existe (ver Window.start), e o
--- botão da barra de ferramentas fica ACESO enquanto o programa roda
--- (chrome.acenderBotao), que é o mesmo que a barra de tarefas do
--- Windows faz. O caminho de volta é o ícone, e ele está sempre lá.
---
--- COMO A JANELA SOME: ela vai para -20000,-20000, com um pixel de
--- tamanho. O quadro continua acontecendo inteiro — Begin e End, todo
--- quadro, como sempre —, só o conteúdo é que não se desenha. Ver o
--- comentário no laço: pular o ciclo do ImGui derrubou o REAPER na
--- 1.5.0b1, e o preço de um ciclo pela metade não é um erro de Lua.
---
--- NÃO é lembrado entre sessões, de propósito — abrir o programa e não
--- encontrar janela nenhuma, sem lembrar por quê, seria pior ainda do
--- que era com a pastilha.
 -- FAIXAS DE PROGRAMAÇÃO — o que está gravado nesta música, por controle
 -- do .form. Ver drawFaixas e core/lanes.lua.
 --
@@ -17722,36 +17703,66 @@ function chrome.acenderBotao(aceso)
   end)
 end
 
---- Tira a janela da vista, sem encerrar o programa.
+--- Minimiza a janela PELO WINDOWS, para a barra de tarefas.
 --
---  Ver o comentário grande em `chrome` sobre OCULTO. Quem desenha o
---  quadro respeita esta bandeira e não chama Begin nenhum; o laço
---  continua correndo (ver `loop`).
---  A GEOMETRIA É GUARDADA AQUI porque esta função roda DENTRO do quadro,
---  com a janela aberta pelo Begin — é o único momento em que o ImGui
---  responde onde ela está. Um quadro depois ela já estará em
---  -20000,-20000 com um pixel, e não haveria como saber para onde
---  devolvê-la.
+--  É O MINIMIZAR DE VERDADE, e ele não é nosso: quem esconde a janela é
+--  o sistema, e quem a traz de volta é a barra de tarefas ou o Alt+Tab,
+--  como em qualquer programa. Nós não desenhamos pastilha nenhuma, não
+--  paramos o laço, não mexemos em tamanho — o quadro continua saindo
+--  igual, só que numa janela que o Windows guardou.
+--
+--  POR QUE ISTO FUNCIONA AGORA, se já foi descartado uma vez. Havia no
+--  código a nota de que "a janela é filha da do REAPER, então virava um
+--  tocinho de barra nativa no canto inferior" — o sintoma clássico de
+--  janela-filha. Mas `acharJanelaPropria` a encontra procurando a partir
+--  da ÁREA DE TRABALHO ('0' como pai), o que só acha janela de topo:
+--  em algum momento o ReaImGui passou a criar janelas de verdade e a
+--  premissa daquela nota caiu. Ninguém tinha voltado para conferir.
+--
+--  DEPENDE DA SWS, que até a 1.4.1 era só conveniência (trazer para a
+--  frente, devolver o foco, achar o monitor). Por isso o instalador
+--  passou a trazê-la junto, como já traz o ReaImGui. Quem atualizar sem
+--  reinstalar pode não tê-la: aí `acharJanelaPropria` devolve nil e o
+--  botão avisa em vez de fingir que fez algo.
+--  @return true se o Windows minimizou
 function chrome.esconder()
-  if ImGui.GetWindowPos and ImGui.GetWindowSize then
-    local x, y = ImGui.GetWindowPos(ctx)
-    local w, h = ImGui.GetWindowSize(ctx)
-    if w and w > 200 then chrome.antes = { x = x, y = y, w = w, h = h } end
+  local hwnd = acharJanelaPropria()
+  if not hwnd or not reaper.BR_Win32_ShowWindow then
+    log('minimizar indisponível: a extensão SWS não está instalada')
+    return false
   end
-  chrome.oculto = true
+  -- SW_SHOWMINIMIZED pelo nome, e não pelo número: o valor é do Win32 e
+  -- a SWS já o traduz. Cair para 2 se ela não souber o nome é melhor que
+  -- não minimizar — 2 é SW_SHOWMINIMIZED desde sempre.
+  local sw = 2
+  if reaper.BR_Win32_GetConstant then
+    local ok, v = pcall(reaper.BR_Win32_GetConstant, 'SW_SHOWMINIMIZED')
+    if ok and tonumber(v) then sw = tonumber(v) end
+  end
   chrome.arrastando = false
-  encaixe.w = 0   -- ao voltar, a área é recalculada do zero
+  local ok = pcall(reaper.BR_Win32_ShowWindow, hwnd, sw)
+  if not ok then
+    log('minimizar falhou ao chamar ShowWindow')
+    return false
+  end
+  return true
 end
 
---- Traz a janela de volta à vista.
+--- Traz a janela de volta, se estiver minimizada.
 --
---  `voltando` é lido uma vez pelo laço, no quadro seguinte, para
---  reimpor tamanho e posição. Sem ele a janela voltaria como o quadro
---  oculto a deixou: um pixel, fora de qualquer monitor.
+--  Chamada pelo pedido de restauração (rodar a ação com o programa já
+--  aberto). O caminho do dia a dia é a barra de tarefas do Windows, que
+--  não passa por aqui — este é o de reserva.
 function chrome.mostrar()
-  chrome.oculto = false
-  chrome.voltando = chrome.antes
-  encaixe.w = 0
+  local hwnd = acharJanelaPropria()
+  if hwnd and reaper.BR_Win32_ShowWindow then
+    local sw = 9   -- SW_RESTORE
+    if reaper.BR_Win32_GetConstant then
+      local ok, v = pcall(reaper.BR_Win32_GetConstant, 'SW_SHOWNORMAL')
+      if ok and tonumber(v) then sw = tonumber(v) end
+    end
+    pcall(reaper.BR_Win32_ShowWindow, hwnd, sw)
+  end
 end
 
 --- Troca o download do núcleo por um que não pisca uma janela preta.
@@ -18108,34 +18119,34 @@ local function drawBarraTitulo()
   local bxMaximizar = x0 + largura - (BOTAO_W * 2 + 10)
   local bxFechar    = x0 + largura - (BOTAO_W + 6)
 
-  -- MINIMIZAR — a janela sai da vista e o programa continua rodando.
+  -- MINIMIZAR — para a barra de tarefas do Windows, como qualquer
+  -- programa. Ver chrome.esconder.
   --
-  -- Três tentativas anteriores foram descartadas em uso: o "collapse" do
-  -- ImGui (escondia tudo menos a barra de título), o minimizar do
-  -- Windows via SWS (a janela é filha da do REAPER, então virava um
-  -- tocinho de barra nativa no canto inferior — destoando de tudo) e a
+  -- QUATRO TENTATIVAS ANTES DESTA, todas descartadas em uso: o
+  -- "collapse" do ImGui (escondia tudo menos a barra de título); o
+  -- minimizar do Windows, abandonado com a nota de que a janela era
+  -- filha do REAPER (não é mais — é o que esta versão retoma); a
   -- pastilha de 54x42 com o ícone, que resolvia a aparência mas
-  -- continuava ocupando a tela e por cima de tudo. Ver o comentário
-  -- OCULTO em `chrome`.
+  -- continuava ocupando a tela e por cima de tudo; e a janela empurrada
+  -- para fora da tela pelo próprio programa, que voltou como um caminho
+  -- de retorno que a API do REAPER não oferece.
   --
-  -- DESLIGADO DURANTE A GRAVAÇÃO. Escondida, a única coisa que dizia
-  -- "está gravando" era o ícone vermelho da janela; sem janela, a
-  -- gravação correria invisível e o cliente descobriria depois, na
-  -- automação errada. O botão da barra de ferramentas acende, mas
-  -- aceso ele já está desde que o programa abriu — não distingue os
-  -- dois estados. Enquanto grava, o jeito de tirar da frente é parar de
-  -- gravar.
+  -- DESLIGADO DURANTE A GRAVAÇÃO. Minimizada, a única coisa que dizia
+  -- "está gravando" era o ícone vermelho da janela; na barra de tarefas
+  -- a gravação correria invisível e o cliente descobriria depois, na
+  -- automação errada. Enquanto grava, o jeito de tirar da frente é
+  -- parar de gravar.
   local clicouMinimizar = botaoBarra('##btMinimizar', bxMinimizar,
     function(cx, cy, cor)
       ImGui.DrawList_AddLine(dl, cx - 5, cy + 4, cx + 5, cy + 4,
         recording and 0x4A505CFF or cor, 1.4)
     end,
     recording
-      and 'Minimizar\n\nIndisponível durante a gravação: escondida, a janela\n'
+      and 'Minimizar\n\nIndisponível durante a gravação: minimizada, a janela\n'
           .. 'não teria como mostrar que ainda está gravando.'
-      or  'Minimizar\n\nA janela sai da vista e o LumiBridge continua rodando.\n'
-          .. 'O botão dele na barra de ferramentas do REAPER fica aceso —\n'
-          .. 'clique nele para trazer a janela de volta.')
+      or  'Minimizar\n\nA janela vai para a barra de tarefas do Windows.\n'
+          .. 'O LumiBridge continua rodando; clique nele na barra de\n'
+          .. 'tarefas, ou use Alt+Tab, para trazê-la de volta.')
   if clicouMinimizar and not recording then
     chrome.esconder()
   end
@@ -21241,7 +21252,7 @@ function chrome.pulso(open)
   -- ferramentas executa a ação, e a ação cai aqui.
   if reaper.GetExtState(EXT_SECTION, 'restaurar') == '1' then
     reaper.DeleteExtState(EXT_SECTION, 'restaurar', false)
-    if chrome.oculto then chrome.mostrar() end
+    chrome.mostrar()
     trazerParaFrente()
   end
 
@@ -21400,11 +21411,8 @@ function loop()
   -- Na tela de ativação isso é intolerável — é a primeira coisa que o
   -- cliente vê do que acabou de comprar, e a primeira instalação de
   -- verdade abriu encolhida num canto, com o dono tendo de caçá-la e
-  -- esticá-la para conseguir ativar. Aqui o tamanho é imposto, e o
-  -- minimizar fica desligado: escondido sem ter como ativar seria uma
-  -- armadilha.
+  -- esticá-la para conseguir ativar. Aqui o tamanho é imposto.
   if not chrome.lic.ativa then
-    chrome.oculto = false
     ImGui.SetNextWindowSize(ctx, 880, 620, Compat.const(ImGui, 'Cond_Always', 1))
   end
 
@@ -21421,40 +21429,6 @@ function loop()
   -- dock, o X sempre é o X: fechar por ele encerra o script de verdade.
   if ImGui.SetNextWindowDockID then
     pcall(ImGui.SetNextWindowDockID, ctx, 0)
-  end
-
-  -- MINIMIZADA: A JANELA VAI PARA FORA DA TELA, e o quadro acontece
-  -- exatamente como sempre aconteceu.
-  --
-  -- A PRIMEIRA TENTATIVA FOI PULAR O DESENHO — sem Begin, sem End, só o
-  -- laço correndo. Era mais limpo de ler e derrubou o REAPER inteiro na
-  -- máquina dele, na 1.5.0b1: minimizava, e ao pedir a janela de volta o
-  -- REAPER fechava. Um ciclo de quadro pela metade não é uma coisa que o
-  -- ReaImGui tolere, e o preço não é um erro de Lua que a gente pega com
-  -- pcall — é o processo do REAPER morrendo, com o projeto aberto.
-  --
-  -- Aqui não há nada de especial acontecendo: Begin, End, a mesma
-  -- sequência de todo quadro. A janela só está em -20000,-20000, que não
-  -- é canto de monitor nenhum, com um pixel de tamanho e sem receber
-  -- clique. E como o ciclo é o de sempre, o contexto nunca fica sem uso:
-  -- some junto a preocupação de o ReaImGui recolhê-lo por abandono.
-  --
-  -- O CONTEÚDO É QUE NÃO SE DESENHA (ver o `visible and not oculto`
-  -- adiante). Custo de um quadro minimizado: um Begin e um End.
-  local voltando = chrome.voltando
-  chrome.voltando = nil
-  if chrome.oculto or voltando then
-    local sempre = Compat.const(ImGui, 'Cond_Always', 1)
-    -- Guardado ao esconder e reimposto ao voltar: sem isto a janela
-    -- voltaria com um pixel, lá em -20000, e estaria perdida de vez.
-    local x, y, w, h = -20000, -20000, 1, 1
-    if voltando then x, y, w, h = voltando.x, voltando.y, voltando.w, voltando.h end
-    -- Por Compat.get, nunca `if ImGui.SetNextWindowPos then`: o shim do
-    -- ReaImGui LANÇA ERRO ao acessar um campo inexistente, e o teste de
-    -- compatibilidade apanhou exatamente isto aqui.
-    local porPos = Compat.get(ImGui, 'SetNextWindowPos')
-    if porPos then pcall(porPos, ctx, x, y, sempre) end
-    ImGui.SetNextWindowSize(ctx, w, h, sempre)
   end
 
   -- SEM a barra de título do ImGui: a nossa é desenhada dentro do quadro
@@ -21486,17 +21460,8 @@ function loop()
     'WindowFlags_NoScrollbar',
     'WindowFlags_NoScrollWithMouse',
   }
-  if chrome.aoAlto and not chrome.oculto then
+  if chrome.aoAlto then
     nomes[#nomes + 1] = 'WindowFlags_TopMost'
-  end
-  -- Minimizada: um pixel fora da tela, que não se redimensiona, não
-  -- recebe clique e não pinta fundo nenhum. Flags que não existirem na
-  -- versão instalada são ignoradas por Compat.windowFlags.
-  if chrome.oculto then
-    nomes[#nomes + 1] = 'WindowFlags_NoResize'
-    nomes[#nomes + 1] = 'WindowFlags_NoInputs'
-    nomes[#nomes + 1] = 'WindowFlags_NoBackground'
-    nomes[#nomes + 1] = 'WindowFlags_NoFocusOnAppearing'
   end
   local flags = Compat.windowFlags(ImGui, nomes)
 
@@ -21507,14 +21472,10 @@ function loop()
 
   local ok, err = true, nil
   if visible then
-    -- MINIMIZADA, O QUADRO ABRE E FECHA VAZIO. O ciclo Begin/End é o que
-    -- não pode faltar (ver o comentário acima); o conteúdo, sim.
-    if not chrome.oculto then
-      -- xpcall com traceback: sem a pilha, um erro de API vira adivinhação.
-      ok, err = xpcall(frame, function(e)
-        return tostring(e) .. '\n\n' .. debug.traceback('', 2)
-      end)
-    end
+    -- xpcall com traceback: sem a pilha, um erro de API vira adivinhação.
+    ok, err = xpcall(frame, function(e)
+      return tostring(e) .. '\n\n' .. debug.traceback('', 2)
+    end)
     ImGui.End(ctx)
   end
 
@@ -21583,12 +21544,15 @@ function Window.__lerLicenca() return chrome.lerLicenca() end
 function Window.__licencaAtiva() return chrome.lic.ativa end
 function Window.__codigoDaMaquina() return chrome.lic.codigo end
 function Window.__digitarChave(v) chrome.lic.digitada = v end
---- Esconde ou mostra a janela, para o teste. Ver o comentário OCULTO em
---  `chrome`: oculto quer dizer minimizado — fora da vista, ainda rodando.
-function Window.__setOculto(v)
-  if v then chrome.esconder() else chrome.mostrar() end
-end
-function Window.__oculto() return chrome.oculto end
+--- Minimiza e restaura, para o teste.
+--
+--  Quem esconde a janela é o WINDOWS (ver chrome.esconder), então no
+--  simulador não há nada visível para conferir. O que estes ganchos
+--  guardam é o contrato com a SWS: sem ela, `esconder` devolve false em
+--  vez de fingir que minimizou — que foi como a versão anterior deste
+--  recurso derrubou o REAPER, escondendo a janela por conta própria.
+function Window.__minimizar() return chrome.esconder() end
+function Window.__restaurar() return chrome.mostrar() end
 --- O assistente de primeiros ajustes, para os testes.
 --  Sem argumento, só conta o estado.
 --- Devolve o programa ao estado de quem acabou de abrir a janela: sem a
@@ -21984,22 +21948,24 @@ function Window.start()
   -- minimizar da 1.5.0 o botão da barra de ferramentas VIROU o caminho
   -- do dia a dia, e a caixa passou a aparecer toda vez.
   --
-  -- O QUE PRECISAMOS é que ele abra a instância nova sem perguntar: ela
-  -- nasce, vê o sinal de vida, pede a restauração e morre em seguida
-  -- (ver a guarda no alto desta função). Quem volta é o programa que já
-  -- estava aberto, inteiro.
+  -- NÃO HÁ VALOR QUE FAÇA O QUE PRECISÁVAMOS. A documentação oficial
+  -- (Help > ReaScript documentation, conferida na 7.69) lista só quatro
+  -- bits, e nenhum deles é "abra a instância nova sem perguntar":
   --
-  -- O VALOR 4 É HIPÓTESE, e está aqui declarado como tal. A documentação
-  -- do `set_action_options` não descreve os parâmetros — este projeto já
-  -- descobriu na marra que 1 é "encerre esta execução sem perguntar" e
-  -- 2 é "reabra depois" (ver chrome.pulso). 4 é o candidato para "não
-  -- encerre, e abra a nova sem perguntar". Se estiver errado, o pior que
-  -- acontece é o botão da barra encerrar o programa em vez de trazê-lo
-  -- de volta — chato, e nada se perde: é só abrir de novo.
+  --   flag&1  encerra esta execução sem perguntar, ao ser rodada de novo
+  --   flag&2  com o 1, reabre depois de encerrar
+  --   flag&4  liga o estado aceso desta ação
+  --   flag&8  desliga o estado aceso desta ação
   --
-  -- NUNCA 1 AQUI. Ligado na abertura, ele MATA o programa a cada clique
-  -- no botão da barra de ferramentas, que é exatamente o gesto que
-  -- deveria trazer a janela de volta.
+  -- Ou seja: o botão da barra de ferramentas só sabe ENCERRAR (1) ou
+  -- ENCERRAR E REABRIR (1|2). Avisar um programa que continua rodando —
+  -- que é o caminho de volta do minimizar — não é oferecido, e a caixa
+  -- do REAPER só se cala pelo "Remember my answer" de cada máquina.
+  --
+  -- O 4 aqui é só o estado aceso, a mesma coisa que chrome.acenderBotao
+  -- faz pelo SetToggleCommandState. Fica pelos dois caminhos porque o
+  -- cmdID pode não existir (execução que não seja por ação registrada) e
+  -- aí só este resta.
   pcall(function() reaper.set_action_options(4) end)
 
   local im, err = Compat.load()
