@@ -362,11 +362,35 @@
     padding:22px 26px;color:var(--dim);font-size:15px}
   .aviso strong{color:var(--text)}
   .aviso p + p{margin-top:12px}
+  /* O mesmo aviso de não-vínculo do rodapé, resumido em uma linha logo
+     abaixo da chamada. Embaixo ele só era lido por quem já tinha
+     decidido comprar — e é justamente quem chega agora que pode
+     confundir o LumiBridge com um produto oficial da Lumikit. */
+  .independente{max-width:780px;margin:0 auto;padding:12px 18px;
+    background:#191B21;border:1px solid var(--line);
+    border-left:3px solid var(--amber);border-radius:0 10px 10px 0;
+    color:var(--dim);font-size:14px;line-height:1.55;text-align:left}
+  .independente strong{color:var(--text)}
 
   .cta{background:var(--panel);border:1px solid var(--line);border-radius:14px;
     padding:36px;text-align:center}
   .cta h3{font-size:22px;margin-bottom:10px}
   .cta p{color:var(--dim);margin-bottom:24px;font-size:15px}
+  /* O preço no bloco de compra. O selo de lançamento não é enfeite: ele
+     é o que permite subir o valor depois sem que quem pagou barato se
+     sinta enganado — o site sempre disse que aquele era preço de
+     lançamento. Por isso nada de valor riscado "de R$ X por R$ Y": o
+     LumiBridge nunca foi vendido por outro preço, e preço de referência
+     que não existiu é propaganda enganosa. */
+  .preco{margin-bottom:22px}
+  .preco .selo{display:inline-block;margin-bottom:14px;padding:4px 12px;
+    background:rgba(245,165,36,.12);border:1px solid rgba(245,165,36,.35);
+    border-radius:999px;color:var(--amber);font-size:12px;font-weight:600}
+  .preco .valor{font-size:54px;line-height:1;font-weight:600;
+    letter-spacing:-.02em;color:var(--text)}
+  .preco .valor small{margin-right:5px;font-size:22px;font-weight:400;
+    color:var(--dim);vertical-align:14px}
+  .preco .unica{display:block;margin-top:12px;font-size:14px;color:var(--dim)}
 
   footer{border-top:1px solid var(--line);padding:30px 0 44px;
     color:var(--fraco);font-size:13px}
@@ -417,6 +441,14 @@
        <strong>só abre com a chave</strong> que vem com a compra.</div>
   <div class="abaixo" style="margin-top:6px">Shows · teatro · cena ·
        qualquer projeto que precise de áudio e luz no mesmo tempo</div>
+</div>
+
+<div class="wrap" style="padding-top:4px">
+  <p class="independente"><strong>Projeto independente.</strong> O
+     LumiBridge não tem vínculo, sociedade nem representação da Lumikit
+     ou da Cockos (REAPER). É um script feito por usuários dos dois
+     programas, e você precisa ter as suas próprias licenças de cada um.
+     <a href="#independente">Ler o aviso completo</a></p>
 </div>
 
 <div class="wrap" style="padding-bottom:10px">
@@ -764,14 +796,20 @@
 <section id="comprar"><div class="wrap">
   <div class="cta">
     <h3>Quer usar no seu projeto?</h3>
-    <p>Cada licença vale para um computador, para sempre.<br>
-       Chame no WhatsApp e a gente conversa.</p>
+    <div class="preco">
+      <span class="selo">Preço de lançamento</span>
+      <div class="valor"><small>R$</small>149</div>
+      <span class="unica">pagamento único · uma licença por computador, para sempre</span>
+    </div>
+    <p>Chame no WhatsApp, mande o código que o programa mostra e a chave
+       volta pronta. A ativação é offline: depois de digitada, ela vale
+       naquela máquina para sempre, sem depender de rede no palco.</p>
     <a class="botao" href="https://wa.me/5547991868073?text=Ol%C3%A1!%20Quero%20saber%20mais%20sobre%20o%20LumiBridge." target="_blank" rel="noopener">Falar no WhatsApp</a>
     <a class="botao fantasma" style="margin-left:10px" href="https://github.com/jacksondiegolaube/lumibridge-download/raw/main/LumiBridge-instalador.exe" target="_blank" rel="noopener">Baixar</a>
   </div>
 </div></section>
 
-<section><div class="wrap">
+<section id="independente"><div class="wrap">
   <div class="aviso">
     <p><strong>O LumiBridge é um projeto independente.</strong> Não temos
        vínculo, sociedade nem representação da Lumikit, da Cockos (REAPER)
