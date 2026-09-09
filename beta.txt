@@ -1,4 +1,4 @@
-1.5.0b17
+1.5.0b18
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-A marca do fim da música se pega e se move como ponto, e encosta na ponta da faixa.
+O primeiro e o último ponto da automação agora só sobem e descem, e o fim deixou de duplicar ponto.
 ID-7171-61AF

@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b17  (compilado em 2026-09-09 15:03)
+-- LumiBridge 1.5.0b18  (compilado em 2026-09-09 15:34)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 17
+Version.BETA = 18
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 15:03"
+Version.COMPILACAO = "2026-09-09 15:34"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4737,13 +4737,26 @@ package.preload["core.atualizacao"] = function(...)
 
 local Atualizacao = {}
 
---- Quanto tempo esperar pela rede, em segundos. Curto de propósito:
---  quem clicou está olhando para a tela.
+--- Quanto esperar pela CONEXÃO, em segundos. Curto de propósito:
+--  servidor que não atende tem de falhar rápido, porque quem clicou
+--  está olhando para a tela.
+Atualizacao.ESPERA = 5
+
+--- Teto da operação inteira, em segundos — tentativas incluídas.
 --
---  Era dez, e passou a quinze quando o curl ganhou as tentativas
---  (ver Atualizacao.comando): este limite vale para a operação INTEIRA,
---  tentativas incluídas, e dez não dava para três.
-Atualizacao.ESPERA = 15
+--  O MANIFESTO TEM TRÊS LINHAS; O PROGRAMA TEM QUASE UM MEGA. A mesma
+--  linha de comando baixa os dois, e o teto era de quinze segundos, que
+--  eu escolhi olhando para o manifesto. Numa rede lenta, ou num dia em
+--  que o cache do GitHub responde arrastado, quinze segundos não dão
+--  para um mega — e a tela dizia "não consegui baixar" sem dizer por
+--  quê. Ele perguntou exatamente isso: "por que às vezes dá erro ao
+--  baixar?".
+--
+--  Sessenta não trava a interface por sessenta segundos: o
+--  --connect-timeout corta o servidor que não atende em cinco, e o
+--  --speed-limit corta o download que EMPACA em dez. Este teto só
+--  existe para o caso patológico de uma transferência lenta e viva.
+Atualizacao.PACIENCIA = 60
 
 --- Menor tamanho aceitável para o programa baixado, em bytes.
 --
@@ -4778,9 +4791,40 @@ Atualizacao.MINIMO = 100000
 --  `--retry` do curl já sabe quais erros são passageiros (429, 5xx,
 --  conexão) e espera entre as tentativas; os permanentes, como um 404,
 --  ele não repete.
+--  E TRÊS LIMITES DIFERENTES, porque são três problemas diferentes:
+--  --connect-timeout para o servidor que não atende, --speed-limit com
+--  --speed-time para a transferência que empaca (abaixo de 1 KB/s por
+--  dez segundos), e --max-time como teto de tudo. Um teto só, curto o
+--  bastante para o primeiro caso, cortava o download honesto de um mega.
 function Atualizacao.comando(url, destino)
-  return ('curl -L -f -s --retry 2 --retry-delay 1 --max-time %d -o "%s" "%s"')
-    :format(Atualizacao.ESPERA, destino, url)
+  return ('curl -L -f -s --retry 2 --retry-delay 1 --connect-timeout %d '
+          .. '--speed-limit 1000 --speed-time 10 --max-time %d -o "%s" "%s"')
+    :format(Atualizacao.ESPERA, Atualizacao.PACIENCIA, destino, url)
+end
+
+--- O que o número que o curl devolveu quer dizer, em português.
+--
+--  "POR QUE ÀS VEZES DÁ ERRO AO BAIXAR?" A tela dizia só "não consegui
+--  baixar", e eu passei duas conversas adivinhando a causa — uma vez
+--  errando. O curl SABE o que aconteceu e devolve o número; jogá-lo
+--  fora era jogar fora a única testemunha.
+--
+--  O número vai junto entre parênteses de propósito: a frase serve para
+--  ele entender, e o número serve para ele me mandar.
+local RECADOS = {
+  [6]  = 'não achei o servidor',
+  [7]  = 'não consegui conectar',
+  [22] = 'o servidor recusou o pedido',
+  [23] = 'não consegui gravar o arquivo aqui',
+  [28] = 'a rede demorou demais',
+  [35] = 'a conexão segura falhou',
+  [56] = 'a conexão caiu no meio',
+}
+
+function Atualizacao.explicar(codigo)
+  if codigo == 0 then return nil end
+  if codigo == nil then return 'não consegui rodar o curl' end
+  return ('%s (curl %d)'):format(RECADOS[codigo] or 'o curl desistiu', codigo)
 end
 
 --- Baixa uma URL para um arquivo. Trocável nos testes.
@@ -4796,10 +4840,12 @@ end
 --  rodar no terminal. Esta é a versão que funciona em qualquer lugar; a
 --  outra é a que funciona bonito no lugar que importa.
 --  @return boolean
+--  @return boolean, codigo do curl (nil quando nem rodou)
 function Atualizacao.baixar(url, destino)
-  if not url or url == '' or not destino then return false end
+  if not url or url == '' or not destino then return false, nil end
   local ok = os.execute(Atualizacao.comando(url, destino))
-  return ok == true or ok == 0
+  local certo = (ok == true or ok == 0)
+  return certo, certo and 0 or nil
 end
 
 --- Lê um arquivo inteiro. Trocável nos testes.
@@ -4904,8 +4950,10 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
   if not manifestoURL or manifestoURL == '' then
     return nil, 'a procura por atualizações não está configurada'
   end
-  if not Atualizacao.baixar(manifestoURL, temp) then
-    return nil, 'não consegui falar com o servidor — tente de novo'
+  local certo, codigo = Atualizacao.baixar(manifestoURL, temp)
+  if not certo then
+    return nil, 'não consegui falar com o servidor: '
+                .. (Atualizacao.explicar(codigo) or 'tente de novo')
   end
 
   local m = Atualizacao.lerManifesto(Atualizacao.ler(temp))
@@ -4975,8 +5023,10 @@ function Atualizacao.instalar(url, destino, versao, Version)
   if not url or url == '' then return false, 'sem endereço para baixar' end
 
   local novo = destino .. '.novo'
-  if not Atualizacao.baixar(url, novo) then
-    return false, 'não consegui baixar'
+  local certo, codigo = Atualizacao.baixar(url, novo)
+  if not certo then
+    return false, 'não consegui baixar: '
+                  .. (Atualizacao.explicar(codigo) or 'tente de novo')
   end
 
   local conteudo = Atualizacao.ler(novo)
@@ -13816,21 +13866,38 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           -- Ela vira ponto de verdade no instante em que é PEGA (ver o
           -- arrasto, adiante), não antes: desenhar não escreve nada na
           -- música.
-          if not ponto then
+          local noAnel = false
+          if not ponto and #pts > 0 then
             local vB, jaB = Lanes.valorNoFim(linha,
               region and region.endTime or ate, escala * 4)
             if vB and not jaB
                and math.abs(tDe(mx) - (region and region.endTime or ate))
                    <= tol then
-              i = #pts + 1
-              ponto = { t = region and region.endTime or ate,
-                        valor = vB, novo = true }
+              -- O ANEL FIXA UM PONTO NO FIM, e ele fica lá.
+              --
+              -- Fabricar o ponto e no mesmo gesto levá-lo embora era o
+              -- que duplicava: o fim voltava a ficar sem ponto, o anel
+              -- reaparecia, e a tentativa seguinte fabricava outro —
+              -- "tentei arrastar ele 3 vezes, e ao invés de ele
+              -- arrastar, ele cria um novo ponto".
+              --
+              -- A regra que ele propôs desfaz o nó pela raiz: o
+              -- primeiro ponto e o último só sobem e descem. O primeiro
+              -- fixa o valor com que a música começa, o último o valor
+              -- com que ela acaba, e mover EM TEMPO qualquer um dos
+              -- dois não quer dizer nada. Com o ponto do fim preso no
+              -- fim, o anel some assim que ele nasce e não há como
+              -- fabricar um segundo.
+              i, ponto, noAnel = #pts + 1,
+                { t = region and region.endTime or ate,
+                  valor = vB, novo = true }, true
             end
           end
 
           local v = (yZero - my) / math.max(1, yZero - yCheio) * 127
           if v < 0 then v = 0 elseif v > 127 then v = 127 end
           noFader = { linha = linha, indice = i, ponto = ponto, valor = v,
+                      noFim = noAnel or nil,
                       yZero = yZero, yCheio = yCheio }
 
           -- A LINHA ENTRE DOIS PONTOS TAMBÉM SE PEGA.
@@ -14285,14 +14352,17 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     -- vertical sobe e desce o trecho inteiro, mão só marca posição.
     if ImGui.SetMouseCursor then
       local nome = 'MouseCursor_Hand'
-      -- A MARCA DO FIM SE PEGA COMO PONTO, e o cursor diz isso.
+      -- NAS PONTAS, SETA VERTICAL; no meio, cruz de mover.
       --
-      -- Eu já tinha posto o cursor vertical aqui, com o argumento de que
-      -- mover o FIM de lugar não quer dizer nada. O argumento é bom e a
-      -- decisão era ruim: o vertical é o mesmo do trecho, então do lado
-      -- dele nada mudou — "voltou a não aparecer o ícone para mover o
-      -- ponto final". Quem usa é ele.
-      if noFader.ponto then nome = 'MouseCursor_ResizeAll'
+      -- Eu já tinha posto o vertical no fim e voltado atrás, porque
+      -- sozinho ele não se distinguia do gesto do trecho. Com a regra
+      -- dele — pontas só sobem e descem — ele passa a ser a verdade, e
+      -- vale para as DUAS pontas: o ponteiro conta o que o gesto faz
+      -- antes de a mão comprometer nada.
+      if noFader.ponto and (noFader.noFim or noFader.indice == 1
+         or noFader.indice == #(noFader.linha.pontos or {})) then
+        nome = 'MouseCursor_ResizeNS'
+      elseif noFader.ponto then nome = 'MouseCursor_ResizeAll'
       elseif noSegmento then nome = 'MouseCursor_ResizeNS' end
       -- ZERO QUER DIZER "não existe nesta versão", e não "cursor 0".
       -- Compat.const devolve o padrão quando a constante falta, e zero
@@ -14304,9 +14374,9 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     end
 
     dicaSe( noFader.ponto
-      and (noFader.ponto.novo
-        and ('%s  ·  fim da música  ·  %d%%\n\nArraste para fixar um ponto '
-             .. 'aqui e movê-lo.  Duplo clique também fixa.')
+      and (noFader.noFim
+        and ('%s  ·  fim da música  ·  %d%%\n\nArraste para fixar o valor '
+             .. 'com que a música acaba.  As pontas só sobem e descem.')
             :format(noFader.linha.nome,
                     math.floor(noFader.ponto.valor / 127 * 100 + 0.5))
         or ('%s  ·  %s  ·  %d%%\n\nArraste para mover.  Duplo clique apaga.')
@@ -14323,7 +14393,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   if noFader and sobreCorpo and not faixas.arraste and not faixas.arrastePonto then
     if apertou(duplo) then
       local linha = noFader.linha
-      if noFader.ponto and not noFader.ponto.novo then
+      if noFader.ponto and not noFader.noFim then
         local foi = Timeline.editar('LumiBridge: apagar ponto', function()
           return Timeline.deleteCCAt(linha.cc, noFader.ponto.t)
         end)
@@ -14347,13 +14417,13 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       return CABECALHO + corpo + PEGA
 
     elseif ativoCorpo and noFader.ponto then
-      -- A BOLINHA DO FIM VIRA PONTO DE VERDADE AO SER PEGA.
+      -- O ANEL VIRA PONTO DE VERDADE AO SER PEGO.
       --
-      -- Escrita AQUI, no instante em que a mão a pega, e não ao
-      -- desenhá-la: desenhar uma marca não pode mexer na música. Daqui
-      -- em diante ela é um ponto como os outros — entra na lista da
-      -- linha para o arrasto encontrá-la pelo índice, e o quadro
-      -- seguinte a remonta do MIDI.
+      -- Escrito AQUI, no instante em que a mão o pega, e não ao ser
+      -- desenhado: desenhar uma marca não pode mexer na música. Daqui
+      -- em diante ele é um ponto como os outros — entra na lista da
+      -- linha para o arrasto o achar pelo índice, e o quadro seguinte a
+      -- remonta do MIDI.
       if noFader.ponto.novo then
         Timeline.editar('LumiBridge: criar ponto', function()
           Timeline.write({ {
@@ -14366,7 +14436,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         noFader.ponto.novo = nil
         noFader.linha.pontos[#noFader.linha.pontos + 1] = noFader.ponto
         noFader.indice = #noFader.linha.pontos
-        log(('%s: ponto criado no fim da música a %d%%')
+        log(('%s: ponto fixado no fim da música a %d%%')
           :format(noFader.linha.nome,
                   math.floor(noFader.ponto.valor / 127 * 100 + 0.5)))
       end
@@ -14379,6 +14449,13 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       if not naSelecao then faixas.selCC = {} end
       faixas.arrastePonto = {
         emGrupo = naSelecao and true or nil,
+        -- AS PONTAS SÓ SOBEM E DESCEM. Ideia dele, e é a certa: o
+        -- primeiro ponto fixa o valor com que a música começa e o
+        -- último o valor com que ela acaba — mover em TEMPO qualquer um
+        -- dos dois não quer dizer nada, e era isso que fazia o ponto do
+        -- fim sair do fim e o anel reaparecer atrás dele.
+        soValor = (noFader.indice == 1
+                   or noFader.indice == #noFader.linha.pontos) or nil,
         linha = noFader.linha, indice = noFader.indice,
         origem = noFader.ponto.t, origemValor = noFader.ponto.valor,
         ponto = noFader.ponto,
@@ -14474,6 +14551,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- dela era o que travava o arrasto assim que o cursor saía da faixa.
       local bruto = (a.yZero - my) / math.max(1, a.yZero - a.yCheio) * 127
       local t, v = Lanes.moverPonto(a.linha, a.indice, tDe(mx), bruto)
+      if a.soValor then t = a.origem end
       a.t, a.valor = t, v
       a.ponto.t, a.ponto.valor = t, v
 
@@ -18326,11 +18404,15 @@ function chrome.instalarDownloader()
   Atualizacao.baixar = function(url, destino)
     if not url or url == '' or not destino then return false end
     -- O limite daqui é folgado de propósito: quem decide desistir é o
-    -- curl, pelo --max-time que já está no comando. Este é só a rede de
+    -- curl, pelos limites que já estão no comando. Este é só a rede de
     -- segurança para o processo que trava e não morre.
     local saida = reaper.ExecProcess(Atualizacao.comando(url, destino),
-                                     (Atualizacao.ESPERA + 5) * 1000)
-    return tonumber(saida and saida:match('^%s*(%-?%d+)')) == 0
+                                     (Atualizacao.PACIENCIA + 5) * 1000)
+    -- O CÓDIGO DO CURL VAI JUNTO, e não só o sim/não: é a única
+    -- testemunha do que deu errado, e a tela dizia apenas "não consegui
+    -- baixar". Ver Atualizacao.explicar.
+    local codigo = tonumber(saida and saida:match('^%s*(%-?%d+)'))
+    return codigo == 0, codigo
   end
 end
 
