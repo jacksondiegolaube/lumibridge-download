@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b14  (compilado em 2026-09-09 14:05)
+-- LumiBridge 1.5.0b15  (compilado em 2026-09-09 14:17)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 14
+Version.BETA = 15
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 14:05"
+Version.COMPILACAO = "2026-09-09 14:17"
 
 --- Onde o programa procura por versão nova.
 --
@@ -13675,10 +13675,14 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- traço no meio da faixa não diz sozinho se é 50% ou 90%.
         local yCheio = yLinha + 4
         local yZero  = yLinha + h - 4
+        -- Os trilhos param onde a música para, e não na borda: a sobra
+        -- da vista é margem de desenho, não música.
         ImGui.DrawList_AddLine(dl, x0 + GUTTER, yCheio,
-                               x0 + GUTTER + areaW, yCheio, 0x1E2128FF, 1)
+                               xDe(region and region.endTime or ate), yCheio,
+                               0x1E2128FF, 1)
         ImGui.DrawList_AddLine(dl, x0 + GUTTER, yZero,
-                               x0 + GUTTER + areaW, yZero, 0x1E2128FF, 1)
+                               xDe(region and region.endTime or ate), yZero,
+                               0x1E2128FF, 1)
 
         local function yDoValor(v)
           return yZero - (v / 127) * (yZero - yCheio)
@@ -13733,9 +13737,17 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           end
           px, py = cx, cy
         end
-        -- E DEPOIS DO ÚLTIMO ele continua valendo até o fim.
+        -- E DEPOIS DO ÚLTIMO ele continua valendo até o FIM DA MÚSICA.
+        --
+        -- Até a borda da janela, não: a vista tem um dedo de sobra
+        -- depois do fim (SOBRA_DO_FIM), e a reta atravessava essa sobra.
+        -- Era isso que fazia a bolinha do fim parecer fora do lugar —
+        -- "a bolinha não ficou no final". Ela estava no fim da MÚSICA; a
+        -- reta é que seguia além dele, e o olho lê o fim da reta como o
+        -- fim de tudo.
         if px then
-          ImGui.DrawList_AddLine(dl, px, py, x0 + largura, py, cor, 1.4)
+          local xFimM = xDe(region and region.endTime or ate)
+          ImGui.DrawList_AddLine(dl, px, py, xFimM, py, cor, 1.4)
 
           -- A BOLINHA DO FIM, igual à do começo.
           --
@@ -13756,8 +13768,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           local vFim, jaTem = Lanes.valorNoFim(linha,
             region and region.endTime or ate, escala * 4)
           if vFim and not jaTem then
-            ImGui.DrawList_AddCircleFilled(dl,
-              xDe(region and region.endTime or ate), yDoValor(vFim), 2.2, cor)
+            ImGui.DrawList_AddCircleFilled(dl, xFimM, yDoValor(vFim), 2.2, cor)
           end
         end
 
@@ -13783,6 +13794,30 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           local i, ponto = Lanes.hitPonto(linha, tDe(mx), tol,
                                           de, ate, escala * 18)
           local pts = linha.pontos or {}
+
+          -- A BOLINHA DO FIM TAMBÉM SE PEGA.
+          --
+          -- Ela marca o valor que vale até o fim da música e ainda não é
+          -- um ponto escrito. Sem isto, o ponteiro em cima dela virava a
+          -- seta de subir e descer o trecho — "o ícone ao posicionar em
+          -- cima da bolinha fica com símbolo pra arrastar a linha pra
+          -- baixo e para cima apenas". Uma bolinha que se vê e não se
+          -- move é uma promessa que o desenho faz e o gesto não cumpre.
+          --
+          -- Ela vira ponto de verdade no instante em que é PEGA (ver o
+          -- arrasto, adiante), não antes: desenhar não escreve nada na
+          -- música.
+          if not ponto then
+            local vB, jaB = Lanes.valorNoFim(linha,
+              region and region.endTime or ate, escala * 4)
+            if vB and not jaB
+               and math.abs(tDe(mx) - (region and region.endTime or ate))
+                   <= tol then
+              i = #pts + 1
+              ponto = { t = region and region.endTime or ate,
+                        valor = vB, novo = true }
+            end
+          end
 
           local v = (yZero - my) / math.max(1, yZero - yCheio) * 127
           if v < 0 then v = 0 elseif v > 127 then v = 127 end
@@ -14267,7 +14302,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   if noFader and sobreCorpo and not faixas.arraste and not faixas.arrastePonto then
     if apertou(duplo) then
       local linha = noFader.linha
-      if noFader.ponto then
+      if noFader.ponto and not noFader.ponto.novo then
         local foi = Timeline.editar('LumiBridge: apagar ponto', function()
           return Timeline.deleteCCAt(linha.cc, noFader.ponto.t)
         end)
@@ -14291,6 +14326,30 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       return CABECALHO + corpo + PEGA
 
     elseif ativoCorpo and noFader.ponto then
+      -- A BOLINHA DO FIM VIRA PONTO DE VERDADE AO SER PEGA.
+      --
+      -- Escrita AQUI, no instante em que a mão a pega, e não ao
+      -- desenhá-la: desenhar uma marca não pode mexer na música. Daqui
+      -- em diante ela é um ponto como os outros — entra na lista da
+      -- linha para o arrasto encontrá-la pelo índice, e o quadro
+      -- seguinte a remonta do MIDI.
+      if noFader.ponto.novo then
+        Timeline.editar('LumiBridge: criar ponto', function()
+          Timeline.write({ {
+            kind = 'cc', channel = noFader.linha.canal or 1,
+            cc = noFader.linha.cc,
+            value = math.floor(noFader.ponto.valor + 0.5),
+            qn = Timeline.timeToQN(noFader.ponto.t),
+          } })
+        end)
+        noFader.ponto.novo = nil
+        noFader.linha.pontos[#noFader.linha.pontos + 1] = noFader.ponto
+        noFader.indice = #noFader.linha.pontos
+        log(('%s: ponto criado no fim da música a %d%%')
+          :format(noFader.linha.nome,
+                  math.floor(noFader.ponto.valor / 127 * 100 + 0.5)))
+      end
+
       -- ARRASTAR UM SELECIONADO LEVA A SELEÇÃO INTEIRA. Se o ponto
       -- pego não está na seleção, o gesto é dele sozinho e a seleção
       -- some — é o que se espera de clicar fora de uma seleção.

@@ -1,4 +1,4 @@
-1.5.0b14
+1.5.0b15
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-A faixa de fader agora mostra a bolinha do fim da música, como já mostrava a do começo.
+A bolinha do fim da música fica onde a música acaba, e se pega como qualquer ponto.
 ID-7171-61AF
