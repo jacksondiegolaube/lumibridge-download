@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b13  (compilado em 2026-09-09 13:49)
+-- LumiBridge 1.5.0b14  (compilado em 2026-09-09 14:05)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 13
+Version.BETA = 14
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 13:49"
+Version.COMPILACAO = "2026-09-09 14:05"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3995,6 +3995,30 @@ end
 --  vizinho no meio da música.
 --
 --  @return índice, ponto
+--- O valor que vale no FIM DA MÚSICA, e se já há ponto escrito ali.
+--
+--  A faixa de fader mostra uma bolinha no começo e a linha reta antes
+--  dela: o fader não nasce no primeiro ponto, ele já estava naquele
+--  valor. Do outro lado a mesma coisa é verdade — depois do último
+--  ponto o valor segue valendo até o fim — e mesmo assim não havia nada
+--  ali para ver nem para pegar. Ele resumiu assim: "faça igual a
+--  bolinha do começo".
+--
+--  A bolinha do fim NÃO É INVENÇÃO: a linha reta até a borda já afirma
+--  esse valor, e desenhá-la é marcar onde essa afirmação termina. Só
+--  aparece quando não há ponto de verdade por ali; havendo, quem
+--  aparece é o ponto.
+--
+--  @param fim    o instante do fim da música
+--  @param folga  a que distância um ponto de verdade já conta como "ali"
+--  @return valor, jaTemPonto
+function Lanes.valorNoFim(linha, fim, folga)
+  local pts = linha and linha.pontos
+  if not pts or #pts == 0 or not fim then return nil, false end
+  local ultimo = pts[#pts]
+  return ultimo.valor, (fim - ultimo.t) <= (folga or 0)
+end
+
 --- O ponto `k` é o mais próximo de `tempo` entre todos?
 function Lanes.maisPerto(pontos, k, tempo)
   local d = math.abs(pontos[k].t - tempo)
@@ -13712,6 +13736,29 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- E DEPOIS DO ÚLTIMO ele continua valendo até o fim.
         if px then
           ImGui.DrawList_AddLine(dl, px, py, x0 + largura, py, cor, 1.4)
+
+          -- A BOLINHA DO FIM, igual à do começo.
+          --
+          -- "Você não está vendo que não aparece o ponto no final?"
+          -- Estava certo: a linha reta ia até a borda e morria sem
+          -- marca nenhuma, enquanto do outro lado a do começo tem a
+          -- bolinha dela. Ver onde a música acaba com o fader naquele
+          -- valor é metade da razão de a faixa existir.
+          --
+          -- Ela não inventa nada: a reta já afirma esse valor até o
+          -- fim, e a bolinha só marca onde a afirmação termina. Duplo
+          -- clique nela escreve o ponto de verdade; arrastar a reta
+          -- sobe ou desce o final inteiro.
+          --
+          -- SÓ QUANDO NÃO HÁ PONTO DE VERDADE ALI. Havendo, quem
+          -- aparece é ele — duas bolinhas no mesmo lugar seriam duas
+          -- coisas para uma.
+          local vFim, jaTem = Lanes.valorNoFim(linha,
+            region and region.endTime or ate, escala * 4)
+          if vFim and not jaTem then
+            ImGui.DrawList_AddCircleFilled(dl,
+              xDe(region and region.endTime or ate), yDoValor(vFim), 2.2, cor)
+          end
         end
 
         -- O QUE O MOUSE ALCANÇA NESTA FAIXA.
