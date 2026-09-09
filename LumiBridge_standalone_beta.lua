@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b20  (compilado em 2026-09-09 15:59)
+-- LumiBridge 1.5.0b21  (compilado em 2026-09-09 16:14)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 20
+Version.BETA = 21
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 15:59"
+Version.COMPILACAO = "2026-09-09 16:14"
 
 --- Onde o programa procura por versão nova.
 --
@@ -5021,21 +5021,41 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
   -- instalada e que a candidata oficial. Assim, no dia em que a 1.2.0
   -- sair enquanto um 1.1.9b3 velho ainda estiver no beta.txt, o
   -- testador recebe a 1.2.0 — e não fica para trás por estar ajudando.
+  local canalMudo = false
   if idDaMaquina and idDaMaquina ~= '' then
     local urlB = Atualizacao.urlBeta(manifestoURL)
-    if urlB ~= '' and urlB ~= manifestoURL
-       and Atualizacao.buscar(urlB, temp) then
-      local b = Atualizacao.lerManifesto(Atualizacao.ler(temp))
-      if b and Atualizacao.liberadoPara(b, idDaMaquina)
-         and Version.maisNovaQue(b.versao, instalada)
-         and Version.maisNovaQue(b.versao, m.versao) then
-        b.beta = true
-        return b, ('versão de teste %s disponível'):format(b.versao)
+    if urlB ~= '' and urlB ~= manifestoURL then
+      if Atualizacao.buscar(urlB, temp) then
+        local b = Atualizacao.lerManifesto(Atualizacao.ler(temp))
+        if b and Atualizacao.liberadoPara(b, idDaMaquina)
+           and Version.maisNovaQue(b.versao, instalada)
+           and Version.maisNovaQue(b.versao, m.versao) then
+          b.beta = true
+          return b, ('versão de teste %s disponível'):format(b.versao)
+        end
+        canalMudo = (b == nil)
+      else
+        canalMudo = true
       end
     end
   end
 
   if not Version.maisNovaQue(m.versao, instalada) then
+    -- QUEM JÁ ESTÁ NUM BETA MERECE SABER QUE O CANAL NÃO RESPONDEU.
+    --
+    -- O tropeço no canal de teste é engolido em silêncio de propósito, e
+    -- para o cliente comum isso é o certo — erro sobre um canal em que
+    -- ele não está seria ruído. Mas para quem JÁ RODA UM BETA o silêncio
+    -- mente por omissão: aconteceu com ele, com o beta.txt em 503 e o
+    -- atualizacao.txt em 200. O oficial chegou, era mais velho, e a tela
+    -- disse "você já está na versão mais nova" — enquanto havia um beta
+    -- publicado que ele não estava vendo.
+    --
+    -- Rodar um beta é a definição de testador, então é o teste certo:
+    -- não depende de lista nenhuma, que é justamente o que não chegou.
+    if canalMudo and Version.ehBeta and Version.ehBeta() then
+      return nil, 'não consegui conferir o canal de teste — tente de novo'
+    end
     return nil, ('você já está na versão mais nova (%s)'):format(instalada)
   end
   return m, ('versão %s disponível'):format(m.versao)
@@ -13786,6 +13806,22 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       end
 
       if linha.tipo == 'fader' then
+        -- A CURVA FICA DENTRO DA ÁREA DE TEMPO, e não invade os nomes.
+        --
+        -- O recorte da faixa começa em `x0`, que INCLUI a coluna de
+        -- nomes — ela é desenhada dentro dele. Enquanto o x era preso na
+        -- borda isso não importava, porque nada era desenhado à
+        -- esquerda dela. Com o x cru (ver xCru), os pontos de fora da
+        -- vista passaram a cair lá dentro: "os CC passam por cima da
+        -- barra lateral agora".
+        --
+        -- Um segundo recorte, só para a curva, resolve sem mexer no de
+        -- fora — que continua sendo o que segura o nome da primeira
+        -- linha quando a lista está rolada.
+        if desrecortar then
+          pcall(recortar, dl, x0 + GUTTER, yc, x0 + largura, yc + corpo, true)
+        end
+
         -- CURVA EM RAMPA, ligando ponto a ponto — não em degrau.
         --
         -- Era um degrau: horizontal até o próximo ponto e só então
@@ -14031,6 +14067,8 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
                                      4.5, 0xFFFFFFFF, 0, 1.4)
           end
         end
+
+        if desrecortar then pcall(desrecortar, dl) end
       else
         for _, b in ipairs(linha.blocos) do
           -- FORA DA VISTA, NEM DESENHA.
