@@ -1,4 +1,4 @@
-1.5.0b22
+1.5.1b1
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-O espelho da atualização deixou de recodificar o programa, e o rascunho não fica mais para trás.
+Fechar o programa devolve a track como ela estava, sem deixar o REC ligado.
 ID-7171-61AF
