@@ -1,4 +1,4 @@
-1.5.0b10
+1.5.0b11
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-A nota para de tremer ao mudar de linha, e o fim da música agora tem borda para clicar.
+A bolinha do CC no fim da música virou alvo normal, e a nota parou de tremer ao mudar de linha.
 ID-7171-61AF

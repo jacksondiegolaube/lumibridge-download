@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b10  (compilado em 2026-09-09 10:51)
+-- LumiBridge 1.5.0b11  (compilado em 2026-09-09 11:32)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 10
+Version.BETA = 11
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 10:51"
+Version.COMPILACAO = "2026-09-09 11:32"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3995,6 +3995,15 @@ end
 --  vizinho no meio da música.
 --
 --  @return índice, ponto
+--- O ponto `k` é o mais próximo de `tempo` entre todos?
+function Lanes.maisPerto(pontos, k, tempo)
+  local d = math.abs(pontos[k].t - tempo)
+  for j, p in ipairs(pontos) do
+    if j ~= k and math.abs(p.t - tempo) < d then return false end
+  end
+  return true
+end
+
 function Lanes.hitPonto(linha, tempo, tolerancia, de, ate, folga)
   if not linha or linha.tipo ~= 'fader' then return nil end
   local melhor, dist
@@ -4008,12 +4017,21 @@ function Lanes.hitPonto(linha, tempo, tolerancia, de, ate, folga)
 
   local n = #linha.pontos
   if folga and folga > 0 and n > 0 then
+    -- MESMO AQUI, QUEM ESTÁ MAIS PERTO GANHA.
+    --
+    -- A faixa de borda é larga de propósito: é ela, e só ela, que dá
+    -- tamanho de alvo ao ponto encostado na moldura, porque metade da
+    -- zona dele — o lado de fora — não existe na tela. Larga assim, ela
+    -- roubaria o clique de um vizinho a poucos pixels dali; então só
+    -- vale quando o ponto da borda é mesmo o mais próximo do ponteiro.
     if ate and tempo >= ate - folga
-       and linha.pontos[n].t >= ate - folga then
+       and linha.pontos[n].t >= ate - folga
+       and Lanes.maisPerto(linha.pontos, n, tempo) then
       return n, linha.pontos[n]
     end
     if de and tempo <= de + folga
-       and linha.pontos[1].t <= de + folga then
+       and linha.pontos[1].t <= de + folga
+       and Lanes.maisPerto(linha.pontos, 1, tempo) then
       return 1, linha.pontos[1]
     end
   end
@@ -13655,12 +13673,19 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- refazer a conta, com duas chances de discordar do desenho.
         if sobreCorpo and my >= yLinha and my < yLinha + h
            and mx > x0 + GUTTER then
-          -- A FOLGA DE BORDA É DEZ PIXELS, em tempo. Ver Lanes.hitPonto:
-          -- é ela que devolve o último ponto da música, que a tolerância
-          -- simétrica deixava fora de alcance.
+          -- A FOLGA DE BORDA É DEZOITO PIXELS, em tempo.
+          --
+          -- Ver Lanes.hitPonto: é ela que devolve o primeiro e o último
+          -- ponto da música, que a tolerância simétrica deixava fora de
+          -- alcance. Era dez, e dez não bastava: o último ponto nasce
+          -- UMA CÉLULA DE GRADE antes do fim (ver o preparo dos
+          -- faders), a uns cinco pixels da moldura — mirar nele pela
+          -- direita é mirar na moldura, então a faixa toda tem de caber
+          -- do lado esquerdo. Com dezoito ele vira alvo de tamanho
+          -- normal; o vizinho está protegido por Lanes.maisPerto.
           local tol = escala * 6
           local i, ponto = Lanes.hitPonto(linha, tDe(mx), tol,
-                                          de, ate, escala * 10)
+                                          de, ate, escala * 18)
           local pts = linha.pontos or {}
 
           local v = (yZero - my) / math.max(1, yZero - yCheio) * 127
