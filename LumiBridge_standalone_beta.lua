@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b18  (compilado em 2026-09-09 15:34)
+-- LumiBridge 1.5.0b19  (compilado em 2026-09-09 15:49)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 18
+Version.BETA = 19
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 15:34"
+Version.COMPILACAO = "2026-09-09 15:49"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4048,13 +4048,19 @@ function Lanes.hitPonto(linha, tempo, tolerancia, de, ate, folga)
     -- zona dele — o lado de fora — não existe na tela. Larga assim, ela
     -- roubaria o clique de um vizinho a poucos pixels dali; então só
     -- vale quando o ponto da borda é mesmo o mais próximo do ponteiro.
+    -- E SÓ SE ELE ESTIVER À VISTA.
+    --
+    -- Com zoom, o último ponto pode estar muito além do que se vê — e a
+    -- faixa de borda o entregava assim mesmo, para um mouse encostado na
+    -- ponta. Pegar o que não está na tela é pior do que não pegar nada:
+    -- a curva muda num lugar onde ninguém está olhando.
     if ate and tempo >= ate - folga
-       and linha.pontos[n].t >= ate - folga
+       and linha.pontos[n].t >= ate - folga and linha.pontos[n].t <= ate
        and Lanes.maisPerto(linha.pontos, n, tempo) then
       return n, linha.pontos[n]
     end
     if de and tempo <= de + folga
-       and linha.pontos[1].t <= de + folga
+       and linha.pontos[1].t <= de + folga and linha.pontos[1].t >= de
        and Lanes.maisPerto(linha.pontos, 1, tempo) then
       return 1, linha.pontos[1]
     end
@@ -13326,6 +13332,24 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     if f < 0 then f = 0 elseif f > 1 then f = 1 end
     return x0 + GUTTER + f * areaW
   end
+  --- O MESMO x, SEM PRENDER NA BORDA.
+  --
+  --  `xDe` prende o resultado na faixa visível, e é isso que se quer
+  --  para desenhar a ponta de algo que ENTRA na vista. Para a geometria
+  --  de uma curva, não: com zoom, todos os pontos de fora iam parar
+  --  empilhados nas duas bordas — "parece que ele acumulou os pontos no
+  --  início e no fim, sendo que ao dar zoom eles não deveriam nem
+  --  aparecer". E a rampa que chegava de fora saía com a inclinação
+  --  errada, porque o ponto de origem dela tinha sido mudado de lugar.
+  --
+  --  Limitado a um monitor de folga para os dois lados: o ImGui recorta
+  --  sozinho, e coordenada absurda custa precisão à toa.
+  local function xCru(t)
+    local px = x0 + GUTTER + ((t - de) / duracao) * areaW
+    if px < x0 - 4000 then return x0 - 4000 end
+    if px > x0 + largura + 4000 then return x0 + largura + 4000 end
+    return px
+  end
   local function tDe(x)
     local f = (x - (x0 + GUTTER)) / math.max(1, areaW)
     if f < 0 then f = 0 elseif f > 1 then f = 1 end
@@ -13754,7 +13778,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- vira milhares de segmentos por quadro.
         local px, py = nil, nil
         for _, p in ipairs(linha.pontos) do
-          local cx, cy = xDe(p.t), yDoValor(p.valor)
+          local cx, cy = xCru(p.t), yDoValor(p.valor)
           -- ANTES DO PRIMEIRO PONTO o valor já vale: o fader não nasce
           -- no primeiro ponto, ele estava naquele valor desde o começo
           -- da música. Sem este trecho a faixa parecia vazia até o
@@ -13777,13 +13801,17 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           -- SELECIONADO: círculo maior e um anel claro em volta. O
           -- tamanho sozinho não bastava — num traço fino de automação,
           -- meio pixel a mais não se vê.
+          -- SÓ AS BOLINHAS QUE ESTÃO À VISTA. Fora da vista elas iam
+          -- todas para a borda, uma em cima da outra.
           local selecionado = faixas.selCC[linha.tag]
                               and faixas.selCC[linha.tag][p.t]
-          if selecionado then
-            ImGui.DrawList_AddCircleFilled(dl, cx, cy, 4.2, cor)
-            ImGui.DrawList_AddCircle(dl, cx, cy, 5.6, 0xFFFFFFCC, 0, 1.4)
-          else
-            ImGui.DrawList_AddCircleFilled(dl, cx, cy, 2.2, cor)
+          if p.t >= de and p.t <= ate then
+            if selecionado then
+              ImGui.DrawList_AddCircleFilled(dl, cx, cy, 4.2, cor)
+              ImGui.DrawList_AddCircle(dl, cx, cy, 5.6, 0xFFFFFFCC, 0, 1.4)
+            else
+              ImGui.DrawList_AddCircleFilled(dl, cx, cy, 2.2, cor)
+            end
           end
           px, py = cx, cy
         end
@@ -13825,7 +13853,9 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           -- ficar sem nada e a marca era desenhada de novo ali. Ele viu
           -- dois onde mexeu em um. Vazada, o que fica para trás é
           -- visivelmente outra coisa, e não uma cópia do que ele moveu.
-          if vFim and not jaTem then
+          if vFim and not jaTem
+             and (region and region.endTime or ate) >= de
+             and (region and region.endTime or ate) <= ate then
             ImGui.DrawList_AddCircle(dl, xFimM, yDoValor(vFim), 2.8, cor,
                                      0, 1.3)
           end
@@ -13917,7 +13947,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           -- num lugar e a linha está em outro.
           if not ponto and #pts > 0 then
             local ia, ib, yNa
-            local xPri, xUlt = xDe(pts[1].t), xDe(pts[#pts].t)
+            local xPri, xUlt = xCru(pts[1].t), xCru(pts[#pts].t)
             if mx <= xPri then
               -- Antes do primeiro: o valor já valia desde o começo.
               ia, yNa = 1, yDoValor(pts[1].valor)
@@ -13926,7 +13956,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
               ia, yNa = #pts, yDoValor(pts[#pts].valor)
             else
               for k = 1, #pts - 1 do
-                local xA, xB = xDe(pts[k].t), xDe(pts[k + 1].t)
+                local xA, xB = xCru(pts[k].t), xCru(pts[k + 1].t)
                 if mx >= xA and mx <= xB then
                   local yA = yDoValor(pts[k].valor)
                   local yB = yDoValor(pts[k + 1].valor)
@@ -13953,6 +13983,16 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         end
       else
         for _, b in ipairs(linha.blocos) do
+          -- FORA DA VISTA, NEM DESENHA.
+          --
+          -- `xDe` prende o x na borda, e o piso de dois pixels logo
+          -- abaixo transformava cada bloco de fora numa lasca colada na
+          -- ponta da faixa. Sem zoom não se via; com zoom viravam uma
+          -- pilha, junto com as bolinhas de automação — que é o que ele
+          -- viu. O fecho conta: um bloco que acaba antes da vista ainda
+          -- pode ter o pulso de desligar dentro dela.
+          local bfim = (b.fecho and b.fecho.t1) or b.t1
+          if bfim >= de and b.t0 <= ate then
           local bx0, bx1 = xDe(b.t0), xDe(b.t1)
           if bx1 - bx0 < 2 then bx1 = bx0 + 2 end
 
@@ -14030,6 +14070,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
             ImGui.DrawList_AddRectFilled(dl, bx1 - 2, yLinha + 4, bx1 + 2,
                                          yLinha + h - 4, 0xFFFFFFFF, 1)
           end
+          end   -- fim do "está à vista?"
         end
 
         if sobreCorpo and my >= yLinha and my < yLinha + h and mx > x0 + GUTTER then
@@ -22428,6 +22469,10 @@ function Window.__confirmando() return confirmar ~= nil end
 --  diz se o alvo alcançado na borda é mesmo o último, e não um vizinho
 --  qualquer que calhou de estar perto.
 function Window.__sobPonto() return faixas.sobPonto end
+--- A geometria do �ltimo quadro. Para o teste do zoom medir se algo foi
+--  desenhado colado nas bordas da faixa � que � onde o x preso jogava
+--  tudo o que estava fora da vista.
+function Window.__geomZ() return faixas.geom end
 --- Os instantes dos pontos de automa��o de uma linha de fader.
 --  Para o teste medir em PIXELS onde a �ltima bolinha cai: � nessa
 --  unidade que ela chegava colada na moldura da janela.
