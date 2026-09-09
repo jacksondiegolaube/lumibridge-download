@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b16  (compilado em 2026-09-09 14:28)
+-- LumiBridge 1.5.0b17  (compilado em 2026-09-09 15:03)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 16
+Version.BETA = 17
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 14:28"
+Version.COMPILACAO = "2026-09-09 15:03"
 
 --- Onde o programa procura por versão nova.
 --
@@ -12205,7 +12205,7 @@ end
 --  largura em pixels, então uma fração fixa da duração dá o mesmo tanto
 --  de pixels em QUALQUER zoom. Em segundos seria um dedo com a música
 --  inteira na tela e uma tela inteira com dois compassos.
-local SOBRA_DO_FIM = 0.008
+local SOBRA_DO_FIM = 0.004
 
 local function vistaDaMusica()
   if not region then
@@ -13767,8 +13767,17 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           -- coisas para uma.
           local vFim, jaTem = Lanes.valorNoFim(linha,
             region and region.endTime or ate, escala * 4)
+          -- VAZADA, e não cheia como os pontos.
+          --
+          -- Ela não é um ponto: é a marca de onde a música acaba com o
+          -- fader nesse valor. Cheia, ela era lida como ponto — e ao
+          -- arrastá-la para o lado o ponto ia junto, o fim voltava a
+          -- ficar sem nada e a marca era desenhada de novo ali. Ele viu
+          -- dois onde mexeu em um. Vazada, o que fica para trás é
+          -- visivelmente outra coisa, e não uma cópia do que ele moveu.
           if vFim and not jaTem then
-            ImGui.DrawList_AddCircleFilled(dl, xFimM, yDoValor(vFim), 2.2, cor)
+            ImGui.DrawList_AddCircle(dl, xFimM, yDoValor(vFim), 2.8, cor,
+                                     0, 1.3)
           end
         end
 
@@ -14276,12 +14285,14 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     -- vertical sobe e desce o trecho inteiro, mão só marca posição.
     if ImGui.SetMouseCursor then
       local nome = 'MouseCursor_Hand'
-      -- A BOLINHA DO FIM SOBE E DESCE, e é só isso que ela faz: o fim
-      -- da música não muda de lugar. Cursor vertical, portanto — e o
-      -- ponteiro tem de dizer a verdade sobre o gesto ANTES dele.
-      if noFader.ponto and noFader.ponto.novo then
-        nome = 'MouseCursor_ResizeNS'
-      elseif noFader.ponto then nome = 'MouseCursor_ResizeAll'
+      -- A MARCA DO FIM SE PEGA COMO PONTO, e o cursor diz isso.
+      --
+      -- Eu já tinha posto o cursor vertical aqui, com o argumento de que
+      -- mover o FIM de lugar não quer dizer nada. O argumento é bom e a
+      -- decisão era ruim: o vertical é o mesmo do trecho, então do lado
+      -- dele nada mudou — "voltou a não aparecer o ícone para mover o
+      -- ponto final". Quem usa é ele.
+      if noFader.ponto then nome = 'MouseCursor_ResizeAll'
       elseif noSegmento then nome = 'MouseCursor_ResizeNS' end
       -- ZERO QUER DIZER "não existe nesta versão", e não "cursor 0".
       -- Compat.const devolve o padrão quando a constante falta, e zero
@@ -14294,8 +14305,8 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
 
     dicaSe( noFader.ponto
       and (noFader.ponto.novo
-        and ('%s  ·  fim da música  ·  %d%%\n\nArraste para subir ou descer '
-             .. 'o fim.  Duplo clique fixa um ponto aqui.')
+        and ('%s  ·  fim da música  ·  %d%%\n\nArraste para fixar um ponto '
+             .. 'aqui e movê-lo.  Duplo clique também fixa.')
             :format(noFader.linha.nome,
                     math.floor(noFader.ponto.valor / 127 * 100 + 0.5))
         or ('%s  ·  %s  ·  %d%%\n\nArraste para mover.  Duplo clique apaga.')
@@ -14353,7 +14364,6 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           } })
         end)
         noFader.ponto.novo = nil
-        noFader.pegouFim = true
         noFader.linha.pontos[#noFader.linha.pontos + 1] = noFader.ponto
         noFader.indice = #noFader.linha.pontos
         log(('%s: ponto criado no fim da música a %d%%')
@@ -14369,16 +14379,6 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       if not naSelecao then faixas.selCC = {} end
       faixas.arrastePonto = {
         emGrupo = naSelecao and true or nil,
-        -- SÓ O VALOR, quando o que foi pego é a bolinha do fim.
-        --
-        -- Arrastá-la no tempo criava um ponto no fim e o levava embora
-        -- dali — e, como o fim voltava a não ter ponto, a marca do fim
-        -- era desenhada de novo no lugar. Ele viu dois onde mexeu em um:
-        -- "quando eu arrasto o ponto das extremidades, ele cria um outro
-        -- ponto". Não era engano de desenho: o gesto oferecia mover o
-        -- fim da música de lugar, o que não quer dizer nada. Ele sobe e
-        -- desce, e para isso serve.
-        soValor = noFader.pegouFim or nil,
         linha = noFader.linha, indice = noFader.indice,
         origem = noFader.ponto.t, origemValor = noFader.ponto.valor,
         ponto = noFader.ponto,
@@ -14474,7 +14474,6 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- dela era o que travava o arrasto assim que o cursor saía da faixa.
       local bruto = (a.yZero - my) / math.max(1, a.yZero - a.yCheio) * 127
       local t, v = Lanes.moverPonto(a.linha, a.indice, tDe(mx), bruto)
-      if a.soValor then t = a.origem end
       a.t, a.valor = t, v
       a.ponto.t, a.ponto.valor = t, v
 

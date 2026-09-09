@@ -1,4 +1,4 @@
-1.5.0b16
+1.5.0b17
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-A bolinha do fim da música sobe e desce sem sair do lugar, e o fim da faixa deixou de duplicar ponto.
+A marca do fim da música se pega e se move como ponto, e encosta na ponta da faixa.
 ID-7171-61AF
