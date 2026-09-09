@@ -1,4 +1,4 @@
-1.5.0b9
+1.5.0b10
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-Arrastar um trecho agora para onde a mão pede, e o ponto de CC no fim da música dá para pegar.
+A nota para de tremer ao mudar de linha, e o fim da música agora tem borda para clicar.
 ID-7171-61AF

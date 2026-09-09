@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b9  (compilado em 2026-09-09 00:24)
+-- LumiBridge 1.5.0b10  (compilado em 2026-09-09 10:51)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 9
+Version.BETA = 10
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 00:24"
+Version.COMPILACAO = "2026-09-09 10:51"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3629,7 +3629,18 @@ end
 --  com uma expectativa errada.
 --
 --  @return table { { t0, t1 }, ... } ordenado por t0
-function Lanes.rivais(linhas, linha)
+--  @param ignorar  bloco que NÃO conta — o que está na mão.
+--
+--  SEM ELE, A NOTA ARRASTADA VIRAVA RIVAL DE SI MESMA. Levando uma nota
+--  para outra linha DO MESMO GRUPO, a linha de origem entra nesta lista
+--  — e a nota continua nela enquanto o gesto acontece, com a posição da
+--  prévia, que a janela regrava a cada quadro. O limite era calculado
+--  contra ela mesma um quadro atrás: o resultado mudava, virava o
+--  limite do quadro seguinte, e a nota tremia no lugar. É o "todo
+--  tremido ao arrastar para baixo ou para cima" que ele relatou, e só
+--  aparecia entre linhas do mesmo grupo, porque só ali a origem é
+--  rival do destino.
+function Lanes.rivais(linhas, linha, ignorar)
   local out = {}
   if not linha or not linha.grupo then return out end
 
@@ -3638,7 +3649,9 @@ function Lanes.rivais(linhas, linha)
       for _, b in ipairs(l.blocos) do
         -- O pulso de desligar conta junto: ele também é uma nota, e
         -- encostar nele é encostar no rival.
-        out[#out + 1] = { t0 = b.t0, t1 = (b.fecho and b.fecho.t1) or b.t1 }
+        if b ~= ignorar then
+          out[#out + 1] = { t0 = b.t0, t1 = (b.fecho and b.fecho.t1) or b.t1 }
+        end
       end
     end
   end
@@ -13884,6 +13897,22 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- rolagem e a pega, que são do quadro inteiro e não do miolo.
   if desrecortar then pcall(desrecortar, dl) end
 
+  -- A MOLDURA DA DIREITA, do mesmo tom da coluna de nomes.
+  --
+  -- O recuo que tira o fim da música de baixo da borda de
+  -- redimensionar do REAPER deixava uma tira de fundo solta, com as
+  -- pontas dos blocos boiando nela — e isso pareceu defeito, com razão.
+  -- Pintada como a coluna da esquerda, a tira vira moldura: a faixa
+  -- passa a ter uma borda de cada lado, e o fim da música encosta numa
+  -- delas em vez de sumir na moldura da janela.
+  --
+  -- DEPOIS DO RECORTE, de propósito: os contornos de seleção passam uns
+  -- pixels do bloco, e desenhada antes ela seria pintada por cima.
+  ImGui.DrawList_AddRectFilled(dl, x0 + GUTTER + areaW, y0 + CABECALHO,
+                               x0 + largura, yc + corpo, 0x181B21FF)
+  ImGui.DrawList_AddLine(dl, x0 + GUTTER + areaW, y0 + CABECALHO,
+                         x0 + GUTTER + areaW, yc + corpo, 0x20232AFF, 1)
+
   local excedente = math.max(0, alturaTotal - corpo)
 
   -- HOVER POR RETÂNGULO, e não pelo item — foi o que quebrou a rolagem.
@@ -14651,7 +14680,8 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- a nota grudar num lado da vizinha e não voltar mais.
       local t0, t1 = Lanes.arrastar(linhaLim, faixas.arraste.bloco,
                                     faixas.arraste.parte, puxado, minimo,
-                                    Lanes.rivais(faixas.linhas, linhaLim),
+                                    Lanes.rivais(faixas.linhas, linhaLim,
+                                                 faixas.arraste.bloco),
                                     faixas.arraste.origem,
                                     faixas.arraste.origemT1)
       faixas.arraste.t0, faixas.arraste.t1 = t0, t1
