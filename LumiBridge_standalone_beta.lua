@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b11  (compilado em 2026-09-09 11:32)
+-- LumiBridge 1.5.0b12  (compilado em 2026-09-09 12:17)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 11
+Version.BETA = 12
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 11:32"
+Version.COMPILACAO = "2026-09-09 12:17"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4715,7 +4715,11 @@ local Atualizacao = {}
 
 --- Quanto tempo esperar pela rede, em segundos. Curto de propósito:
 --  quem clicou está olhando para a tela.
-Atualizacao.ESPERA = 10
+--
+--  Era dez, e passou a quinze quando o curl ganhou as tentativas
+--  (ver Atualizacao.comando): este limite vale para a operação INTEIRA,
+--  tentativas incluídas, e dez não dava para três.
+Atualizacao.ESPERA = 15
 
 --- Menor tamanho aceitável para o programa baixado, em bytes.
 --
@@ -4735,8 +4739,23 @@ Atualizacao.MINIMO = 100000
 --
 --  -L segue redirecionamento (o GitHub usa), -f falha em erro HTTP em
 --  vez de gravar a página de erro, -s cala a barra de progresso.
+--
+--  E INSISTE DUAS VEZES ANTES DE DESISTIR.
+--
+--  Ele mandou a tela dizendo "não consegui falar com o servidor" numa
+--  hora em que o servidor estava no ar: rodando esta mesma linha à mão,
+--  a primeira tentativa voltou 22 (erro HTTP) e as três seguintes,
+--  zero. O raw.githubusercontent.com é uma rede de cache, e recusar um
+--  pedido de vez em quando é o normal dela — publicar várias vezes
+--  seguidas torna isso mais provável ainda.
+--
+--  Uma recusa dessas não é "sem internet", e virar recado de erro na
+--  primeira é dizer ao cliente que algo quebrou quando nada quebrou.
+--  `--retry` do curl já sabe quais erros são passageiros (429, 5xx,
+--  conexão) e espera entre as tentativas; os permanentes, como um 404,
+--  ele não repete.
 function Atualizacao.comando(url, destino)
-  return ('curl -L -f -s --max-time %d -o "%s" "%s"')
+  return ('curl -L -f -s --retry 2 --retry-delay 1 --max-time %d -o "%s" "%s"')
     :format(Atualizacao.ESPERA, destino, url)
 end
 
@@ -4862,7 +4881,7 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
     return nil, 'a procura por atualizações não está configurada'
   end
   if not Atualizacao.baixar(manifestoURL, temp) then
-    return nil, 'não consegui falar com o servidor'
+    return nil, 'não consegui falar com o servidor — tente de novo'
   end
 
   local m = Atualizacao.lerManifesto(Atualizacao.ler(temp))
@@ -12143,6 +12162,27 @@ end
 --  Sem zoom (o normal) é a música inteira. `faixas.vDe/vAte` só existem
 --  depois de alguém girar a roda, e são sempre limitados à região: não
 --  há como sair da música por engano e ficar olhando o vazio.
+--
+--  UM DEDO DE ESPAÇO DEPOIS DO FIM, e é o que a vista devolve.
+--
+--  O último ponto de automação de cada fader nasce UMA CÉLULA DE GRADE
+--  antes do fim da música (ver o preparo dos faders). Numa música de
+--  sete minutos vista inteira, uma célula são dois pixels: a bolinha
+--  dele ficava colada na borda da janela, meia em cima da moldura de
+--  redimensionar do REAPER. Dava para ver e não dava para pegar, e
+--  depois nem para ver — "a bolinha nem aparece no final".
+--
+--  Duas tentativas antes desta encolheram a área de desenho por doze
+--  pixels e pintaram a sobra de moldura. As duas resolviam o alcance e
+--  as duas ficaram feias, porque tiravam pedaço da tela para resolver
+--  um problema que é de ESPAÇO NO FIM DA MÚSICA, não de largura.
+--
+--  A sobra é FRAÇÃO DA VISTA, e não segundos: a área tem sempre a mesma
+--  largura em pixels, então uma fração fixa da duração dá o mesmo tanto
+--  de pixels em QUALQUER zoom. Em segundos seria um dedo com a música
+--  inteira na tela e uma tela inteira com dois compassos.
+local SOBRA_DO_FIM = 0.008
+
 local function vistaDaMusica()
   if not region then
     local pos = Transport.position()
@@ -12150,7 +12190,10 @@ local function vistaDaMusica()
   end
   local de = math.max(region.startTime, faixas.vDe or region.startTime)
   local ate = math.min(region.endTime, faixas.vAte or region.endTime)
-  if ate - de < 0.25 then return region.startTime, region.endTime end
+  if ate - de < 0.25 then
+    local tudo = region.endTime - region.startTime
+    return region.startTime, region.endTime + tudo * SOBRA_DO_FIM
+  end
 
   -- A VISTA ACOMPANHA A REPRODUÇÃO quando está aproximada.
   --
@@ -12186,7 +12229,7 @@ local function vistaDaMusica()
     end
   end
 
-  return de, ate
+  return de, ate + (ate - de) * SOBRA_DO_FIM
 end
 
 --- Aplica um passo de zoom horizontal em torno de um instante.
@@ -12855,17 +12898,6 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- Cada .form batiza os controles do seu jeito, então não existe número
   -- certo para todos: quem sabe é quem está olhando.
   local GUTTER = faixas.gutter or 112
-  -- RECUO DA DIREITA: a borda de redimensionar da janela come os
-  -- últimos pixels.
-  --
-  -- Sem ele, o instante final da música caía EM CIMA da moldura: o
-  -- ponteiro virava a seta de esticar a janela e o clique ia para o
-  -- ImGui, não para nós. Dava para ver o último ponto de CC e não
-  -- havia jeito de pegá-lo — o gesto redimensionava a janela.
-  --
-  -- A tira sobra vazia à direita, do tamanho da moldura, e é ela que
-  -- devolve o fim da música para dentro da área clicável.
-  local RECUO = 12
   local ALTURA_BOTAO = 18
   local ALTURA_FADER = 34
   local PEGA = 5
@@ -13185,7 +13217,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- depois da coluna de nomes, então uma onda que começasse na borda
   -- mostraria o mesmo instante 112px à esquerda do bloco gravado dele.
   if aoLado then
-    drawTimeline(x0 + GUTTER, yc, largura - GUTTER - RECUO)
+    drawTimeline(x0 + GUTTER, yc, largura - GUTTER)
     yc = yc + ONDA
   end
 
@@ -13212,7 +13244,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   local de, ate = vistaDaMusica()
   local duracao = ate - de
   if duracao <= 0 then return CABECALHO + corpo + PEGA end
-  local areaW = largura - GUTTER - RECUO
+  local areaW = largura - GUTTER
   local escala = duracao / math.max(1, areaW)   -- segundos por pixel
 
   local function xDe(t)
@@ -13922,21 +13954,6 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- rolagem e a pega, que são do quadro inteiro e não do miolo.
   if desrecortar then pcall(desrecortar, dl) end
 
-  -- A MOLDURA DA DIREITA, do mesmo tom da coluna de nomes.
-  --
-  -- O recuo que tira o fim da música de baixo da borda de
-  -- redimensionar do REAPER deixava uma tira de fundo solta, com as
-  -- pontas dos blocos boiando nela — e isso pareceu defeito, com razão.
-  -- Pintada como a coluna da esquerda, a tira vira moldura: a faixa
-  -- passa a ter uma borda de cada lado, e o fim da música encosta numa
-  -- delas em vez de sumir na moldura da janela.
-  --
-  -- DEPOIS DO RECORTE, de propósito: os contornos de seleção passam uns
-  -- pixels do bloco, e desenhada antes ela seria pintada por cima.
-  ImGui.DrawList_AddRectFilled(dl, x0 + GUTTER + areaW, y0 + CABECALHO,
-                               x0 + largura, yc + corpo, 0x181B21FF)
-  ImGui.DrawList_AddLine(dl, x0 + GUTTER + areaW, y0 + CABECALHO,
-                         x0 + GUTTER + areaW, yc + corpo, 0x20232AFF, 1)
 
   local excedente = math.max(0, alturaTotal - corpo)
 
@@ -22185,6 +22202,11 @@ function Window.__confirmando() return confirmar ~= nil end
 --  diz se o alvo alcançado na borda é mesmo o último, e não um vizinho
 --  qualquer que calhou de estar perto.
 function Window.__sobPonto() return faixas.sobPonto end
+function Window.__pontos(i)
+  local l = faixas.linhas[i]; local o = {}
+  for k, p in ipairs((l and l.pontos) or {}) do o[k] = p.t end
+  return o
+end
 function Window.__sobSegmento() return faixas.sobSegmento end
 --- O X foi confirmado? Para o teste do fechar — sem isto, um X que
 --  encerrasse o programa DIRETO, sem passar pela confirmação, passaria

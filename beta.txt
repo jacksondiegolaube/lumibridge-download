@@ -1,4 +1,4 @@
-1.5.0b11
+1.5.0b12
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-A bolinha do CC no fim da música virou alvo normal, e a nota parou de tremer ao mudar de linha.
+O fim da música ganhou espaço: a última bolinha de automação aparece inteira e dá para pegar.
 ID-7171-61AF
