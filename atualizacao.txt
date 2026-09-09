@@ -1,3 +1,3 @@
-1.4.1
+1.5.0
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone.lua
-As pausas do fader agora ficam na luz, e a curva sai sem pontos sobrando.
+Minimizar esconde a janela, e a curva dos faders ganhou gestos novos para editar o fim da música.

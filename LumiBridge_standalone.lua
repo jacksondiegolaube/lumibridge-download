@@ -1,4 +1,4 @@
--- LumiBridge 1.4.1  (compilado em 2026-09-04 08:32)
+-- LumiBridge 1.5.0  (compilado em 2026-09-09 16:48)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -49,8 +49,8 @@ package.preload["core.version"] = function(...)
 local Version = {}
 
 Version.MAIOR    = 1
-Version.MENOR    = 4
-Version.CORRECAO = 1
+Version.MENOR    = 5
+Version.CORRECAO = 0
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
 --
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 08:32"
+Version.COMPILACAO = "2026-09-09 16:48"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3629,7 +3629,18 @@ end
 --  com uma expectativa errada.
 --
 --  @return table { { t0, t1 }, ... } ordenado por t0
-function Lanes.rivais(linhas, linha)
+--  @param ignorar  bloco que NÃO conta — o que está na mão.
+--
+--  SEM ELE, A NOTA ARRASTADA VIRAVA RIVAL DE SI MESMA. Levando uma nota
+--  para outra linha DO MESMO GRUPO, a linha de origem entra nesta lista
+--  — e a nota continua nela enquanto o gesto acontece, com a posição da
+--  prévia, que a janela regrava a cada quadro. O limite era calculado
+--  contra ela mesma um quadro atrás: o resultado mudava, virava o
+--  limite do quadro seguinte, e a nota tremia no lugar. É o "todo
+--  tremido ao arrastar para baixo ou para cima" que ele relatou, e só
+--  aparecia entre linhas do mesmo grupo, porque só ali a origem é
+--  rival do destino.
+function Lanes.rivais(linhas, linha, ignorar)
   local out = {}
   if not linha or not linha.grupo then return out end
 
@@ -3638,7 +3649,9 @@ function Lanes.rivais(linhas, linha)
       for _, b in ipairs(l.blocos) do
         -- O pulso de desligar conta junto: ele também é uma nota, e
         -- encostar nele é encostar no rival.
-        out[#out + 1] = { t0 = b.t0, t1 = (b.fecho and b.fecho.t1) or b.t1 }
+        if b ~= ignorar then
+          out[#out + 1] = { t0 = b.t0, t1 = (b.fecho and b.fecho.t1) or b.t1 }
+        end
       end
     end
   end
@@ -3923,14 +3936,27 @@ end
 function Lanes.hit(linha, tempo, escala)
   if not linha or linha.tipo ~= 'botao' then return nil end
 
+  -- A PEGA DA BORDA VALE UM POUCO PARA FORA DO BLOCO.
+  --
+  -- O teste era `tempo >= b.t0 and tempo <= b.t1`, e a borda é
+  -- justamente onde a mão mira para esticar: metade da pega — a metade
+  -- de fora — não pegava nada, e acertar o fio exato dependia de
+  -- arredondamento. Numa nota que termina no fim da música isso é o
+  -- caso comum, porque ali não há "um pouco mais para dentro" à vista.
+  --
+  -- A folga é a mesma dos quatro pixels do piso, para os dois lados, e
+  -- nunca chega a alcançar o bloco vizinho: no pior caso ela toma um
+  -- vão do tamanho de uma pega, que é onde ninguém mira.
+  local fora = math.max(Lanes.BORDA_MIN, (escala or 0) * 4)
+
   for _, b in ipairs(linha.blocos) do
-    if tempo >= b.t0 and tempo <= b.t1 then
+    if tempo >= b.t0 - fora and tempo <= b.t1 + fora then
       local dur = b.t1 - b.t0
       local borda = dur * Lanes.BORDA_FRACAO
       if borda > Lanes.BORDA_MAX then borda = Lanes.BORDA_MAX end
       -- O piso é em PIXELS convertidos para tempo: uma borda de 4px vale
       -- 4px em qualquer zoom, e é isso que o dedo espera.
-      local piso = math.max(Lanes.BORDA_MIN, (escala or 0) * 4)
+      local piso = fora
       if borda < piso then borda = math.min(piso, dur * 0.5) end
 
       if tempo <= b.t0 + borda then return b, 'inicio' end
@@ -3952,7 +3978,57 @@ end
 --  @param tempo       posição do mouse, em segundos
 --  @param tolerancia  em segundos (a UI converte de pixels)
 --  @return indice, ponto  ou nil
-function Lanes.hitPonto(linha, tempo, tolerancia)
+--  NAS BORDAS DA VISTA, O PRIMEIRO E O ÚLTIMO VALEM POR INTEIRO.
+--
+--  A tolerância é simétrica em volta do ponto, e a vista termina onde a
+--  música termina: um ponto no último instante só podia ser pego pela
+--  metade de dentro da zona dele — a outra metade cai fora da tela, onde
+--  o mouse não vai. Na prática o último ponto era inclicável, e é
+--  justamente onde a automação termina, que é onde mais se mexe.
+--
+--  `de` e `ate` são os limites da vista e `folga` a largura da faixa de
+--  borda, ambos no mesmo tempo dos pontos. Sem eles a função se comporta
+--  como sempre se comportou.
+--
+--  SÓ O PRIMEIRO E O ÚLTIMO, e só se eles próprios estiverem na borda:
+--  alargar a tolerância de todos faria um ponto roubar o clique do
+--  vizinho no meio da música.
+--
+--  @return índice, ponto
+--- O valor que vale no FIM DA MÚSICA, e se já há ponto escrito ali.
+--
+--  A faixa de fader mostra uma bolinha no começo e a linha reta antes
+--  dela: o fader não nasce no primeiro ponto, ele já estava naquele
+--  valor. Do outro lado a mesma coisa é verdade — depois do último
+--  ponto o valor segue valendo até o fim — e mesmo assim não havia nada
+--  ali para ver nem para pegar. Ele resumiu assim: "faça igual a
+--  bolinha do começo".
+--
+--  A bolinha do fim NÃO É INVENÇÃO: a linha reta até a borda já afirma
+--  esse valor, e desenhá-la é marcar onde essa afirmação termina. Só
+--  aparece quando não há ponto de verdade por ali; havendo, quem
+--  aparece é o ponto.
+--
+--  @param fim    o instante do fim da música
+--  @param folga  a que distância um ponto de verdade já conta como "ali"
+--  @return valor, jaTemPonto
+function Lanes.valorNoFim(linha, fim, folga)
+  local pts = linha and linha.pontos
+  if not pts or #pts == 0 or not fim then return nil, false end
+  local ultimo = pts[#pts]
+  return ultimo.valor, (fim - ultimo.t) <= (folga or 0)
+end
+
+--- O ponto `k` é o mais próximo de `tempo` entre todos?
+function Lanes.maisPerto(pontos, k, tempo)
+  local d = math.abs(pontos[k].t - tempo)
+  for j, p in ipairs(pontos) do
+    if j ~= k and math.abs(p.t - tempo) < d then return false end
+  end
+  return true
+end
+
+function Lanes.hitPonto(linha, tempo, tolerancia, de, ate, folga)
   if not linha or linha.tipo ~= 'fader' then return nil end
   local melhor, dist
   for i, p in ipairs(linha.pontos) do
@@ -3962,7 +4038,63 @@ function Lanes.hitPonto(linha, tempo, tolerancia)
     end
   end
   if melhor then return melhor, linha.pontos[melhor] end
+
+  local n = #linha.pontos
+  if folga and folga > 0 and n > 0 then
+    -- MESMO AQUI, QUEM ESTÁ MAIS PERTO GANHA.
+    --
+    -- A faixa de borda é larga de propósito: é ela, e só ela, que dá
+    -- tamanho de alvo ao ponto encostado na moldura, porque metade da
+    -- zona dele — o lado de fora — não existe na tela. Larga assim, ela
+    -- roubaria o clique de um vizinho a poucos pixels dali; então só
+    -- vale quando o ponto da borda é mesmo o mais próximo do ponteiro.
+    -- E SÓ SE ELE ESTIVER À VISTA.
+    --
+    -- Com zoom, o último ponto pode estar muito além do que se vê — e a
+    -- faixa de borda o entregava assim mesmo, para um mouse encostado na
+    -- ponta. Pegar o que não está na tela é pior do que não pegar nada:
+    -- a curva muda num lugar onde ninguém está olhando.
+    if ate and tempo >= ate - folga
+       and linha.pontos[n].t >= ate - folga and linha.pontos[n].t <= ate
+       and Lanes.maisPerto(linha.pontos, n, tempo) then
+      return n, linha.pontos[n]
+    end
+    if de and tempo <= de + folga
+       and linha.pontos[1].t <= de + folga and linha.pontos[1].t >= de
+       and Lanes.maisPerto(linha.pontos, 1, tempo) then
+      return 1, linha.pontos[1]
+    end
+  end
   return nil
+end
+
+--- Quanto um trecho pode subir ou descer sem deformar.
+--
+--  Pegar a linha entre dois pontos e arrastá-la levanta ou baixa os DOIS
+--  extremos — é isso que preserva a forma da rampa. Se cada um fosse
+--  limitado por conta própria, o que chegasse ao teto primeiro pararia e
+--  o outro continuaria: a inclinação mudaria no meio do gesto, e o
+--  trecho sairia diferente do que a mão desenhou.
+--
+--  Então o deslocamento é UM SÓ, limitado pelo extremo que chega antes.
+--  Vale também para o trecho de uma ponta só (antes do primeiro ponto e
+--  depois do último): aí `vB` é nil e a conta é a do valor sozinho.
+--
+--  @return dv já limitado, inteiro
+function Lanes.moverTrecho(vA, vB, dv)
+  -- ARREDONDA ANTES DE LIMITAR. Ao contrário, o limite devolve um
+  -- inteiro exato e o arredondamento o empurra um a mais: descer 40 a
+  -- partir de 15 dava -16, e o extremo de baixo furava o zero.
+  dv = math.floor(dv + 0.5)
+
+  local menor, maior = vA, vA
+  if vB then
+    if vB < menor then menor = vB end
+    if vB > maior then maior = vB end
+  end
+  if dv > 127 - maior then dv = 127 - maior end
+  if dv < -menor then dv = -menor end
+  return dv
 end
 
 --- Onde um ponto pode ir, sem passar pelos vizinhos.
@@ -4071,19 +4203,42 @@ function Lanes.marcada(sel, tag, t0)
   return false
 end
 
-function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais)
+--- Onde o trecho pode parar, arrastado pela borda ou pelo meio.
+--
+--  @param origem, origemT1  onde o bloco estava quando o GESTO COMEÇOU.
+--
+--  OS VIZINHOS SAEM DAÍ, e não de `bloco.t0`/`bloco.t1`. A janela grava
+--  a prévia no próprio bloco a cada quadro, então `bloco.t0` durante um
+--  arrasto é a última posição JÁ LIMITADA — usá-la para escolher os
+--  vizinhos fazia a regra depender do caminho que o mouse fez, e não de
+--  onde ele está.
+--
+--  Dava o defeito que ele descreveu como "fica bem maluco": levando uma
+--  nota para outra linha, ela chega POR CIMA de uma nota de lá. Nessa
+--  posição a de lá não é anterior nem seguinte, nada limita, e o
+--  fantasma segue o ponteiro solto. Bastava passar da borda direita dela
+--  uma vez para a de lá virar "anterior" — e a partir daí a nota ficava
+--  presa àquele lado, sem conseguir voltar, com o ponteiro metros à
+--  esquerda dela.
+--
+--  Com a posição de partida como referência, o resultado é função só do
+--  ponteiro: a nota atravessa a vizinha e vai parar onde a mão pediu.
+function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais,
+                        origem, origemT1)
   minimo = minimo or 0.05
   local t0, t1 = bloco.t0, bloco.t1
   local reserva = bloco.fecho and (bloco.fecho.t1 - bloco.fecho.t0) or 0
+  local ref0 = origem or bloco.t0
+  local ref1 = origemT1 or bloco.t1
 
   -- Vizinhos imediatos, para não invadir.
   local anterior, seguinte = nil, nil
   for _, b in ipairs(linha.blocos) do
     if b ~= bloco then
-      if b.t1 <= bloco.t0 and (not anterior or b.t1 > anterior.t1) then
+      if b.t1 <= ref0 and (not anterior or b.t1 > anterior.t1) then
         anterior = b
       end
-      if b.t0 >= bloco.t1 and (not seguinte or b.t0 < seguinte.t0) then
+      if b.t0 >= ref1 and (not seguinte or b.t0 < seguinte.t0) then
         seguinte = b
       end
     end
@@ -4111,10 +4266,20 @@ function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais)
     if t0 < 0 then t0 = 0 end
     t1 = t0 + dur
 
+    -- SÓ DESCONTA A RESERVA QUANDO ALGUÉM REALMENTE BARRA.
+    --
+    -- `Lanes.limiteAte` devolve o próprio `ate` quando nenhum rival
+    -- atrapalha — e a linha antiga subtraía a reserva DESSE valor. Com
+    -- a lista vazia (o caso comum: linha sem grupo), o trecho era
+    -- puxado para trás pela largura do próprio desligamento, todo
+    -- quadro. Quem tinha desligamento nunca parava onde a mão pedia.
     local limite = seguinte and (seguinte.t0 - reserva) or nil
     if rivais then
-      local r = Lanes.limiteAte(rivais, t0, t1) - reserva
-      if not limite or r < limite then limite = r end
+      local barra = Lanes.limiteAte(rivais, t0, t1)
+      if barra < t1 then
+        local r = barra - reserva
+        if not limite or r < limite then limite = r end
+      end
     end
     if limite and t1 > limite then
       t1 = limite
@@ -4146,8 +4311,11 @@ function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais)
     -- cima de outro do mesmo grupo — e na reprodução o Lumikit desliga
     -- um quando o outro entra, então a tela mostrava algo que a música
     -- não faz.
+    -- Idem: sem rival barrando, `limiteAte` devolve o próprio `t1`, e
+    -- descontar a reserva dali encolhia o trecho sozinho.
     if rivais then
-      t1 = Lanes.limiteAte(rivais, t0, t1) - reserva
+      local barra = Lanes.limiteAte(rivais, t0, t1)
+      if barra < t1 then t1 = barra - reserva end
     end
     if t1 < t0 + minimo then t1 = t0 + minimo end
   end
@@ -4548,10 +4716,14 @@ package.preload["core.atualizacao"] = function(...)
       O que mudou, numa frase.
 
   COMO O DOWNLOAD ACONTECE
-    Pelo `curl`, que o Windows 10 traz de fábrica desde 2018, chamado por
-    os.execute. O ReaScript não tem cliente HTTP próprio, e depender de
-    uma extensão a mais para atualizar seria uma dependência que só
-    aparece na hora de resolver um problema.
+    Pelo `curl`, que o Windows 10 traz de fábrica desde 2018. O ReaScript
+    não tem cliente HTTP próprio, e depender de uma extensão a mais para
+    atualizar seria uma dependência que só aparece na hora de resolver um
+    problema.
+
+    QUEM EXECUTA O CURL depende de onde este módulo está rodando: aqui,
+    os.execute; dentro do REAPER, o ExecProcess, injetado por
+    ui/window.lua. Ver `Atualizacao.baixar`.
 
   O CUIDADO QUE ESTE ARQUIVO EXISTE PARA TER
     Baixar por cima do programa que está rodando é a operação mais
@@ -4571,9 +4743,26 @@ package.preload["core.atualizacao"] = function(...)
 
 local Atualizacao = {}
 
---- Quanto tempo esperar pela rede, em segundos. Curto de propósito:
---  quem clicou está olhando para a tela.
-Atualizacao.ESPERA = 10
+--- Quanto esperar pela CONEXÃO, em segundos. Curto de propósito:
+--  servidor que não atende tem de falhar rápido, porque quem clicou
+--  está olhando para a tela.
+Atualizacao.ESPERA = 5
+
+--- Teto da operação inteira, em segundos — tentativas incluídas.
+--
+--  O MANIFESTO TEM TRÊS LINHAS; O PROGRAMA TEM QUASE UM MEGA. A mesma
+--  linha de comando baixa os dois, e o teto era de quinze segundos, que
+--  eu escolhi olhando para o manifesto. Numa rede lenta, ou num dia em
+--  que o cache do GitHub responde arrastado, quinze segundos não dão
+--  para um mega — e a tela dizia "não consegui baixar" sem dizer por
+--  quê. Ele perguntou exatamente isso: "por que às vezes dá erro ao
+--  baixar?".
+--
+--  Sessenta não trava a interface por sessenta segundos: o
+--  --connect-timeout corta o servidor que não atende em cinco, e o
+--  --speed-limit corta o download que EMPACA em dez. Este teto só
+--  existe para o caso patológico de uma transferência lenta e viva.
+Atualizacao.PACIENCIA = 60
 
 --- Menor tamanho aceitável para o programa baixado, em bytes.
 --
@@ -4583,16 +4772,207 @@ Atualizacao.ESPERA = 10
 --  bastante para recusar qualquer coisa que não seja ele.
 Atualizacao.MINIMO = 100000
 
+--- A linha de comando do download, montada num lugar só.
+--
+--  NUMA FUNÇÃO porque há DOIS jeitos de executá-la: este módulo, por
+--  os.execute, e ui/window.lua, pelo ExecProcess do REAPER (ver
+--  chrome.instalarDownloader). Escrita duas vezes, uma correção de
+--  parâmetro do curl entraria em uma só — e a que ficasse para trás
+--  seria justamente a que roda na máquina do cliente.
+--
+--  -L segue redirecionamento (o GitHub usa), -f falha em erro HTTP em
+--  vez de gravar a página de erro, -s cala a barra de progresso.
+--
+--  E INSISTE DUAS VEZES ANTES DE DESISTIR.
+--
+--  Ele mandou a tela dizendo "não consegui falar com o servidor" numa
+--  hora em que o servidor estava no ar: rodando esta mesma linha à mão,
+--  a primeira tentativa voltou 22 (erro HTTP) e as três seguintes,
+--  zero. O raw.githubusercontent.com é uma rede de cache, e recusar um
+--  pedido de vez em quando é o normal dela — publicar várias vezes
+--  seguidas torna isso mais provável ainda.
+--
+--  Uma recusa dessas não é "sem internet", e virar recado de erro na
+--  primeira é dizer ao cliente que algo quebrou quando nada quebrou.
+--  `--retry` do curl já sabe quais erros são passageiros (429, 5xx,
+--  conexão) e espera entre as tentativas; os permanentes, como um 404,
+--  ele não repete.
+--  E TRÊS LIMITES DIFERENTES, porque são três problemas diferentes:
+--  --connect-timeout para o servidor que não atende, --speed-limit com
+--  --speed-time para a transferência que empaca (abaixo de 1 KB/s por
+--  dez segundos), e --max-time como teto de tudo. Um teto só, curto o
+--  bastante para o primeiro caso, cortava o download honesto de um mega.
+function Atualizacao.comando(url, destino, cabecalho)
+  return ('curl -L -f -s --retry 2 --retry-delay 1 --connect-timeout %d '
+          .. '--speed-limit 1000 --speed-time 10 --max-time %d%s -o "%s" "%s"')
+    :format(Atualizacao.ESPERA, Atualizacao.PACIENCIA,
+            cabecalho and (' -H "' .. cabecalho .. '"') or '', destino, url)
+end
+
+--- O MESMO ARQUIVO, PELO OUTRO CAMINHO.
+--
+--  O raw.githubusercontent.com é servido por uma rede de cache, e ela
+--  cai. Ele mandou a tela dizendo "o servidor recusou o pedido (curl
+--  22)"; medindo na hora, o que vinha era `503 Backend.max_conn
+--  reached` — saturação do lado deles, três vezes seguidas, com as
+--  tentativas do curl acontecendo e falhando todas. Não havia nada de
+--  errado com a máquina dele nem com o repositório.
+--
+--  A API do GitHub serve o MESMO conteúdo por outra infraestrutura, e
+--  não passa pelo mesmo cache. Isto já estava escrito no CLAUDE.md
+--  deste projeto como o jeito de conferir uma publicação quando o raw
+--  ainda mostra a versão velha — só que o programa não sabia disso, e
+--  quem sofria era o cliente.
+--
+--  Medido no mesmo minuto do 503: a API devolveu 200 para o manifesto e
+--  para o programa de um mega.
+--
+--  PELA ÁRVORE E PELO BLOB, e não pelo endereço de conteúdo.
+--
+--  A primeira versão disto usava /contents/ARQUIVO com o cabeçalho de
+--  arquivo cru, e o resultado foi um estrago: a API RECODIFICA o que ela
+--  julga ser texto. O programa de 966.873 bytes voltava com 995.843, com
+--  cada acento codificado duas vezes — "Programação" virava
+--  "ProgramaÃ§Ã£o" na tela dele. Passou por todas as conferências: o
+--  tamanho mínimo, o `load` (continua sendo Lua válido) e a versão (são
+--  algarismos). Instalou e estragou.
+--
+--  O endereço do BLOB devolve os bytes como estão: medido no mesmo
+--  minuto, 966.873 dos dois lados. Ele custa uma consulta a mais — a
+--  árvore do repositório, para descobrir o `sha` do arquivo —, e essa
+--  consulta traz de brinde o TAMANHO, que vira a conferência que faltava.
+--
+--  @return a URL da árvore e o nome do arquivo, ou nil
+function Atualizacao.arvore(url)
+  local dono, repo, ramo, caminho = tostring(url or '')
+    :match('^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/([^/]+)/(.+)$')
+  if not dono then return nil end
+  return ('https://api.github.com/repos/%s/%s/git/trees/%s')
+    :format(dono, repo, ramo), caminho
+end
+
+--- O `sha` e o tamanho de um arquivo na resposta da árvore.
+--
+--  Vai objeto por objeto e compara o campo `path`, em vez de procurar o
+--  `sha` mais próximo do nome: assim a ordem dos campos no JSON não
+--  importa, e um arquivo com nome parecido não entrega o sha do vizinho.
+function Atualizacao.naArvore(texto, arquivo)
+  for pedaco in tostring(texto or ''):gmatch('{[^{}]*}') do
+    if pedaco:match('"path"%s*:%s*"([^"]*)"') == arquivo then
+      return pedaco:match('"sha"%s*:%s*"(%x+)"'),
+             tonumber(pedaco:match('"size"%s*:%s*(%d+)'))
+    end
+  end
+  return nil
+end
+
+--- O endereço do blob, que devolve os bytes como estão.
+function Atualizacao.espelho(url, sha)
+  local dono, repo = tostring(url or '')
+    :match('^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/')
+  if not dono or not sha then return nil end
+  return ('https://api.github.com/repos/%s/%s/git/blobs/%s')
+    :format(dono, repo, sha)
+end
+
+--- O cabeçalho que faz a API devolver o arquivo, e não a ficha dele.
+Atualizacao.CRU = 'Accept: application/vnd.github.raw'
+
+--- Baixa tentando o caminho normal e, se ele falhar, o espelho.
+--
+--  @return boolean, codigo do curl, usou o espelho?
+function Atualizacao.buscar(url, destino)
+  local ok, codigo = Atualizacao.baixar(url, destino)
+  if ok then return true, 0, false end
+
+  -- O CÓDIGO RELATADO É O DO CAMINHO NORMAL em qualquer saída daqui
+  -- para baixo: é ele que descreve o que houve com o endereço que o
+  -- programa usa. O espelho é a segunda chance, não o assunto.
+  local urlArvore, arquivo = Atualizacao.arvore(url)
+  if not urlArvore then return false, codigo, false end
+
+  local indice = destino .. '.indice'
+  if not Atualizacao.baixar(urlArvore, indice) then
+    return false, codigo, false
+  end
+  local sha, tamanho = Atualizacao.naArvore(Atualizacao.ler(indice), arquivo)
+  Atualizacao.apagar(indice)
+  if not sha then return false, codigo, false end
+
+  local urlBlob = Atualizacao.espelho(url, sha)
+  if not urlBlob
+     or not Atualizacao.baixar(urlBlob, destino, Atualizacao.CRU) then
+    return false, codigo, false
+  end
+
+  -- E O QUE CHEGOU TEM DE TER O TAMANHO QUE O REPOSITÓRIO DECLARA.
+  --
+  -- É a conferência que faltava quando o espelho antigo devolveu o
+  -- programa recodificado: vinte e nove mil bytes a mais, e nenhuma das
+  -- outras barreiras percebeu. Tamanho diferente é arquivo diferente,
+  -- não importa por qual motivo — e um espelho que entrega outra coisa
+  -- é o mesmo que um espelho que não respondeu.
+  local veio = Atualizacao.ler(destino)
+  if tamanho and (not veio or #veio ~= tamanho) then
+    return false, codigo, false
+  end
+  return true, 0, true
+end
+
+--- O que o número que o curl devolveu quer dizer, em português.
+--
+--  "POR QUE ÀS VEZES DÁ ERRO AO BAIXAR?" A tela dizia só "não consegui
+--  baixar", e eu passei duas conversas adivinhando a causa — uma vez
+--  errando. O curl SABE o que aconteceu e devolve o número; jogá-lo
+--  fora era jogar fora a única testemunha.
+--
+--  O número vai junto entre parênteses de propósito: a frase serve para
+--  ele entender, e o número serve para ele me mandar.
+local RECADOS = {
+  [6]  = 'não achei o servidor',
+  [7]  = 'não consegui conectar',
+  [22] = 'o servidor recusou o pedido',
+  [23] = 'não consegui gravar o arquivo aqui',
+  [28] = 'a rede demorou demais',
+  [35] = 'a conexão segura falhou',
+  [56] = 'a conexão caiu no meio',
+}
+
+function Atualizacao.explicar(codigo)
+  if codigo == 0 then return nil end
+  if codigo == nil then return 'não consegui rodar o curl' end
+  return ('%s (curl %d)'):format(RECADOS[codigo] or 'o curl desistiu', codigo)
+end
+
 --- Baixa uma URL para um arquivo. Trocável nos testes.
+--
+--  DENTRO DO REAPER ESTA VERSÃO NÃO É A QUE RODA. os.execute no Windows
+--  passa por cmd.exe, e cmd.exe abre um console de verdade — a janela
+--  preta que piscava atrás do programa a cada "Procurar atualização".
+--  ui/window.lua troca esta função por uma que chama o mesmo curl pelo
+--  ExecProcess do REAPER, sem console nenhum.
+--
+--  ELA CONTINUA AQUI, E NÃO É CÓDIGO MORTO: `core/` é Lua puro e nunca
+--  referencia `reaper` (PROJECT_CONTEXT.md), que é o que deixa a suíte
+--  rodar no terminal. Esta é a versão que funciona em qualquer lugar; a
+--  outra é a que funciona bonito no lugar que importa.
 --  @return boolean
-function Atualizacao.baixar(url, destino)
-  if not url or url == '' or not destino then return false end
-  -- -L segue redirecionamento (o GitHub usa), -f falha em erro HTTP em
-  -- vez de gravar a página de erro, -s cala a barra de progresso.
-  local comando = ('curl -L -f -s --max-time %d -o "%s" "%s"')
-    :format(Atualizacao.ESPERA, destino, url)
-  local ok = os.execute(comando)
-  return ok == true or ok == 0
+--  @return boolean, codigo do curl (nil quando nem rodou)
+function Atualizacao.baixar(url, destino, cabecalho)
+  if not url or url == '' or not destino then return false, nil end
+  local ok = os.execute(Atualizacao.comando(url, destino, cabecalho))
+  local certo = (ok == true or ok == 0)
+  return certo, certo and 0 or nil
+end
+
+--- Apaga um arquivo. Trocável nos testes, como ler e escrever.
+--
+--  PELA MESMA PORTA que o resto do io deste módulo: com `os.remove`
+--  direto, o disco de mentira dos testes não via nada acontecer, e a
+--  limpeza do rascunho ficaria sem como ser verificada.
+function Atualizacao.apagar(caminho)
+  if not caminho then return false end
+  return (pcall(os.remove, caminho))
 end
 
 --- Lê um arquivo inteiro. Trocável nos testes.
@@ -4697,8 +5077,10 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
   if not manifestoURL or manifestoURL == '' then
     return nil, 'a procura por atualizações não está configurada'
   end
-  if not Atualizacao.baixar(manifestoURL, temp) then
-    return nil, 'não consegui falar com o servidor'
+  local certo, codigo = Atualizacao.buscar(manifestoURL, temp)
+  if not certo then
+    return nil, 'não consegui falar com o servidor: '
+                .. (Atualizacao.explicar(codigo) or 'tente de novo')
   end
 
   local m = Atualizacao.lerManifesto(Atualizacao.ler(temp))
@@ -4710,21 +5092,41 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
   -- instalada e que a candidata oficial. Assim, no dia em que a 1.2.0
   -- sair enquanto um 1.1.9b3 velho ainda estiver no beta.txt, o
   -- testador recebe a 1.2.0 — e não fica para trás por estar ajudando.
+  local canalMudo = false
   if idDaMaquina and idDaMaquina ~= '' then
     local urlB = Atualizacao.urlBeta(manifestoURL)
-    if urlB ~= '' and urlB ~= manifestoURL
-       and Atualizacao.baixar(urlB, temp) then
-      local b = Atualizacao.lerManifesto(Atualizacao.ler(temp))
-      if b and Atualizacao.liberadoPara(b, idDaMaquina)
-         and Version.maisNovaQue(b.versao, instalada)
-         and Version.maisNovaQue(b.versao, m.versao) then
-        b.beta = true
-        return b, ('versão de teste %s disponível'):format(b.versao)
+    if urlB ~= '' and urlB ~= manifestoURL then
+      if Atualizacao.buscar(urlB, temp) then
+        local b = Atualizacao.lerManifesto(Atualizacao.ler(temp))
+        if b and Atualizacao.liberadoPara(b, idDaMaquina)
+           and Version.maisNovaQue(b.versao, instalada)
+           and Version.maisNovaQue(b.versao, m.versao) then
+          b.beta = true
+          return b, ('versão de teste %s disponível'):format(b.versao)
+        end
+        canalMudo = (b == nil)
+      else
+        canalMudo = true
       end
     end
   end
 
   if not Version.maisNovaQue(m.versao, instalada) then
+    -- QUEM JÁ ESTÁ NUM BETA MERECE SABER QUE O CANAL NÃO RESPONDEU.
+    --
+    -- O tropeço no canal de teste é engolido em silêncio de propósito, e
+    -- para o cliente comum isso é o certo — erro sobre um canal em que
+    -- ele não está seria ruído. Mas para quem JÁ RODA UM BETA o silêncio
+    -- mente por omissão: aconteceu com ele, com o beta.txt em 503 e o
+    -- atualizacao.txt em 200. O oficial chegou, era mais velho, e a tela
+    -- disse "você já está na versão mais nova" — enquanto havia um beta
+    -- publicado que ele não estava vendo.
+    --
+    -- Rodar um beta é a definição de testador, então é o teste certo:
+    -- não depende de lista nenhuma, que é justamente o que não chegou.
+    if canalMudo and Version.ehBeta and Version.ehBeta() then
+      return nil, 'não consegui conferir o canal de teste — tente de novo'
+    end
     return nil, ('você já está na versão mais nova (%s)'):format(instalada)
   end
   return m, ('versão %s disponível'):format(m.versao)
@@ -4768,8 +5170,10 @@ function Atualizacao.instalar(url, destino, versao, Version)
   if not url or url == '' then return false, 'sem endereço para baixar' end
 
   local novo = destino .. '.novo'
-  if not Atualizacao.baixar(url, novo) then
-    return false, 'não consegui baixar'
+  local certo, codigo = Atualizacao.buscar(url, novo)
+  if not certo then
+    return false, 'não consegui baixar: '
+                  .. (Atualizacao.explicar(codigo) or 'tente de novo')
   end
 
   local conteudo = Atualizacao.ler(novo)
@@ -4846,6 +5250,16 @@ function Atualizacao.instalar(url, destino, versao, Version)
   if not Atualizacao.escrever(destino, conteudo) then
     return false, 'não consegui escrever no lugar do programa'
   end
+
+  -- E O RASCUNHO SAI. Ele é o arquivo baixado, já copiado para o lugar
+  -- definitivo: deixá-lo ali é uma cópia idêntica do programa
+  -- acumulando na pasta de Scripts a cada atualização. Inofensivo e
+  -- errado — a pasta é do REAPER, não nossa.
+  --
+  -- SÓ DEPOIS DA ESCRITA DAR CERTO: falhando ela, o rascunho é a única
+  -- cópia do que foi baixado, e apagá-lo obrigaria a baixar de novo.
+  Atualizacao.apagar(novo)
+
   return true, 'atualizado — feche e abra o LumiBridge'
 end
 
@@ -10238,7 +10652,10 @@ local region      = nil  -- região em que se está trabalhando
 -- estourou duas vezes. Ver PROJECT_CONTEXT.md e a verificação de
 -- folga em tests/test_integridade.lua.
 local chrome = {
-  minimizado = false,  -- encolhida na pastilha
+  -- MINIMIZAR NÃO TEM ESTADO AQUI, de propósito: quem esconde a janela é
+  -- o Windows, e é ele quem sabe se ela está minimizada. Guardar uma
+  -- bandeira nossa seria uma segunda verdade, que sai de sincronia no
+  -- primeiro Alt+Tab. Ver chrome.esconder.
   aoAlto     = true,   -- manter a janela acima do REAPER
   fechar     = false,  -- o X da barra própria foi clicado
   -- FECHAR PARA VOLTAR, depois de uma atualização instalada. Lido no
@@ -10246,11 +10663,13 @@ local chrome = {
   -- desarma a guarda de instância única e deixa a ação abrir de novo.
   reiniciar  = false,
   cmdID      = nil,    -- a identidade desta ação no REAPER, para chamá-la
+  -- A SEÇÃO A QUE O cmdID PERTENCE (0 = a principal). Vai junto porque
+  -- SetToggleCommandState e RefreshToolbar2 pedem as duas coisas: é o
+  -- par (seção, comando) que identifica um botão de barra de ferramentas.
+  secID      = nil,
   arrastando = false,  -- a barra de título está sendo arrastada
   offX = 0, offY = 0,  -- distância do mouse ao canto, no arrasto
-  normalW = 1200, normalH = 800,  -- tamanho antes de minimizar
   pendW = nil, pendH = nil,       -- tamanho a aplicar no quadro seguinte
-  restaurando = 0,     -- quadros de transição ao voltar da pastilha
   -- LICENÇA, aqui e não num local próprio.
   --
   -- Ela é do mesmo tipo que `minimizado`: decide se a janela mostra o
@@ -10260,10 +10679,6 @@ local chrome = {
   lic = { ativa = false, codigo = nil, digitada = '', erro = nil,
           aviso = nil },
 }
--- MINIMIZADO: a janela encolhe até virar uma pastilha com o ícone, em
--- vez de sumir. NÃO é lembrado entre sessões, de propósito — abrir o
--- programa e encontrar só uma pastilha, sem lembrar por quê, seria
--- confuso.
 -- FAIXAS DE PROGRAMAÇÃO — o que está gravado nesta música, por controle
 -- do .form. Ver drawFaixas e core/lanes.lua.
 --
@@ -10406,13 +10821,9 @@ local M = {
 -- antes ficam guardados, para restaurar devolver a janela ao lugar em
 -- que ela estava — não a um tamanho padrão.
 local maxi = { on = false, x = nil, y = nil, w = nil, h = nil }
--- Arrasto da pastilha. Como ela é pequena e clicar nela restaura, é
--- preciso distinguir clique de arrasto: guarda-se onde o mouse desceu e
--- só se restaura se ele não tiver andado (ver drawPastilha).
-local pastilhaAtivaAntes = false
-local pastilhaMoveu = false
--- Quadros restantes da transição de volta ao tamanho normal. Ver o
--- comentário em frame(): o SetWindowSize só vale no quadro seguinte.
+-- O corpo do maximizar é `maxi.alternar`, definido adiante, depois de
+-- `areaDoMonitor` — que é de quem ele depende.
+
 -- PAINEL DE CONFIGURAÇÕES E REGISTRO, numa tabela só.
 --
 -- Estado irmão, e o teto de 200 locais por chunk do Lua não sobra para
@@ -11780,10 +12191,10 @@ end
 -- Desenhado com retângulos, e só: nenhuma linha fina, nenhum triângulo
 -- — as formas que PROJECT_CONTEXT.md registra como as que sofrem com a
 -- suavização do ImGui. Isso o mantém nítido em 18px, o menor tamanho
--- em que ele aparece (a pastilha do chrome.minimizado).
+-- em que ele aparece (a lista de faixas).
 --
 -- Declarado AQUI, no alto, porque é usado em três lugares bem
--- separados: a aba Sobre, a barra de título e a pastilha. Já esteve
+-- separados: a aba Sobre, a barra de título e a lista de faixas. Já esteve
 -- mais abaixo e o test_globals pegou — a aba Sobre o chamava antes da
 -- declaração.
 --
@@ -11982,6 +12393,27 @@ end
 --  Sem zoom (o normal) é a música inteira. `faixas.vDe/vAte` só existem
 --  depois de alguém girar a roda, e são sempre limitados à região: não
 --  há como sair da música por engano e ficar olhando o vazio.
+--
+--  UM DEDO DE ESPAÇO DEPOIS DO FIM, e é o que a vista devolve.
+--
+--  O último ponto de automação de cada fader nasce UMA CÉLULA DE GRADE
+--  antes do fim da música (ver o preparo dos faders). Numa música de
+--  sete minutos vista inteira, uma célula são dois pixels: a bolinha
+--  dele ficava colada na borda da janela, meia em cima da moldura de
+--  redimensionar do REAPER. Dava para ver e não dava para pegar, e
+--  depois nem para ver — "a bolinha nem aparece no final".
+--
+--  Duas tentativas antes desta encolheram a área de desenho por doze
+--  pixels e pintaram a sobra de moldura. As duas resolviam o alcance e
+--  as duas ficaram feias, porque tiravam pedaço da tela para resolver
+--  um problema que é de ESPAÇO NO FIM DA MÚSICA, não de largura.
+--
+--  A sobra é FRAÇÃO DA VISTA, e não segundos: a área tem sempre a mesma
+--  largura em pixels, então uma fração fixa da duração dá o mesmo tanto
+--  de pixels em QUALQUER zoom. Em segundos seria um dedo com a música
+--  inteira na tela e uma tela inteira com dois compassos.
+local SOBRA_DO_FIM = 0.004
+
 local function vistaDaMusica()
   if not region then
     local pos = Transport.position()
@@ -11989,7 +12421,10 @@ local function vistaDaMusica()
   end
   local de = math.max(region.startTime, faixas.vDe or region.startTime)
   local ate = math.min(region.endTime, faixas.vAte or region.endTime)
-  if ate - de < 0.25 then return region.startTime, region.endTime end
+  if ate - de < 0.25 then
+    local tudo = region.endTime - region.startTime
+    return region.startTime, region.endTime + tudo * SOBRA_DO_FIM
+  end
 
   -- A VISTA ACOMPANHA A REPRODUÇÃO quando está aproximada.
   --
@@ -12025,7 +12460,7 @@ local function vistaDaMusica()
     end
   end
 
-  return de, ate
+  return de, ate + (ate - de) * SOBRA_DO_FIM
 end
 
 --- Aplica um passo de zoom horizontal em torno de um instante.
@@ -12123,7 +12558,7 @@ local function drawTimeline(xF, yF, larguraF)
   local yOnda = y0 + ALTURA_REGUA
 
   -- Gravando, a faixa inteira avermelha — mesmo código de cor da
-  -- pastilha e da barra de título, pra o estado ser o mesmo em toda a
+  -- barra de título, pra o estado ser o mesmo em toda a
   -- interface.
   local corRegua  = recording and 0x1F1518FF or 0x1A1D23FF
   local corLinha  = recording and 0x3A2226FF or 0x22252CFF
@@ -12452,8 +12887,14 @@ local function drawConfirmacao(px, py, pw, ph)
 
   ImGui.DrawList_AddRectFilled(dl, cx, cy, cx + W, cy + H, Theme.UI.panel, 8)
   ImGui.DrawList_AddRect(dl, cx, cy, cx + W, cy + H, 0x3A4150FF, 8, 0, 1)
-  -- Faixa vermelha no topo: isto joga trabalho fora.
-  ImGui.DrawList_AddRectFilled(dl, cx, cy, cx + W, cy + 3, Theme.UI.rec, 3)
+  -- HAVIA UMA FAIXA VERMELHA AQUI, no topo do cartão, para dizer "isto
+  -- joga trabalho fora". Saiu na 1.5.0 por parecer defeito: era um
+  -- retângulo de 3px com canto arredondado de 3, desenhado sobre um
+  -- cartão de canto 8 — as pontas escapavam da curva e o resultado era
+  -- um risco vermelho torto atravessado no cartão.
+  --
+  -- E ela não fazia falta: o botão da ação já é vermelho, e é nele que o
+  -- olho está quando a pergunta aparece.
 
   ImGui.SetCursorScreenPos(ctx, cx + 18, cy + 18)
   ImGui.TextColored(ctx, Theme.UI.text, confirmar.titulo)
@@ -12484,6 +12925,36 @@ local function drawConfirmacao(px, py, pw, ph)
 
   local cancelou = botao('##confCancelar', 'Cancelar', cx + W - 226, false)
   local aceitou  = botao('##confOk', confirmar.rotulo, cx + W - 118, true)
+
+  -- ENTER CONFIRMA, ESC CANCELA.
+  --
+  -- É a pergunta que o programa mais faz, e a mão de quem opera está no
+  -- teclado, não no mouse. Sem isto, uma caixa que aparece por causa de
+  -- um clique obriga um segundo clique só para sair do caminho.
+  --
+  -- O ENTER TAMBÉM É O PLAY/PAUSA do programa. Por isso handleShortcuts
+  -- passa a tratar a confirmação aberta como campo de texto em edição:
+  -- sem essa guarda, confirmar o fechamento tocaria a música junto.
+  --
+  -- Tudo por Compat: o shim do ReaImGui LANÇA ERRO ao acessar um campo
+  -- que não existe, e uma tecla que uma geração não tem não pode
+  -- derrubar a janela.
+  do
+    local pressionou = Compat.get(ImGui, 'IsKeyPressed')
+    if pressionou then
+      local function apertou(nome)
+        local k = Compat.const(ImGui, nome, 0)
+        if k == 0 then return false end
+        local ok, v = pcall(pressionou, ctx, k)
+        return ok and v == true
+      end
+      if apertou('Key_Enter') or apertou('Key_KeypadEnter') then
+        aceitou = true
+      elseif apertou('Key_Escape') then
+        cancelou = true
+      end
+    end
+  end
 
   -- O EndChild TEM DE ACONTECER, aconteça o que acontecer com os botões.
   -- Um `return` no meio deixaria o filho aberto e o ImGui perderia o
@@ -13012,10 +13483,45 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     if f < 0 then f = 0 elseif f > 1 then f = 1 end
     return x0 + GUTTER + f * areaW
   end
+  --- O MESMO x, SEM PRENDER NA BORDA.
+  --
+  --  `xDe` prende o resultado na faixa visível, e é isso que se quer
+  --  para desenhar a ponta de algo que ENTRA na vista. Para a geometria
+  --  de uma curva, não: com zoom, todos os pontos de fora iam parar
+  --  empilhados nas duas bordas — "parece que ele acumulou os pontos no
+  --  início e no fim, sendo que ao dar zoom eles não deveriam nem
+  --  aparecer". E a rampa que chegava de fora saía com a inclinação
+  --  errada, porque o ponto de origem dela tinha sido mudado de lugar.
+  --
+  --  Limitado a um monitor de folga para os dois lados: o ImGui recorta
+  --  sozinho, e coordenada absurda custa precisão à toa.
+  local function xCru(t)
+    local px = x0 + GUTTER + ((t - de) / duracao) * areaW
+    if px < x0 - 4000 then return x0 - 4000 end
+    if px > x0 + largura + 4000 then return x0 + largura + 4000 end
+    return px
+  end
   local function tDe(x)
     local f = (x - (x0 + GUTTER)) / math.max(1, areaW)
     if f < 0 then f = 0 elseif f > 1 then f = 1 end
-    return de + f * duracao
+    local t = de + f * duracao
+    -- A SOBRA DO FIM É ESPAÇO DE DESENHO, NÃO DE MÚSICA.
+    --
+    -- A vista devolve um dedo a mais depois do fim (SOBRA_DO_FIM), para
+    -- a última bolinha de automação não ficar colada na moldura. Mas a
+    -- lista de eventos é lida de `region.startTime` a `region.endTime`:
+    -- o que for escrito depois disso não volta para a tela.
+    --
+    -- Sem esta trava, um duplo clique naquela tira criava o ponto de CC
+    -- num instante fora da região — ele era escrito, sumia, e o gesto
+    -- não fazia nada visível. Foi assim que a sonda pegou: cinco duplos
+    -- cliques no fim, zero pontos novos.
+    --
+    -- Travado aqui, e não em cada gesto: `tDe` é por onde TODOS eles
+    -- perguntam "que instante é este pixel", e a resposta certa para a
+    -- tira do fim é "o fim da música".
+    if region and t > region.endTime then t = region.endTime end
+    return t
   end
 
   -- Linhas verticais nos mesmos pontos da régua da forma de onda: é o
@@ -13080,6 +13586,12 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   local alturaTotal = 0
   local acertou = nil          -- { linha, bloco, parte } sob o mouse
   local noFader = nil          -- { linha, indice, ponto, valor } sob o mouse
+  local noSegmento = nil       -- { linha, ia, ib } do trecho sob o mouse
+
+  -- O QUE ESTÁ SOB O MOUSE, para o teste ver. Zerado a cada quadro:
+  -- guardado sem limpar, o teste leria o alvo do quadro anterior e
+  -- passaria com o mouse em qualquer lugar. Ver Window.__sobPonto.
+  faixas.sobPonto, faixas.sobSegmento = nil, nil
 
   for _, linha in ipairs(faixas.linhas) do
     local h = math.floor(((linha.tipo == 'fader') and ALTURA_FADER
@@ -13375,6 +13887,22 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       end
 
       if linha.tipo == 'fader' then
+        -- A CURVA FICA DENTRO DA ÁREA DE TEMPO, e não invade os nomes.
+        --
+        -- O recorte da faixa começa em `x0`, que INCLUI a coluna de
+        -- nomes — ela é desenhada dentro dele. Enquanto o x era preso na
+        -- borda isso não importava, porque nada era desenhado à
+        -- esquerda dela. Com o x cru (ver xCru), os pontos de fora da
+        -- vista passaram a cair lá dentro: "os CC passam por cima da
+        -- barra lateral agora".
+        --
+        -- Um segundo recorte, só para a curva, resolve sem mexer no de
+        -- fora — que continua sendo o que segura o nome da primeira
+        -- linha quando a lista está rolada.
+        if desrecortar then
+          pcall(recortar, dl, x0 + GUTTER, yc, x0 + largura, yc + corpo, true)
+        end
+
         -- CURVA EM RAMPA, ligando ponto a ponto — não em degrau.
         --
         -- Era um degrau: horizontal até o próximo ponto e só então
@@ -13388,10 +13916,14 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- traço no meio da faixa não diz sozinho se é 50% ou 90%.
         local yCheio = yLinha + 4
         local yZero  = yLinha + h - 4
-        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yCheio, x0 + largura,
-                               yCheio, 0x1E2128FF, 1)
-        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yZero, x0 + largura,
-                               yZero, 0x1E2128FF, 1)
+        -- Os trilhos param onde a música para, e não na borda: a sobra
+        -- da vista é margem de desenho, não música.
+        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yCheio,
+                               xDe(region and region.endTime or ate), yCheio,
+                               0x1E2128FF, 1)
+        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yZero,
+                               xDe(region and region.endTime or ate), yZero,
+                               0x1E2128FF, 1)
 
         local function yDoValor(v)
           return yZero - (v / 127) * (yZero - yCheio)
@@ -13413,7 +13945,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- vira milhares de segmentos por quadro.
         local px, py = nil, nil
         for _, p in ipairs(linha.pontos) do
-          local cx, cy = xDe(p.t), yDoValor(p.valor)
+          local cx, cy = xCru(p.t), yDoValor(p.valor)
           -- ANTES DO PRIMEIRO PONTO o valor já vale: o fader não nasce
           -- no primeiro ponto, ele estava naquele valor desde o começo
           -- da música. Sem este trecho a faixa parecia vazia até o
@@ -13436,19 +13968,64 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           -- SELECIONADO: círculo maior e um anel claro em volta. O
           -- tamanho sozinho não bastava — num traço fino de automação,
           -- meio pixel a mais não se vê.
+          -- SÓ AS BOLINHAS QUE ESTÃO À VISTA. Fora da vista elas iam
+          -- todas para a borda, uma em cima da outra.
           local selecionado = faixas.selCC[linha.tag]
                               and faixas.selCC[linha.tag][p.t]
-          if selecionado then
-            ImGui.DrawList_AddCircleFilled(dl, cx, cy, 4.2, cor)
-            ImGui.DrawList_AddCircle(dl, cx, cy, 5.6, 0xFFFFFFCC, 0, 1.4)
-          else
-            ImGui.DrawList_AddCircleFilled(dl, cx, cy, 2.2, cor)
+          if p.t >= de and p.t <= ate then
+            if selecionado then
+              ImGui.DrawList_AddCircleFilled(dl, cx, cy, 4.2, cor)
+              ImGui.DrawList_AddCircle(dl, cx, cy, 5.6, 0xFFFFFFCC, 0, 1.4)
+            else
+              ImGui.DrawList_AddCircleFilled(dl, cx, cy, 2.2, cor)
+            end
           end
           px, py = cx, cy
         end
-        -- E DEPOIS DO ÚLTIMO ele continua valendo até o fim.
+        -- E DEPOIS DO ÚLTIMO ele continua valendo até o FIM DA MÚSICA.
+        --
+        -- Até a borda da janela, não: a vista tem um dedo de sobra
+        -- depois do fim (SOBRA_DO_FIM), e a reta atravessava essa sobra.
+        -- Era isso que fazia a bolinha do fim parecer fora do lugar —
+        -- "a bolinha não ficou no final". Ela estava no fim da MÚSICA; a
+        -- reta é que seguia além dele, e o olho lê o fim da reta como o
+        -- fim de tudo.
         if px then
-          ImGui.DrawList_AddLine(dl, px, py, x0 + largura, py, cor, 1.4)
+          local xFimM = xDe(region and region.endTime or ate)
+          ImGui.DrawList_AddLine(dl, px, py, xFimM, py, cor, 1.4)
+
+          -- A BOLINHA DO FIM, igual à do começo.
+          --
+          -- "Você não está vendo que não aparece o ponto no final?"
+          -- Estava certo: a linha reta ia até a borda e morria sem
+          -- marca nenhuma, enquanto do outro lado a do começo tem a
+          -- bolinha dela. Ver onde a música acaba com o fader naquele
+          -- valor é metade da razão de a faixa existir.
+          --
+          -- Ela não inventa nada: a reta já afirma esse valor até o
+          -- fim, e a bolinha só marca onde a afirmação termina. Duplo
+          -- clique nela escreve o ponto de verdade; arrastar a reta
+          -- sobe ou desce o final inteiro.
+          --
+          -- SÓ QUANDO NÃO HÁ PONTO DE VERDADE ALI. Havendo, quem
+          -- aparece é ele — duas bolinhas no mesmo lugar seriam duas
+          -- coisas para uma.
+          local vFim, jaTem = Lanes.valorNoFim(linha,
+            region and region.endTime or ate, escala * 4)
+          -- VAZADA, e não cheia como os pontos.
+          --
+          -- Ela não é um ponto: é a marca de onde a música acaba com o
+          -- fader nesse valor. Cheia, ela era lida como ponto — e ao
+          -- arrastá-la para o lado o ponto ia junto, o fim voltava a
+          -- ficar sem nada e a marca era desenhada de novo ali. Ele viu
+          -- dois onde mexeu em um. Vazada, o que fica para trás é
+          -- visivelmente outra coisa, e não uma cópia do que ele moveu.
+          if vFim and not jaTem
+             and (region and region.endTime or ate) >= de
+             and (region and region.endTime or ate) <= ate then
+            ImGui.DrawList_AddCircle(dl, xFimM, yDoValor(vFim), 2.8, cor,
+                                     0, 1.3)
+          end
         end
 
         -- O QUE O MOUSE ALCANÇA NESTA FAIXA.
@@ -13459,18 +14036,132 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- refazer a conta, com duas chances de discordar do desenho.
         if sobreCorpo and my >= yLinha and my < yLinha + h
            and mx > x0 + GUTTER then
-          local i, ponto = Lanes.hitPonto(linha, tDe(mx), escala * 6)
+          -- A FOLGA DE BORDA É DEZOITO PIXELS, em tempo.
+          --
+          -- Ver Lanes.hitPonto: é ela que devolve o primeiro e o último
+          -- ponto da música, que a tolerância simétrica deixava fora de
+          -- alcance. Era dez, e dez não bastava: o último ponto nasce
+          -- UMA CÉLULA DE GRADE antes do fim (ver o preparo dos
+          -- faders), a uns cinco pixels da moldura — mirar nele pela
+          -- direita é mirar na moldura, então a faixa toda tem de caber
+          -- do lado esquerdo. Com dezoito ele vira alvo de tamanho
+          -- normal; o vizinho está protegido por Lanes.maisPerto.
+          local tol = escala * 6
+          local i, ponto = Lanes.hitPonto(linha, tDe(mx), tol,
+                                          de, ate, escala * 18)
+          local pts = linha.pontos or {}
+
+          -- A BOLINHA DO FIM TAMBÉM SE PEGA.
+          --
+          -- Ela marca o valor que vale até o fim da música e ainda não é
+          -- um ponto escrito. Sem isto, o ponteiro em cima dela virava a
+          -- seta de subir e descer o trecho — "o ícone ao posicionar em
+          -- cima da bolinha fica com símbolo pra arrastar a linha pra
+          -- baixo e para cima apenas". Uma bolinha que se vê e não se
+          -- move é uma promessa que o desenho faz e o gesto não cumpre.
+          --
+          -- Ela vira ponto de verdade no instante em que é PEGA (ver o
+          -- arrasto, adiante), não antes: desenhar não escreve nada na
+          -- música.
+          local noAnel = false
+          if not ponto and #pts > 0 then
+            local vB, jaB = Lanes.valorNoFim(linha,
+              region and region.endTime or ate, escala * 4)
+            if vB and not jaB
+               and math.abs(tDe(mx) - (region and region.endTime or ate))
+                   <= tol then
+              -- O ANEL FIXA UM PONTO NO FIM, e ele fica lá.
+              --
+              -- Fabricar o ponto e no mesmo gesto levá-lo embora era o
+              -- que duplicava: o fim voltava a ficar sem ponto, o anel
+              -- reaparecia, e a tentativa seguinte fabricava outro —
+              -- "tentei arrastar ele 3 vezes, e ao invés de ele
+              -- arrastar, ele cria um novo ponto".
+              --
+              -- A regra que ele propôs desfaz o nó pela raiz: o
+              -- primeiro ponto e o último só sobem e descem. O primeiro
+              -- fixa o valor com que a música começa, o último o valor
+              -- com que ela acaba, e mover EM TEMPO qualquer um dos
+              -- dois não quer dizer nada. Com o ponto do fim preso no
+              -- fim, o anel some assim que ele nasce e não há como
+              -- fabricar um segundo.
+              i, ponto, noAnel = #pts + 1,
+                { t = region and region.endTime or ate,
+                  valor = vB, novo = true }, true
+            end
+          end
+
           local v = (yZero - my) / math.max(1, yZero - yCheio) * 127
           if v < 0 then v = 0 elseif v > 127 then v = 127 end
           noFader = { linha = linha, indice = i, ponto = ponto, valor = v,
+                      noFim = noAnel or nil,
                       yZero = yZero, yCheio = yCheio }
+
+          -- A LINHA ENTRE DOIS PONTOS TAMBÉM SE PEGA.
+          --
+          -- Mover os dois extremos de uma rampa junto era o gesto que
+          -- faltava: dava para mover um ponto de cada vez, e subir um
+          -- trecho inteiro exigia arrastar um, arrastar o outro e torcer
+          -- para os dois terem andado o mesmo tanto.
+          --
+          -- SÓ QUANDO NÃO HÁ PONTO SOB O MOUSE. Ponto é alvo mais
+          -- preciso e mais usado; deixar o trecho competir com ele
+          -- tornaria o gesto do ponto uma loteria perto das quinas.
+          --
+          -- A CURVA AQUI É A MESMA DO DESENHO (suavizada, não reta): a
+          -- conta do `suave` é copiada de propósito do laço que desenha,
+          -- logo acima. Se as duas discordarem, o cursor muda de forma
+          -- num lugar e a linha está em outro.
+          if not ponto and #pts > 0 then
+            local ia, ib, yNa
+            local xPri, xUlt = xCru(pts[1].t), xCru(pts[#pts].t)
+            if mx <= xPri then
+              -- Antes do primeiro: o valor já valia desde o começo.
+              ia, yNa = 1, yDoValor(pts[1].valor)
+            elseif mx >= xUlt then
+              -- Depois do último: ele vale até o fim.
+              ia, yNa = #pts, yDoValor(pts[#pts].valor)
+            else
+              for k = 1, #pts - 1 do
+                local xA, xB = xCru(pts[k].t), xCru(pts[k + 1].t)
+                if mx >= xA and mx <= xB then
+                  local yA = yDoValor(pts[k].valor)
+                  local yB = yDoValor(pts[k + 1].valor)
+                  local f = (xB > xA) and ((mx - xA) / (xB - xA)) or 0
+                  local suave = f * f * (3 - 2 * f)
+                  ia, ib, yNa = k, k + 1, yA + (yB - yA) * suave
+                  break
+                end
+              end
+            end
+            if yNa and math.abs(my - yNa) <= 5 then
+              noSegmento = { linha = linha, ia = ia, ib = ib,
+                             yZero = yZero, yCheio = yCheio }
+            end
+          end
+
+          faixas.sobPonto = ponto and i or nil
+          faixas.sobSegmento = noSegmento
+            and { ia = noSegmento.ia, ib = noSegmento.ib } or nil
           if ponto then
             ImGui.DrawList_AddCircle(dl, xDe(ponto.t), yDoValor(ponto.valor),
                                      4.5, 0xFFFFFFFF, 0, 1.4)
           end
         end
+
+        if desrecortar then pcall(desrecortar, dl) end
       else
         for _, b in ipairs(linha.blocos) do
+          -- FORA DA VISTA, NEM DESENHA.
+          --
+          -- `xDe` prende o x na borda, e o piso de dois pixels logo
+          -- abaixo transformava cada bloco de fora numa lasca colada na
+          -- ponta da faixa. Sem zoom não se via; com zoom viravam uma
+          -- pilha, junto com as bolinhas de automação — que é o que ele
+          -- viu. O fecho conta: um bloco que acaba antes da vista ainda
+          -- pode ter o pulso de desligar dentro dela.
+          local bfim = (b.fecho and b.fecho.t1) or b.t1
+          if bfim >= de and b.t0 <= ate then
           local bx0, bx1 = xDe(b.t0), xDe(b.t1)
           if bx1 - bx0 < 2 then bx1 = bx0 + 2 end
 
@@ -13548,6 +14239,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
             ImGui.DrawList_AddRectFilled(dl, bx1 - 2, yLinha + 4, bx1 + 2,
                                          yLinha + h - 4, 0xFFFFFFFF, 1)
           end
+          end   -- fim do "está à vista?"
         end
 
         if sobreCorpo and my >= yLinha and my < yLinha + h and mx > x0 + GUTTER then
@@ -13646,6 +14338,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- Fecha o recorte: daqui para baixo desenha-se o cursor, a barra de
   -- rolagem e a pega, que são do quadro inteiro e não do miolo.
   if desrecortar then pcall(desrecortar, dl) end
+
 
   local excedente = math.max(0, alturaTotal - corpo)
 
@@ -13862,26 +14555,55 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- interpolado, então mover um muda a rampa inteira que chega e a que
   -- sai dele. É por isso que arrastar (e ver a curva mudar) é o gesto
   -- certo aqui, e não digitar um número numa caixa.
-  if noFader and not faixas.arrastePonto and not faixas.arraste then
+  if noFader and not faixas.arrastePonto and not faixas.arrasteSegmento
+     and not faixas.arraste then
+    -- O CURSOR DIZ O QUE O GESTO FAZ, antes de o gesto começar. Três
+    -- formas, três coisas: cruz move o ponto nos dois eixos, seta dupla
+    -- vertical sobe e desce o trecho inteiro, mão só marca posição.
     if ImGui.SetMouseCursor then
-      local c = Compat.const(ImGui,
-        noFader.ponto and 'MouseCursor_ResizeAll' or 'MouseCursor_Hand', nil)
-      if c then pcall(ImGui.SetMouseCursor, ctx, c) end
+      local nome = 'MouseCursor_Hand'
+      -- NAS PONTAS, SETA VERTICAL; no meio, cruz de mover.
+      --
+      -- Eu já tinha posto o vertical no fim e voltado atrás, porque
+      -- sozinho ele não se distinguia do gesto do trecho. Com a regra
+      -- dele — pontas só sobem e descem — ele passa a ser a verdade, e
+      -- vale para as DUAS pontas: o ponteiro conta o que o gesto faz
+      -- antes de a mão comprometer nada.
+      if noFader.ponto and (noFader.noFim or noFader.indice == 1
+         or noFader.indice == #(noFader.linha.pontos or {})) then
+        nome = 'MouseCursor_ResizeNS'
+      elseif noFader.ponto then nome = 'MouseCursor_ResizeAll'
+      elseif noSegmento then nome = 'MouseCursor_ResizeNS' end
+      -- ZERO QUER DIZER "não existe nesta versão", e não "cursor 0".
+      -- Compat.const devolve o padrão quando a constante falta, e zero
+      -- em Lua é verdadeiro: `if c then` mandava desenhar o cursor 0,
+      -- que no ImGui é MouseCursor_None — o ponteiro sumia da tela numa
+      -- geração que não tivesse a forma pedida.
+      local c = Compat.const(ImGui, nome, 0)
+      if c ~= 0 then pcall(ImGui.SetMouseCursor, ctx, c) end
     end
 
     dicaSe( noFader.ponto
-      and ('%s  ·  %s  ·  %d%%\n\nArraste para mover.  Duplo clique apaga.')
+      and (noFader.noFim
+        and ('%s  ·  fim da música  ·  %d%%\n\nArraste para fixar o valor '
+             .. 'com que a música acaba.  As pontas só sobem e descem.')
+            :format(noFader.linha.nome,
+                    math.floor(noFader.ponto.valor / 127 * 100 + 0.5))
+        or ('%s  ·  %s  ·  %d%%\n\nArraste para mover.  Duplo clique apaga.')
           :format(noFader.linha.nome, Transport.formatTime(noFader.ponto.t),
-                  math.floor(noFader.ponto.valor / 127 * 100 + 0.5))
-      or ('%s  ·  %d%%\n\nDuplo clique cria um ponto aqui.')
-          :format(noFader.linha.nome,
-                  math.floor(noFader.valor / 127 * 100 + 0.5)))
+                  math.floor(noFader.ponto.valor / 127 * 100 + 0.5)))
+      or (noSegmento
+        and ('%s\n\nArraste para subir ou descer este trecho inteiro.\n'
+             .. 'Duplo clique cria um ponto aqui.'):format(noFader.linha.nome)
+        or ('%s  ·  %d%%\n\nDuplo clique cria um ponto aqui.')
+            :format(noFader.linha.nome,
+                    math.floor(noFader.valor / 127 * 100 + 0.5))))
   end
 
   if noFader and sobreCorpo and not faixas.arraste and not faixas.arrastePonto then
     if apertou(duplo) then
       local linha = noFader.linha
-      if noFader.ponto then
+      if noFader.ponto and not noFader.noFim then
         local foi = Timeline.editar('LumiBridge: apagar ponto', function()
           return Timeline.deleteCCAt(linha.cc, noFader.ponto.t)
         end)
@@ -13905,6 +14627,30 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       return CABECALHO + corpo + PEGA
 
     elseif ativoCorpo and noFader.ponto then
+      -- O ANEL VIRA PONTO DE VERDADE AO SER PEGO.
+      --
+      -- Escrito AQUI, no instante em que a mão o pega, e não ao ser
+      -- desenhado: desenhar uma marca não pode mexer na música. Daqui
+      -- em diante ele é um ponto como os outros — entra na lista da
+      -- linha para o arrasto o achar pelo índice, e o quadro seguinte a
+      -- remonta do MIDI.
+      if noFader.ponto.novo then
+        Timeline.editar('LumiBridge: criar ponto', function()
+          Timeline.write({ {
+            kind = 'cc', channel = noFader.linha.canal or 1,
+            cc = noFader.linha.cc,
+            value = math.floor(noFader.ponto.valor + 0.5),
+            qn = Timeline.timeToQN(noFader.ponto.t),
+          } })
+        end)
+        noFader.ponto.novo = nil
+        noFader.linha.pontos[#noFader.linha.pontos + 1] = noFader.ponto
+        noFader.indice = #noFader.linha.pontos
+        log(('%s: ponto fixado no fim da música a %d%%')
+          :format(noFader.linha.nome,
+                  math.floor(noFader.ponto.valor / 127 * 100 + 0.5)))
+      end
+
       -- ARRASTAR UM SELECIONADO LEVA A SELEÇÃO INTEIRA. Se o ponto
       -- pego não está na seleção, o gesto é dele sozinho e a seleção
       -- some — é o que se espera de clicar fora de uma seleção.
@@ -13913,6 +14659,13 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       if not naSelecao then faixas.selCC = {} end
       faixas.arrastePonto = {
         emGrupo = naSelecao and true or nil,
+        -- AS PONTAS SÓ SOBEM E DESCEM. Ideia dele, e é a certa: o
+        -- primeiro ponto fixa o valor com que a música começa e o
+        -- último o valor com que ela acaba — mover em TEMPO qualquer um
+        -- dos dois não quer dizer nada, e era isso que fazia o ponto do
+        -- fim sair do fim e o anel reaparecer atrás dele.
+        soValor = (noFader.indice == 1
+                   or noFader.indice == #noFader.linha.pontos) or nil,
         linha = noFader.linha, indice = noFader.indice,
         origem = noFader.ponto.t, origemValor = noFader.ponto.valor,
         ponto = noFader.ponto,
@@ -13926,6 +14679,74 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- travado.
         yZero = noFader.yZero, yCheio = noFader.yCheio,
       }
+
+    elseif ativoCorpo and noSegmento then
+      -- ARRASTAR O TRECHO. Guarda os valores de origem dos extremos: o
+      -- movimento é por DELTA, e ler os valores já movidos a cada quadro
+      -- acumularia o deslocamento — a rampa fugiria da mão.
+      --
+      -- A seleção sai do caminho: este gesto é do trecho, e deixar uma
+      -- seleção de outro lugar viva daria a entender que ela vem junto.
+      faixas.selCC = {}
+      local pts = noSegmento.linha.pontos
+      faixas.arrasteSegmento = {
+        linha = noSegmento.linha,
+        ia = noSegmento.ia, ib = noSegmento.ib,
+        vA = pts[noSegmento.ia].valor,
+        vB = noSegmento.ib and pts[noSegmento.ib].valor or nil,
+        myInicial = my,
+        yZero = noSegmento.yZero, yCheio = noSegmento.yCheio,
+      }
+    end
+  end
+
+  -- ---------------------------------- arrasto do trecho entre pontos
+  --
+  --  O TEMPO NÃO MUDA, só o valor. Um trecho que anda no tempo mudaria a
+  --  duração da rampa e atropelaria os vizinhos; o que se quer ao pegar
+  --  a linha é levantá-la ou baixá-la, mantendo a forma.
+  --
+  --  E OS DOIS EXTREMOS ANDAM O MESMO TANTO. Se um batesse no teto antes
+  --  do outro, a rampa mudaria de inclinação no meio do gesto — o
+  --  deslocamento é limitado pelo extremo que chega primeiro, e a forma
+  --  se preserva.
+  if faixas.arrasteSegmento then
+    local s = faixas.arrasteSegmento
+    local porPixel = 127 / math.max(1, s.yZero - s.yCheio)
+    local dv = Lanes.moverTrecho(s.vA, s.vB, (s.myInicial - my) * porPixel)
+
+    local pts = s.linha.pontos
+    if ativoCorpo then
+      -- PRÉVIA, como no arrasto de ponto: ver a rampa subir antes de
+      -- confirmar é o que dá sentido ao gesto.
+      if pts[s.ia] then pts[s.ia].valor = s.vA + dv end
+      if s.ib and pts[s.ib] then pts[s.ib].valor = s.vB + dv end
+    else
+      faixas.arrasteSegmento = nil
+      -- Devolve os valores de origem antes de escrever: a prévia já
+      -- mexeu nos pontos da tela, e escrever a partir deles somaria o
+      -- deslocamento duas vezes.
+      if pts[s.ia] then pts[s.ia].valor = s.vA end
+      if s.ib and pts[s.ib] then pts[s.ib].valor = s.vB end
+
+      if dv ~= 0 then
+        local ok = false
+        Timeline.editar('LumiBridge: mover trecho', function()
+          local pA = pts[s.ia]
+          ok = Timeline.setCCPoint(s.linha.cc, s.linha.canal,
+                                   pA.t, pA.t, s.vA + dv)
+          if s.ib and pts[s.ib] then
+            local pB = pts[s.ib]
+            local ok2 = Timeline.setCCPoint(s.linha.cc, s.linha.canal,
+                                            pB.t, pB.t, s.vB + dv)
+            ok = ok and ok2
+          end
+        end)
+        log(ok and ('%s: trecho movido %+d%%'):format(s.linha.nome,
+              math.floor(dv / 127 * 100 + (dv < 0 and -0.5 or 0.5)))
+            or 'não movi o trecho: os pontos não estão mais onde estavam')
+        faixas.at = 0
+      end
     end
   end
 
@@ -13940,6 +14761,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- dela era o que travava o arrasto assim que o cursor saía da faixa.
       local bruto = (a.yZero - my) / math.max(1, a.yZero - a.yCheio) * 127
       local t, v = Lanes.moverPonto(a.linha, a.indice, tDe(mx), bruto)
+      if a.soValor then t = a.origem end
       a.t, a.valor = t, v
       a.ponto.t, a.ponto.valor = t, v
 
@@ -14326,9 +15148,16 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- que é exatamente a regra certa. Os rivais de grupo idem: valem os
       -- do grupo para onde a nota está indo.
       local linhaLim = faixas.arraste.destino or faixas.arraste.linha
+      -- A POSIÇÃO DE PARTIDA VAI JUNTO: as duas linhas abaixo gravam a
+      -- prévia no próprio bloco, então `bloco.t0` aqui já é o resultado
+      -- limitado do quadro anterior. Escolher os vizinhos por ele fazia
+      -- a nota grudar num lado da vizinha e não voltar mais.
       local t0, t1 = Lanes.arrastar(linhaLim, faixas.arraste.bloco,
                                     faixas.arraste.parte, puxado, minimo,
-                                    Lanes.rivais(faixas.linhas, linhaLim))
+                                    Lanes.rivais(faixas.linhas, linhaLim,
+                                                 faixas.arraste.bloco),
+                                    faixas.arraste.origem,
+                                    faixas.arraste.origemT1)
       faixas.arraste.t0, faixas.arraste.t1 = t0, t1
       faixas.arraste.bloco.t0, faixas.arraste.bloco.t1 = t0, t1
 
@@ -14736,10 +15565,15 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- rótulo isso passava despercebido; agora que ele é um BOTÃO, apertá-lo
   -- mandava o cursor junto para o começo da vista — acionar um controle
   -- virava um salto na música, e o que se gravava saía no lugar errado.
+  -- E NÃO COMEÇA SOBRE UM TRECHO. Pegar a linha entre dois pontos é
+  -- arrastá-la para cima ou para baixo (ver arrasteSegmento); sem esta
+  -- guarda o mesmo aperto abria um laço de seleção por cima do gesto, e
+  -- os dois disputavam o mesmo movimento.
   if sobreCorpo and apertou(simples) and not acertou
      and mx >= x0 + GUTTER
-     and not (noFader and noFader.ponto)
-     and not faixas.arraste and not faixas.arrastePonto then
+     and not (noFader and noFader.ponto) and not noSegmento
+     and not faixas.arraste and not faixas.arrastePonto
+     and not faixas.arrasteSegmento then
     -- O ESQUERDO É O CURSOR, de novo.
     --
     -- Ele chegou a começar o laço nas linhas de botão, e era disputa: o
@@ -17605,13 +18439,201 @@ local function areaDoMonitor(jx, jy, jw, jh)
   return nil
 end
 
+--- Maximiza, ou devolve a janela ao tamanho e ao lugar de antes.
+--
+--  NUMA FUNÇÃO, e não no corpo do botão, porque desde a 1.5.0 há DOIS
+--  gestos que fazem isto: o botão da barra e o duplo clique na barra de
+--  título. Copiado nos dois lugares, o defeito é conhecido de antemão —
+--  os dois saem de sincronia numa correção futura e o duplo clique passa
+--  a restaurar para um lugar diferente do que o botão restaura.
+--
+--  MÉTODO DE `maxi`, e não `local function`: este arquivo está no teto
+--  de 200 locais do Lua (ver PROJECT_CONTEXT.md). E definido AQUI, e não
+--  junto da tabela `maxi`, porque depende de `areaDoMonitor`, que é
+--  local e só existe a partir da linha acima.
+--
+--  @return true se algo mudou; false se esta versão do REAPER não
+--          informa a área do monitor e não houve como maximizar.
+function maxi.alternar()
+  if maxi.on then
+    if maxi.w then
+      chrome.pendW, chrome.pendH = maxi.w, maxi.h
+      if ImGui.SetWindowPos and maxi.x then
+        pcall(ImGui.SetWindowPos, ctx, maxi.x, maxi.y)
+      end
+    end
+    maxi.on = false
+    encaixe.w = 0
+    return true
+  end
+
+  local jx, jy = ImGui.GetWindowPos(ctx)
+  local jw, jh = ImGui.GetWindowSize(ctx)
+  local mx, my, mw, mh = areaDoMonitor(jx, jy, jw, jh)
+  if not mw then
+    -- Sem a API do monitor não dá para adivinhar o tamanho da tela, e
+    -- chutar deixaria a janela pela metade ou fora dela. Dizer por que
+    -- não funcionou é melhor que um botão que não faz nada.
+    log('maximizar indisponível: esta versão do REAPER não informa a '
+      .. 'área do monitor')
+    return false
+  end
+
+  maxi.x, maxi.y = jx, jy
+  maxi.w, maxi.h = jw, jh
+  if ImGui.SetWindowPos then pcall(ImGui.SetWindowPos, ctx, mx, my) end
+  chrome.pendW, chrome.pendH = mw, mh
+  maxi.on = true
+  encaixe.w = 0
+  return true
+end
+
+--- Acende ou apaga o botão do LumiBridge na barra de ferramentas.
+--
+--  É O ÚNICO SINAL DE QUE O PROGRAMA ESTÁ DE PÉ quando a janela está
+--  minimizada — ela some da tela inteira, e sem o botão aceso não
+--  haveria como diferenciar "minimizado" de "fechado". O REAPER desenha
+--  a ação acesa com o realce do tema, então o botão muda de aparência
+--  sozinho: apagado com o programa fechado, aceso com ele aberto ou
+--  minimizado.
+--
+--  ACENDE A AÇÃO DO ABRIDOR, e não a nossa. É ele que está no botão da
+--  barra desde a 1.5.0 (ver LumiBridge_abrir.lua e o instalador), e o
+--  REAPER acende o botão pelo estado da ação QUE O BOTÃO EXECUTA. Acender
+--  a nossa deixava o botão apagado o tempo todo — o estado ia para uma
+--  ação que não está em barra nenhuma.
+--
+--  O identificador é o mesmo que o instalador grava no reaper-kb.ini.
+--  Fixo dos dois lados; ver o comentário lá.
+--
+--  E A NOSSA TAMBÉM, logo depois: quem instalou antes da 1.5.0 ainda tem
+--  o botão apontando para o programa, e para essa pessoa é a nossa ação
+--  que precisa acender. Marcar as duas custa nada e cobre os dois mundos.
+--
+--  RefreshToolbar2 é o que faz o botão REDESENHAR: sem ele o estado
+--  muda e a tela não, que na prática é o mesmo que não ter feito nada.
+--
+--  Tudo por pcall: nem toda execução é por ação registrada, e um enfeite
+--  de barra de ferramentas não pode derrubar o programa.
+function chrome.acenderBotao(aceso)
+  local sec = chrome.secID or 0
+
+  local function marcar(cmd)
+    if not cmd or cmd == 0 then return end
+    pcall(function()
+      reaper.SetToggleCommandState(sec, cmd, aceso and 1 or 0)
+      if reaper.RefreshToolbar2 then reaper.RefreshToolbar2(sec, cmd) end
+    end)
+  end
+
+  if chrome.cmdAbrir == nil then
+    local ok, v = pcall(reaper.NamedCommandLookup,
+      '_RS2fd8c1ba5e3f5d7f9b4c6e8a0d2f4b6c8e0a1b22')
+    chrome.cmdAbrir = (ok and tonumber(v)) or false
+  end
+
+  marcar(chrome.cmdAbrir or nil)
+  marcar(chrome.cmdID)
+end
+
+
+--- Minimizar: a janela some da tela por completo.
+--
+--  SW_HIDE, e não o minimizar do Windows. Duas tentativas de usar o
+--  minimizar nativo foram feitas e descartadas com o mesmo resultado:
+--
+--    1. Sozinho, ele manda a janela para um "tocinho" com o título, no
+--       canto de baixo da tela. Feio e nada prático de clicar.
+--    2. Marcando WS_EX_APPWINDOW e reexibindo a janela, ela ganha lugar
+--       na barra de tarefas — mas AGRUPADA sob o botão do REAPER, com o
+--       ícone dele. O Windows agrupa por identificador de aplicativo, que
+--       pertence ao PROCESSO, e a janela mora dentro do processo do
+--       REAPER. Trocar esse identificador exige uma interface COM que
+--       nenhuma extensão de ReaScript expõe. Foi até onde dava.
+--
+--  Escondida, a janela não aparece em lugar nenhum — nem na barra de
+--  tarefas, nem no Alt+Tab. O caminho de volta é o botão do LumiBridge
+--  na barra de ferramentas do REAPER, que está sempre no mesmo lugar e a
+--  um clique. Ver LumiBridge_abrir.lua: é ele que faz esse botão
+--  funcionar sem o REAPER perguntar nada.
+--
+--  DEPENDE DA SWS. Sem ela não há como esconder a janela, e o botão
+--  avisa em vez de fingir que fez algo — foi assim que uma versão
+--  anterior, que escondia a janela por conta própria, derrubou o REAPER.
+--  @return true se a janela sumiu
+function chrome.esconder()
+  local hwnd = acharJanelaPropria()
+  if not hwnd or not reaper.BR_Win32_ShowWindow then
+    log('minimizar indisponível: a extensão SWS não está instalada')
+    return false
+  end
+  chrome.arrastando = false
+  return (pcall(reaper.BR_Win32_ShowWindow, hwnd, 0))  -- SW_HIDE
+end
+
+--- Traz a janela de volta e para a frente.
+--
+--  Chamada pelo pedido de restauração — o recado que LumiBridge_abrir.lua
+--  deixa ao ser clicado na barra de ferramentas.
+--
+--  SW_SHOW e não SW_SHOWNA: aqui o usuário PEDIU a janela, então ativá-la
+--  é o certo. `trazerParaFrente` completa o serviço para o caso de ela
+--  reaparecer atrás do REAPER.
+function chrome.mostrar()
+  local hwnd = acharJanelaPropria()
+  if hwnd and reaper.BR_Win32_ShowWindow then
+    pcall(reaper.BR_Win32_ShowWindow, hwnd, 5)  -- SW_SHOW
+  end
+end
+
+--- Troca o download do núcleo por um que não pisca uma janela preta.
+--
+--  O CASO: clicar em "Procurar atualização" fazia um console aparecer e
+--  sumir atrás da janela do programa. Quem baixa é core/atualizacao.lua,
+--  chamando o curl por os.execute — e os.execute no Windows passa por
+--  cmd.exe, que abre um console DE VERDADE só para fechá-lo em seguida.
+--  Não havia o que esconder ali: a janela é do cmd.exe, não nossa.
+--
+--  POR QUE A TROCA MORA AQUI, E NÃO LÁ. `core/` é Lua puro e nunca
+--  referencia `reaper` (PROJECT_CONTEXT.md) — é o que deixa a suíte
+--  inteira rodar no terminal sem abrir o REAPER. ExecProcess é do
+--  REAPER. Então o núcleo fica com o os.execute, que funciona em
+--  qualquer lugar, e a camada que PODE falar com o REAPER injeta o
+--  caminho melhor. É para isso que `Atualizacao.baixar` já era trocável.
+--
+--  O CÓDIGO DE SAÍDA VEM NA PRIMEIRA LINHA da saída do ExecProcess,
+--  quando o tempo limite é >= 0. Zero é sucesso; o resto é o curl
+--  dizendo que não deu (22 para erro HTTP, 28 para tempo esgotado).
+--  Sem número legível, o download é dado por FALHO — mentir "deu certo"
+--  aqui faria a conferência do arquivo acusar um programa corrompido
+--  onde o problema era a rede, e a mensagem apontaria para o lugar
+--  errado no pior momento possível.
+function chrome.instalarDownloader()
+  if not reaper.ExecProcess then return end
+  local Atualizacao = require('core.atualizacao')
+  Atualizacao.baixar = function(url, destino, cabecalho)
+    if not url or url == '' or not destino then return false end
+    -- O limite daqui é folgado de propósito: quem decide desistir é o
+    -- curl, pelos limites que já estão no comando. Este é só a rede de
+    -- segurança para o processo que trava e não morre.
+    local saida = reaper.ExecProcess(Atualizacao.comando(url, destino,
+                                                        cabecalho),
+                                     (Atualizacao.PACIENCIA + 5) * 1000)
+    -- O CÓDIGO DO CURL VAI JUNTO, e não só o sim/não: é a única
+    -- testemunha do que deu errado, e a tela dizia apenas "não consegui
+    -- baixar". Ver Atualizacao.explicar.
+    local codigo = tonumber(saida and saida:match('^%s*(%-?%d+)'))
+    return codigo == 0, codigo
+  end
+end
+
 --- Barra de título PRÓPRIA, no lugar da decoração padrão do ImGui.
 --
 --  Por que trocar: a barra do ImGui trazia dois controles que não
 --  serviam aqui. O triângulo de "collapse" escondia tudo menos a
 --  própria barra de título, e não minimizava nada de fato — no lugar
 --  dele há o botão de minimizar, que esconde a janela para valer (ver
---  minimizarJanela). E o X era o botão genérico do ImGui, destoando de
+--  chrome.esconder). E o X era o botão genérico do ImGui, destoando de
 --  uma interface inteira desenhada à mão.
 --
 --  O CUSTO: sem a barra do ImGui, a janela não se arrasta sozinha. O
@@ -17829,10 +18851,18 @@ local function drawBarraTitulo()
   ImGui.SetCursorScreenPos(ctx, x0, y0)
   ImGui.InvisibleButton(ctx, '##arrastarJanela', larguraArrasto, ALTURA)
 
-  -- DUPLO CLIQUE MINIMIZA, como em qualquer janela. Conferido ANTES do
-  -- arrasto: o duplo clique também deixa o item ativo, e sem sair aqui
-  -- o segundo clique iniciaria um arrasto de um pixel antes de
-  -- minimizar.
+  -- DUPLO CLIQUE MAXIMIZA E RESTAURA, como no Windows.
+  --
+  -- ATÉ A 1.4.1 ELE MINIMIZAVA, a pedido dele e de propósito, contra o
+  -- costume do Windows. Mudou junto com o minimizar: minimizado passou a
+  -- esconder a janela inteira, e um duplo clique acidental na barra —
+  -- que acontece — fazia o programa SUMIR da tela. Encolher para uma
+  -- pastilha visível perdoava o engano; sumir, não. Então o gesto foi
+  -- para onde ele erra barato, que é o maximizar.
+  --
+  -- Conferido ANTES do arrasto: o duplo clique também deixa o item
+  -- ativo, e sem sair aqui o segundo clique iniciaria um arrasto de um
+  -- pixel antes de maximizar.
   --
   -- IsMouseDoubleClicked sondada por Compat.get, nunca acessada direto:
   -- o shim do ReaImGui LANÇA ERRO num campo inexistente (ver
@@ -17842,11 +18872,7 @@ local function drawBarraTitulo()
   if duploClique and ImGui.IsItemHovered(ctx) then
     local ok, foi = pcall(duploClique, ctx, 0)
     if ok and foi then
-      local jw, jh = ImGui.GetWindowSize(ctx)
-      chrome.normalW, chrome.normalH = jw, jh
-      chrome.minimizado = true
-      chrome.pendW, chrome.pendH = 54, 42
-      encaixe.w = 0
+      maxi.alternar()
       chrome.arrastando = false
       return ALTURA
     end
@@ -17866,7 +18892,7 @@ local function drawBarraTitulo()
     chrome.arrastando = false
   end
 
-  -- O ÍCONE DO PROGRAMA, o mesmo da pastilha do chrome.minimizado: é o que
+  -- O ÍCONE DO PROGRAMA: é o que
   -- identifica a janela de relance. Fica vermelho gravando, então
   -- continua servindo de indicador de estado, que era o papel do
   -- quadradinho que havia aqui antes.
@@ -17919,24 +18945,36 @@ local function drawBarraTitulo()
   local bxMaximizar = x0 + largura - (BOTAO_W * 2 + 10)
   local bxFechar    = x0 + largura - (BOTAO_W + 6)
 
-  -- MINIMIZAR — a janela encolhe até virar uma pastilha com o ícone.
+  -- MINIMIZAR — para a barra de tarefas do Windows, como qualquer
+  -- programa. Ver chrome.esconder.
   --
-  -- Duas tentativas anteriores foram descartadas em uso: o "collapse"
-  -- do ImGui (escondia tudo menos a barra de título) e o minimizar do
-  -- Windows via SWS (a janela é filha da do REAPER, então virava um
-  -- tocinho de barra nativa no canto inferior — destoando de tudo).
-  -- Encolher é o único caminho em que a aparência continua sendo nossa
-  -- E a janela continua visível pra ser clicada de volta.
-  if botaoBarra('##btMinimizar', bxMinimizar, function(cx, cy, cor)
-      ImGui.DrawList_AddLine(dl, cx - 5, cy + 4, cx + 5, cy + 4, cor, 1.4)
+  -- QUATRO TENTATIVAS ANTES DESTA, todas descartadas em uso: o
+  -- "collapse" do ImGui (escondia tudo menos a barra de título); o
+  -- minimizar do Windows, abandonado com a nota de que a janela era
+  -- filha do REAPER (não é mais — é o que esta versão retoma); a
+  -- pastilha de 54x42 com o ícone, que resolvia a aparência mas
+  -- continuava ocupando a tela e por cima de tudo; e a janela empurrada
+  -- para fora da tela pelo próprio programa, que voltou como um caminho
+  -- de retorno que a API do REAPER não oferece.
+  --
+  -- DESLIGADO DURANTE A GRAVAÇÃO. Minimizada, a única coisa que dizia
+  -- "está gravando" era o ícone vermelho da janela; na barra de tarefas
+  -- a gravação correria invisível e o cliente descobriria depois, na
+  -- automação errada. Enquanto grava, o jeito de tirar da frente é
+  -- parar de gravar.
+  local clicouMinimizar = botaoBarra('##btMinimizar', bxMinimizar,
+    function(cx, cy, cor)
+      ImGui.DrawList_AddLine(dl, cx - 5, cy + 4, cx + 5, cy + 4,
+        recording and 0x4A505CFF or cor, 1.4)
     end,
-    'Minimizar\n\nA janela vira uma pastilha com o ícone, que você arrasta\n'
-    .. 'para onde quiser. Clique nela para voltar ao tamanho normal.') then
-    local jw, jh = ImGui.GetWindowSize(ctx)
-    chrome.normalW, chrome.normalH = jw, jh
-    chrome.minimizado = true
-    chrome.pendW, chrome.pendH = 54, 42
-    encaixe.w = 0   -- a área muda de tamanho: recalcula a escala
+    recording
+      and 'Minimizar\n\nIndisponível durante a gravação: minimizada, a janela\n'
+          .. 'não teria como mostrar que ainda está gravando.'
+      or  'Minimizar\n\nA janela some da tela e o LumiBridge continua\n'
+          .. 'rodando. Clique no botão dele na barra de ferramentas do\n'
+          .. 'REAPER para trazê-la de volta.')
+  if clicouMinimizar and not recording then
+    chrome.esconder()
   end
 
   -- MAXIMIZAR — enche a área útil do monitor, e restaura de volta.
@@ -17945,8 +18983,9 @@ local function drawBarraTitulo()
   -- devolver a janela EXATAMENTE onde ela estava, e não a um tamanho
   -- padrão qualquer. É o que se espera de um maximizar.
   --
-  -- Ele NÃO é o duplo clique na barra: ali o duplo clique minimiza, a
-  -- pedido — o contrário do costume do Windows, mas foi o combinado.
+  -- É O MESMO GESTO do duplo clique na barra de título, e por isso os
+  -- dois chamam a MESMA função (maxi.alternar). Até a 1.4.1 o duplo
+  -- clique minimizava; ver o comentário lá em cima.
   local iconeMax = function(cx, cy, cor)
     if maxi.on then
       -- Dois quadrados sobrepostos: o desenho universal de "restaurar".
@@ -17963,51 +19002,46 @@ local function drawBarraTitulo()
       or  'Maximizar\n\nEnche a tela em que a janela está agora.\n'
           .. 'Com dois monitores, arraste a janela para o outro antes:\n'
           .. 'ela maximiza no monitor onde estiver.') then
-    if maxi.on then
-      if maxi.w then
-        chrome.pendW, chrome.pendH = maxi.w, maxi.h
-        if ImGui.SetWindowPos and maxi.x then
-          pcall(ImGui.SetWindowPos, ctx, maxi.x, maxi.y)
-        end
-      end
-      maxi.on = false
-      encaixe.w = 0
-    else
-      local jx, jy = ImGui.GetWindowPos(ctx)
-      local jw, jh = ImGui.GetWindowSize(ctx)
-      local mx, my, mw, mh = areaDoMonitor(jx, jy, jw, jh)
-      if mw then
-        maxi.x, maxi.y = jx, jy
-        maxi.w, maxi.h = jw, jh
-        if ImGui.SetWindowPos then pcall(ImGui.SetWindowPos, ctx, mx, my) end
-        chrome.pendW, chrome.pendH = mw, mh
-        maxi.on = true
-        encaixe.w = 0
-      else
-        -- Sem a API do monitor não dá para adivinhar o tamanho da tela, e
-        -- chutar deixaria a janela pela metade ou fora dela. Dizer por
-        -- que não funcionou é melhor que um botão que não faz nada.
-        log('maximizar indisponível: esta versão do REAPER não informa a '
-          .. 'área do monitor')
-      end
-    end
+    maxi.alternar()
   end
 
-  -- FECHAR pede confirmação DURANTE A GRAVAÇÃO, e só nela: fechar sem
-  -- querer no meio de uma música perderia o trabalho em curso. Parado,
-  -- confirmar a cada fechamento seria só atrito.
+  -- FECHAR PEDE CONFIRMAÇÃO SEMPRE, desde a 1.5.0.
+  --
+  -- Antes ele só perguntava durante a gravação, e a conta fazia sentido
+  -- enquanto minimizar deixava uma pastilha na tela: o X era um dos dois
+  -- jeitos de tirar a janela da frente, e confirmar toda vez seria
+  -- atrito puro. Agora o X é o ÚNICO gesto que encerra o programa —
+  -- minimizar não encerra mais nada —, e é o botão mais fácil de acertar
+  -- sem querer, no canto da barra. Um clique errado ali derruba a porta
+  -- MIDI, o histórico de Ctrl+Z e o que estiver por salvar.
+  --
+  -- A pergunta muda de texto conforme o que há a perder: dizer "fechar
+  -- mesmo?" e dizer O QUE se perde não custam o mesmo ao leitor.
+  --
+  -- E É A NOSSA CONFIRMAÇÃO, não o reaper.MB. A caixa cinza do Windows
+  -- aparece FORA da janela — às vezes atrás dela, no outro monitor —, e
+  -- destoa de uma interface inteira desenhada à mão. O programa já sabe
+  -- desenhar a pergunta dentro de si (ver drawConfirmacao, usada pelo
+  -- apagar e pelo desfazer); fechar é a pergunta mais importante que ele
+  -- faz, e era a única ainda entregue ao Windows.
   if botaoBarra('##btFechar', bxFechar, function(cx, cy, cor)
       ImGui.DrawList_AddLine(dl, cx - 5, cy - 5, cx + 5, cy + 5, cor, 1.4)
       ImGui.DrawList_AddLine(dl, cx + 5, cy - 5, cx - 5, cy + 5, cor, 1.4)
-    end, 'Fechar o LumiBridge', true) then
-    if recording then
-      local r = reaper.MB(
-        'A gravação está ligada. Fechar agora encerra o LumiBridge.\n\n'
-        .. 'Fechar mesmo assim?', 'LumiBridge', 4)
-      if r == 6 then chrome.fechar = true end
-    else
-      chrome.fechar = true
-    end
+    end, 'Fechar o LumiBridge\n\nEncerra o programa. Para só tirar da frente,\n'
+      .. 'use o minimizar.', true) then
+    confirmar = {
+      titulo = recording and 'Fechar com a gravação ligada?'
+                          or 'Fechar o LumiBridge?',
+      -- CURTO DE PROPÓSITO. A primeira versão explicava o minimizar em
+      -- quatro linhas, dentro de uma caixa que se lê com o dedo já no
+      -- botão: ninguém termina de ler. Uma linha que diz o que se perde,
+      -- e outra que aponta a alternativa, é o que sobra de útil.
+      texto  = recording
+        and 'A gravação em curso se perde.'
+        or  'Para só tirar a janela da frente, use o minimizar.',
+      rotulo = 'Fechar',
+      acao   = function() chrome.fechar = true end,
+    }
   end
 
   ImGui.SetCursorScreenPos(ctx, x0, y0 + ALTURA + 4)
@@ -18720,7 +19754,10 @@ local function handleShortcuts()
   -- Campos de texto no LumiBridge são só dois (a busca de músicas e a
   -- de faders), e cada um se marca ao ser desenhado. É uma condição
   -- estreita e verdadeira, em vez de uma ampla e aproximada.
-  digitando = campoTextoAtivo
+  -- E A CONFIRMAÇÃO ABERTA CALA OS ATALHOS, pelo mesmo motivo que um
+  -- campo de texto os cala: o Enter que responde a pergunta é o mesmo
+  -- que toca a música. Sem isto, confirmar o fechamento dava play junto.
+  digitando = campoTextoAtivo or (confirmar ~= nil)
 
   -- Ctrl pressionado? Todo atalho do LumiBridge usa modificador, para
   -- não disputar teclas com os mapeamentos do .form.
@@ -19497,74 +20534,6 @@ end
 
 -- ---------------------------------------------------------- quadro
 
---- A janela minimizada: só o ícone, clicável, arrastável.
---
---  Sem texto de propósito — em 54px de largura o nome não caberia sem
---  encolher a ponto de não se ler. O ícone sozinho identifica, e a
---  dica diz o resto.
---  @param soPintar  desenha sem reagir ao mouse. Usado no quadro de
---                   transição, quando a janela já não está mais
---                   minimizada mas o SetWindowSize ainda não valeu.
-local function drawPastilha(soPintar)
-  local largura, altura = ImGui.GetContentRegionAvail(ctx)
-  local x0, y0 = ImGui.GetCursorScreenPos(ctx)
-  x0, y0 = math.floor(x0), math.floor(y0)
-  local dl = ImGui.GetWindowDrawList(ctx)
-
-  local sobre, ativo = false, false
-  if not soPintar then
-    ImGui.SetCursorScreenPos(ctx, x0, y0)
-    ImGui.InvisibleButton(ctx, '##pastilha', math.max(1, largura), math.max(1, altura))
-    sobre = ImGui.IsItemHovered(ctx)
-    ativo = ImGui.IsItemActive and ImGui.IsItemActive(ctx) or false
-  end
-
-  -- CLIQUE x ARRASTO. Restaurar no clique e mover no arrasto disputam o
-  -- mesmo botão do mouse, e IsItemClicked dispara já na descida — usá-lo
-  -- faria a janela restaurar no instante em que se tentasse arrastá-la.
-  -- Então: enquanto segurado, move; ao soltar, restaura SÓ se não tiver
-  -- andado.
-  if ativo then
-    local mx, my = ImGui.GetMousePos(ctx)
-    local wx, wy = ImGui.GetWindowPos(ctx)
-    if not pastilhaAtivaAntes then
-      pastilhaMoveu = false
-      chrome.offX, chrome.offY = mx - wx, my - wy
-    else
-      local novoX, novoY = mx - chrome.offX, my - chrome.offY
-      if math.abs(novoX - wx) > 2 or math.abs(novoY - wy) > 2 then
-        pastilhaMoveu = true
-      end
-      if pastilhaMoveu and ImGui.SetWindowPos then
-        pcall(ImGui.SetWindowPos, ctx, novoX, novoY)
-      end
-    end
-  elseif pastilhaAtivaAntes and not pastilhaMoveu then
-    chrome.minimizado = false
-    chrome.restaurando = 2
-    chrome.pendW, chrome.pendH = chrome.normalW, chrome.normalH
-    encaixe.w = 0
-  end
-  pastilhaAtivaAntes = ativo
-
-  local corBorda = recording and Theme.UI.rec
-    or (sobre and Theme.UI.accent or 0x2A2F3AFF)
-  ImGui.DrawList_AddRectFilled(dl, x0, y0, x0 + largura, y0 + altura,
-    Theme.UI.bg, 6)
-  ImGui.DrawList_AddRect(dl, x0, y0, x0 + largura, y0 + altura, corBorda, 6, 0, 1)
-
-  local TAM = 22
-  desenharIconeApp(dl,
-    x0 + (largura - TAM) * 0.5, y0 + (altura - TAM) * 0.5, TAM,
-    recording and Theme.UI.rec or nil)
-
-  if sobre then
-    dicaSe(
-      recording and 'LumiBridge — GRAVANDO\n\nClique para voltar ao tamanho normal.'
-      or 'LumiBridge\n\nClique para voltar ao tamanho normal.\nArraste para mover.')
-  end
-end
-
 --- Faz o trabalho de rede que os botões da aba Sobre pediram.
 --
 --  FORA DO DESENHO, e depois dele. O curl bloqueia por alguns segundos;
@@ -20071,31 +21040,6 @@ local function frame()
   if chrome.pendW and ImGui.SetWindowSize then
     pcall(ImGui.SetWindowSize, ctx, chrome.pendW, chrome.pendH)
     chrome.pendW, chrome.pendH = nil, nil
-  end
-
-  if chrome.minimizado then
-    drawPastilha(false)
-    return
-  end
-
-  -- QUADRO DE TRANSIÇÃO. O SetWindowSize acima só tem efeito no quadro
-  -- SEGUINTE: logo depois de restaurar, a janela ainda tem o tamanho da
-  -- pastilha. Desenhar a barra de título nela punha o × bem em cima do
-  -- ícone — era o "X que aparecia rapidinho" ao restaurar. Enquanto ela
-  -- não tiver crescido, continua-se pintando a pastilha, só que sem
-  -- reagir ao mouse (o clique que restaurou já foi consumido).
-  --
-  -- As DUAS condições importam: o contador sozinho pintaria a pastilha
-  -- por um quadro mesmo se a janela já tivesse crescido, e a largura
-  -- sozinha transformaria em pastilha uma janela que o usuário tivesse
-  -- encolhido na mão.
-  if chrome.restaurando > 0 then
-    chrome.restaurando = chrome.restaurando - 1
-    local larguraJanela = ImGui.GetWindowSize(ctx)
-    if (larguraJanela or 0) < 200 then
-      drawPastilha(true)
-      return
-    end
   end
 
   -- O trabalho de rede pedido no quadro anterior, antes de desenhar
@@ -21066,8 +22010,9 @@ local function frame()
   -- A JANELA MUDOU DE TAMANHO OU DE LUGAR NESTE QUADRO?
   --
   -- Medido no fim do quadro, depois de tudo o que poderia tê-la movido.
-  -- Minimizada não conta: ali a janela muda de tamanho de propósito.
-  if not chrome.minimizado and ImGui.GetWindowPos and ImGui.GetWindowSize then
+  -- Minimizada este trecho nem roda: o quadro oculto sai do laço antes
+  -- de desenhar coisa alguma.
+  if ImGui.GetWindowPos and ImGui.GetWindowSize then
     local jx, jy = ImGui.GetWindowPos(ctx)
     local jw, jh = ImGui.GetWindowSize(ctx)
     if geo.x and (jx ~= geo.x or jy ~= geo.y or jw ~= geo.w or jh ~= geo.h) then
@@ -21080,9 +22025,9 @@ local function frame()
     end
     -- LEMBRA O TAMANHO E O LUGAR entre sessões.
     --
-    -- Só quando NÃO está maximizada nem minimizada: nesses dois estados
-    -- a geometria é do estado, não da escolha de quem arrastou a borda —
-    -- guardar 54x42 da pastilha faria a janela reabrir do tamanho dela.
+    -- Só quando NÃO está maximizada: aí a geometria é do estado, não da
+    -- escolha de quem arrastou a borda, e guardar a tela inteira faria a
+    -- janela reabrir maximizada sem ninguém ter pedido.
     --
     -- E não a cada quadro: gravar ExtState sessenta vezes por segundo é
     -- trabalho por nada. Meio segundo depois da última mudança já é
@@ -21106,7 +22051,123 @@ end
 
 -- ------------------------------------------------------------- laço
 
-local function loop()
+-- DECLARADO ANTES, definido depois. `chrome.pulso` precisa reagendar o
+-- laço, e é chamada de dentro dele — uma das duas tem de vir primeiro, e
+-- só esta forma resolve. Continua sendo UM local, o mesmo de antes.
+local loop
+
+--- O fim de todo quadro: sinal de vida, pedido de restauração, e a
+--  decisão de continuar ou encerrar.
+--
+--  NUMA FUNÇÃO À PARTE porque desde a 1.5.0 há DOIS caminhos que chegam
+--  aqui: o quadro normal, que desenhou a janela, e o quadro OCULTO, que
+--  não desenhou nada. O segundo depende disto tanto quanto o primeiro —
+--  é justamente o sinal de vida e o pedido de restauração que fazem o
+--  botão da barra de ferramentas trazer a janela de volta. Deixar esta
+--  parte só no caminho do desenho seria minimizar sem ter como voltar.
+function chrome.pulso(open)
+
+  -- O carimbo diz "existe uma instância rodando agora" — é o que faz a
+  -- segunda execução da ação se recusar a abrir uma janela nova (ver
+  -- Window.start). E é justamente por ela pedir restauração em vez de
+  -- abrir que uma janela oculta nunca fica inalcançável.
+  --
+  -- Escrito com persist = false: é estado de execução, não preferência,
+  -- e não faz sentido sobreviver ao fechamento do REAPER.
+  --
+  -- UMA VEZ POR SEGUNDO, e não uma vez por quadro. O carimbo guarda
+  -- os.time(), que tem resolução de um segundo: das ~30 escritas por
+  -- segundo que havia aqui, 29 gravavam exatamente o mesmo texto —
+  -- 29 alocações de string e 29 idas ao ExtState por segundo, das quais
+  -- nenhuma mudava nada.
+  --
+  -- A guarda de instância única continua igual: ela aceita um carimbo de
+  -- até 2 segundos atrás, e este nunca fica mais de 1 segundo velho.
+  local agora = os.time()
+  if agora ~= quadro.vivoEm then
+    quadro.vivoEm = agora
+    reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(agora), false)
+  end
+
+  -- A ação foi executada com o LumiBridge já aberto: em vez de uma
+  -- segunda janela, mostra a que existe e pula pra frente. É ESTE o
+  -- caminho de volta do minimizar — clicar no botão aceso da barra de
+  -- ferramentas executa a ação, e a ação cai aqui.
+  if reaper.GetExtState(EXT_SECTION, 'restaurar') == '1' then
+    reaper.DeleteExtState(EXT_SECTION, 'restaurar', false)
+    chrome.mostrar()
+    trazerParaFrente()
+  end
+
+  -- Sem a barra do ImGui não há X dele, então `open` nunca vira false
+  -- por conta própria: quem encerra é o nosso botão (ver
+  -- drawBarraTitulo), pelo chrome.fechar.
+  if open and not chrome.fechar then
+    reaper.defer(loop)
+    return
+  end
+
+  -- APAGA O BOTÃO da barra de ferramentas: o programa está saindo, e um
+  -- ícone aceso apontando para nada seria pior que ícone nenhum.
+  chrome.acenderBotao(false)
+
+  -- Some o sinal de vida: sem isto, a próxima execução da ação veria
+  -- um carimbo recente e se recusaria a abrir, por até dois segundos.
+  reaper.DeleteExtState(EXT_SECTION, 'vivo_em', false)
+
+  -- REINICIAR, e por que é AQUI que isso pode acontecer.
+  --
+  -- Rodar a ação com o LumiBridge aberto NÃO abre uma segunda janela:
+  -- a guarda de instância única (ver Window.start) vê o sinal de vida
+  -- recente e só manda restaurar a janela que já existe. Chamada em
+  -- qualquer outro ponto, `Main_OnCommand` faria exatamente isso —
+  -- restaurar em vez de reiniciar, e o botão pareceria não funcionar.
+  --
+  -- Nesta linha o sinal já foi apagado, uma linha acima, e este quadro
+  -- é o último: não há `defer` depois dele. A ação nova encontra o
+  -- carimbo vazio, passa pela guarda e abre, com o código novo.
+  if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
+    -- SEM A CAIXA DE DIÁLOGO DO REAPER, E VOLTANDO DEPOIS.
+    --
+    -- Chamada a ação, o REAPER via que o script ainda constava como
+    -- rodando e abria a sua própria janela: "LumiBridge_standalone.lua
+    -- is running in background — terminate all instances, or launch a
+    -- new instance?". Três botões em inglês, no meio de um reinício
+    -- que o programa acabou de prometer que faria sozinho.
+    --
+    -- O QUE OS VALORES SIGNIFICAM, DESCOBERTO TESTANDO E NÃO LENDO.
+    --
+    -- A documentação oficial lista `set_action_options` e não descreve
+    -- os parâmetros. Duas versões de teste na máquina dele deram a
+    -- resposta, e o registro fica aqui porque não está em lugar nenhum:
+    --
+    --   sem chamada nenhuma  -> a caixa aparece
+    --   set_action_options(1) -> SEM caixa; encerra e NÃO volta
+    --
+    -- Ou seja: 1 é "pode encerrar esta execução sem perguntar". Sozinho
+    -- ele resolve a caixa e deixa o programa fechado — que foi
+    -- exatamente o relato: "fechou o script, mas não abriu novamente".
+    --
+    -- 2 é a outra metade: reabrir depois de encerrar. Daí 1|2.
+    --
+    -- SÓ AQUI, e nunca ao iniciar. Ligado o tempo todo, apertar o
+    -- botão da barra de ferramentas com o LumiBridge aberto MATARIA o
+    -- programa em vez de trazer a janela para a frente — que é
+    -- justamente o caminho de volta de uma janela oculta. Nesta
+    -- linha o programa já está terminando, então não há o que perder.
+    pcall(function() reaper.set_action_options(1 | 2) end)
+
+    -- E A CHAMADA DIRETA, não mais pelo `atexit`.
+    --
+    -- O atexit foi uma tentativa de fugir da caixa adiando a chamada
+    -- para depois do desmonte. Ela não era necessária: quem tirava a
+    -- caixa era o `1` acima, e adiar só afastava a chamada do momento
+    -- em que o REAPER ainda sabe quem a pediu.
+    reaper.Main_OnCommand(chrome.cmdID, 0)
+  end
+end
+
+function loop()
   local tTotal = cronometro()
   -- Mede o intervalo REAL entre quadros. O script roda a ~30 fps, mas a
   -- taxa varia com a carga da máquina — supor um valor fixo deixaria um
@@ -21156,9 +22217,10 @@ local function loop()
   -- guardado para esta janela". E ele guarda: o ReaImGui mantém um ini
   -- próprio, indexado pelo NOME da janela. Ou seja, a geometria que nós
   -- salvávamos com tanto cuidado nunca era aplicada — quem mandava era o
-  -- ini dele, com o último tamanho que a janela teve. Como a pastilha
-  -- encolhe a janela de verdade, bastava tê-la minimizado uma vez para
-  -- ela reabrir minúscula para sempre, num canto.
+  -- ini dele, com o último tamanho que a janela teve. Até a 1.4.1 isso
+  -- era pior do que parece: a pastilha do minimizar encolhia a janela de
+  -- verdade, e bastava tê-la minimizado uma vez para o programa reabrir
+  -- minúsculo para sempre, num canto. Minimizar já não mexe no tamanho.
   --
   -- Com Cond_Always aqui, o nosso valor vale no primeiro quadro e nunca
   -- mais: redimensionar continua livre depois disso.
@@ -21186,17 +22248,14 @@ local function loop()
   --
   -- O ReaImGui guarda o tamanho de cada janela pelo NOME dela, no ini
   -- dele, e não no nosso ExtState. FirstUseEver só vale enquanto não
-  -- houver nada guardado ali: uma janela que um dia ficou pequena (a
-  -- pastilha encolhe a janela de verdade) reabre pequena para sempre.
+  -- houver nada guardado ali: uma janela que um dia ficou pequena reabre
+  -- pequena para sempre.
   --
   -- Na tela de ativação isso é intolerável — é a primeira coisa que o
   -- cliente vê do que acabou de comprar, e a primeira instalação de
   -- verdade abriu encolhida num canto, com o dono tendo de caçá-la e
-  -- esticá-la para conseguir ativar. Aqui o tamanho é imposto, e a
-  -- pastilha fica desligada: minimizado sem ter como ativar seria uma
-  -- armadilha.
+  -- esticá-la para conseguir ativar. Aqui o tamanho é imposto.
   if not chrome.lic.ativa then
-    chrome.minimizado = false
     ImGui.SetNextWindowSize(ctx, 880, 620, Compat.const(ImGui, 'Cond_Always', 1))
   end
 
@@ -21244,16 +22303,9 @@ local function loop()
     'WindowFlags_NoScrollbar',
     'WindowFlags_NoScrollWithMouse',
   }
-  -- MINIMIZADA, sempre por cima — mesmo com "Sempre visível" desligado.
-  -- Uma pastilha de 54px que escorregasse pra trás do REAPER seria
-  -- exatamente o problema que ela existe pra resolver: uma janela que
-  -- some e não se acha mais.
-  if chrome.aoAlto or chrome.minimizado then
+  if chrome.aoAlto then
     nomes[#nomes + 1] = 'WindowFlags_TopMost'
   end
-  -- Minimizada não se redimensiona pelo canto: o tamanho é o da
-  -- pastilha, e arrastar a borda dela só produziria um retângulo torto.
-  if chrome.minimizado then nomes[#nomes + 1] = 'WindowFlags_NoResize' end
   local flags = Compat.windowFlags(ImGui, nomes)
 
   -- Maximizada, sem cantos redondos: eles deixariam o desktop
@@ -21306,105 +22358,10 @@ local function loop()
     end
   end
 
-  -- SINAL DE VIDA + PEDIDO DE RESTAURAÇÃO.
-  --
-  -- O carimbo diz "existe uma instância rodando agora" — é o que faz a
-  -- segunda execução da ação se recusar a abrir uma janela nova (ver
-  -- Window.start). E é justamente por ela pedir restauração em vez de
-  -- abrir que uma janela minimizada nunca fica inalcançável, mesmo que
-  -- o Windows não lhe dê botão na barra de tarefas.
-  --
-  -- Escrito com persist = false: é estado de execução, não preferência,
-  -- e não faz sentido sobreviver ao fechamento do REAPER.
-  --
-  -- UMA VEZ POR SEGUNDO, e não uma vez por quadro. O carimbo guarda
-  -- os.time(), que tem resolução de um segundo: das ~30 escritas por
-  -- segundo que havia aqui, 29 gravavam exatamente o mesmo texto —
-  -- 29 alocações de string e 29 idas ao ExtState por segundo, das quais
-  -- nenhuma mudava nada.
-  --
-  -- A guarda de instância única continua igual: ela aceita um carimbo de
-  -- até 2 segundos atrás, e este nunca fica mais de 1 segundo velho.
-  local agora = os.time()
-  if agora ~= quadro.vivoEm then
-    quadro.vivoEm = agora
-    reaper.SetExtState(EXT_SECTION, 'vivo_em', tostring(agora), false)
-  end
-
-  -- A ação foi executada com o LumiBridge já aberto: em vez de uma
-  -- segunda janela, desminimiza (se estiver) e pula pra frente.
-  if reaper.GetExtState(EXT_SECTION, 'restaurar') == '1' then
-    reaper.DeleteExtState(EXT_SECTION, 'restaurar', false)
-    if chrome.minimizado then
-      chrome.minimizado = false
-      chrome.restaurando = 2
-      chrome.pendW, chrome.pendH = chrome.normalW, chrome.normalH
-      encaixe.w = 0
-    end
-    trazerParaFrente()
-  end
-
-  -- Sem a barra do ImGui não há X dele, então `open` nunca vira false
-  -- por conta própria: quem encerra é o nosso botão (ver
-  -- drawBarraTitulo), pelo chrome.fechar.
-  if open and not chrome.fechar then
-    reaper.defer(loop)
-  else
-    -- Some o sinal de vida: sem isto, a próxima execução da ação veria
-    -- um carimbo recente e se recusaria a abrir, por até dois segundos.
-    reaper.DeleteExtState(EXT_SECTION, 'vivo_em', false)
-
-    -- REINICIAR, e por que é AQUI que isso pode acontecer.
-    --
-    -- Rodar a ação com o LumiBridge aberto NÃO abre uma segunda janela:
-    -- a guarda de instância única (ver Window.start) vê o sinal de vida
-    -- recente e só manda restaurar a janela que já existe. Chamada em
-    -- qualquer outro ponto, `Main_OnCommand` faria exatamente isso —
-    -- restaurar em vez de reiniciar, e o botão pareceria não funcionar.
-    --
-    -- Nesta linha o sinal já foi apagado, uma linha acima, e este quadro
-    -- é o último: não há `defer` depois dele. A ação nova encontra o
-    -- carimbo vazio, passa pela guarda e abre, com o código novo.
-    if chrome.reiniciar and chrome.cmdID and chrome.cmdID ~= 0 then
-      -- SEM A CAIXA DE DIÁLOGO DO REAPER, E VOLTANDO DEPOIS.
-      --
-      -- Chamada a ação, o REAPER via que o script ainda constava como
-      -- rodando e abria a sua própria janela: "LumiBridge_standalone.lua
-      -- is running in background — terminate all instances, or launch a
-      -- new instance?". Três botões em inglês, no meio de um reinício
-      -- que o programa acabou de prometer que faria sozinho.
-      --
-      -- O QUE OS VALORES SIGNIFICAM, DESCOBERTO TESTANDO E NÃO LENDO.
-      --
-      -- A documentação oficial lista `set_action_options` e não descreve
-      -- os parâmetros. Duas versões de teste na máquina dele deram a
-      -- resposta, e o registro fica aqui porque não está em lugar nenhum:
-      --
-      --   sem chamada nenhuma  -> a caixa aparece
-      --   set_action_options(1) -> SEM caixa; encerra e NÃO volta
-      --
-      -- Ou seja: 1 é "pode encerrar esta execução sem perguntar". Sozinho
-      -- ele resolve a caixa e deixa o programa fechado — que foi
-      -- exatamente o relato: "fechou o script, mas não abriu novamente".
-      --
-      -- 2 é a outra metade: reabrir depois de encerrar. Daí 1|2.
-      --
-      -- SÓ AQUI, e nunca ao iniciar. Ligado o tempo todo, apertar o
-      -- botão da barra de ferramentas com o LumiBridge aberto MATARIA o
-      -- programa em vez de trazer a janela para a frente — que é
-      -- justamente o caminho de volta de uma janela minimizada. Nesta
-      -- linha o programa já está terminando, então não há o que perder.
-      pcall(function() reaper.set_action_options(1 | 2) end)
-
-      -- E A CHAMADA DIRETA, não mais pelo `atexit`.
-      --
-      -- O atexit foi uma tentativa de fugir da caixa adiando a chamada
-      -- para depois do desmonte. Ela não era necessária: quem tirava a
-      -- caixa era o `1` acima, e adiar só afastava a chamada do momento
-      -- em que o REAPER ainda sabe quem a pediu.
-      reaper.Main_OnCommand(chrome.cmdID, 0)
-    end
-  end
+  -- O FIM DO QUADRO: sinal de vida, pedido de restauração e a decisão
+  -- de continuar ou encerrar. Compartilhado com o quadro OCULTO, que
+  -- não passa por nada acima disto. Ver chrome.pulso.
+  chrome.pulso(open)
 end
 
 -- Ganchos de teste. Existem para que tests/test_window_record.lua possa
@@ -21430,7 +22387,15 @@ function Window.__lerLicenca() return chrome.lerLicenca() end
 function Window.__licencaAtiva() return chrome.lic.ativa end
 function Window.__codigoDaMaquina() return chrome.lic.codigo end
 function Window.__digitarChave(v) chrome.lic.digitada = v end
-function Window.__setMinimizado(v) chrome.minimizado = v end
+--- Minimiza e restaura, para o teste.
+--
+--  Quem esconde a janela é o WINDOWS (ver chrome.esconder), então no
+--  simulador não há nada visível para conferir. O que estes ganchos
+--  guardam é o contrato com a SWS: sem ela, `esconder` devolve false em
+--  vez de fingir que minimizou — que foi como a versão anterior deste
+--  recurso derrubou o REAPER, escondendo a janela por conta própria.
+function Window.__minimizar() return chrome.esconder() end
+function Window.__restaurar() return chrome.mostrar() end
 --- O assistente de primeiros ajustes, para os testes.
 --  Sem argumento, só conta o estado.
 --- Devolve o programa ao estado de quem acabou de abrir a janela: sem a
@@ -21668,6 +22633,30 @@ function Window.__setAbrirFiltro(v) opcoes.abrirFiltro = v; faixas.modoPosto = n
 function Window.__faixasSemCC() return not faixas.comCC end
 function Window.__faixasComCC() return faixas.comCC end
 function Window.__confirmando() return confirmar ~= nil end
+--- O que está sob o mouse na faixa de fader, para o teste.
+--
+--  `__sobPonto` devolve o ÍNDICE do ponto (não um booleano): é ele que
+--  diz se o alvo alcançado na borda é mesmo o último, e não um vizinho
+--  qualquer que calhou de estar perto.
+function Window.__sobPonto() return faixas.sobPonto end
+--- A geometria do �ltimo quadro. Para o teste do zoom medir se algo foi
+--  desenhado colado nas bordas da faixa � que � onde o x preso jogava
+--  tudo o que estava fora da vista.
+function Window.__geomZ() return faixas.geom end
+--- Os instantes dos pontos de automa��o de uma linha de fader.
+--  Para o teste medir em PIXELS onde a �ltima bolinha cai: � nessa
+--  unidade que ela chegava colada na moldura da janela.
+function Window.__pontos(i)
+  local l = faixas.linhas[i]
+  local o = {}
+  for k, p in ipairs((l and l.pontos) or {}) do o[k] = p.t end
+  return o
+end
+function Window.__sobSegmento() return faixas.sobSegmento end
+--- O X foi confirmado? Para o teste do fechar — sem isto, um X que
+--  encerrasse o programa DIRETO, sem passar pela confirmação, passaria
+--  verde: `__confirmando` sozinho não distingue "perguntou" de "fez".
+function Window.__fechando() return chrome.fechar == true end
 function Window.__layoutInfo()
   return { w = layout and layout.contentWidth or 0,
            h = layout and layout.contentHeight or 0,
@@ -21793,9 +22782,58 @@ function Window.start()
   -- e uma janela que não abre por causa de um botão de conveniência
   -- seria uma troca ruim.
   do
-    local ok, _, _, _, cmd = pcall(reaper.get_action_context)
+    local ok, _, _, sec, cmd = pcall(reaper.get_action_context)
     chrome.cmdID = ok and tonumber(cmd) or nil
+    chrome.secID = ok and tonumber(sec) or 0
   end
+
+  -- ACENDE O BOTÃO DA BARRA DE FERRAMENTAS, e o deixa aceso enquanto o
+  -- programa estiver de pé — visível ou minimizado. É o que substitui a
+  -- pastilha: o sinal de "está aberto" e o caminho de volta são o mesmo
+  -- ícone, como na barra de tarefas do Windows. Apagado em chrome.pulso,
+  -- na saída.
+  chrome.acenderBotao(true)
+
+  -- E APAGADO TAMBÉM SE O SCRIPT MORRER DE OUTRO JEITO. Um erro no
+  -- quadro, um "terminate all instances" do REAPER, o REAPER fechando —
+  -- nenhum desses passa pela saída limpa, e o botão ficaria aceso
+  -- apontando para um programa que não existe mais. Aí o clique seguinte
+  -- pareceria não fazer nada (na verdade abriria, mas com o ícone já
+  -- aceso ninguém entende o que aconteceu).
+  pcall(reaper.atexit, function() chrome.acenderBotao(false) end)
+
+  -- O download da atualização sem a janela preta do cmd.exe.
+  chrome.instalarDownloader()
+
+  -- A CAIXA "ReaScript task control", que o REAPER mostra ANTES do nosso
+  -- código.
+  --
+  -- Rodar a ação com o script já rodando faz o REAPER perguntar
+  -- "terminate all instances, or launch a new instance?", em inglês, com
+  -- três botões. Isso sempre existiu; até a 1.4.1 quase ninguém via,
+  -- porque o caminho de volta do dia a dia era clicar na pastilha. Com o
+  -- minimizar da 1.5.0 o botão da barra de ferramentas VIROU o caminho
+  -- do dia a dia, e a caixa passou a aparecer toda vez.
+  --
+  -- NÃO HÁ VALOR QUE FAÇA O QUE PRECISÁVAMOS. A documentação oficial
+  -- (Help > ReaScript documentation, conferida na 7.69) lista só quatro
+  -- bits, e nenhum deles é "abra a instância nova sem perguntar":
+  --
+  --   flag&1  encerra esta execução sem perguntar, ao ser rodada de novo
+  --   flag&2  com o 1, reabre depois de encerrar
+  --   flag&4  liga o estado aceso desta ação
+  --   flag&8  desliga o estado aceso desta ação
+  --
+  -- Ou seja: o botão da barra de ferramentas só sabe ENCERRAR (1) ou
+  -- ENCERRAR E REABRIR (1|2). Avisar um programa que continua rodando —
+  -- que é o caminho de volta do minimizar — não é oferecido, e a caixa
+  -- do REAPER só se cala pelo "Remember my answer" de cada máquina.
+  --
+  -- O 4 aqui é só o estado aceso, a mesma coisa que chrome.acenderBotao
+  -- faz pelo SetToggleCommandState. Fica pelos dois caminhos porque o
+  -- cmdID pode não existir (execução que não seja por ação registrada) e
+  -- aí só este resta.
+  pcall(function() reaper.set_action_options(4) end)
 
   local im, err = Compat.load()
   if not im then

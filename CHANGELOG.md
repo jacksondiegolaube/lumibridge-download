@@ -4,6 +4,12 @@ Cada versão do LumiBridge e o que mudou nela, a mais nova em cima.
 
 A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
+## 1.5.0
+
+_setembro/2026_
+
+Minimizar esconde a janela, e a curva dos faders ganhou gestos novos para editar o fim da música.
+
 ## 1.4.1
 
 _setembro/2026_
