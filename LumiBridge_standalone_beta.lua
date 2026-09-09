@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b8  (compilado em 2026-09-08 23:53)
+-- LumiBridge 1.5.0b9  (compilado em 2026-09-09 00:24)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 8
+Version.BETA = 9
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-08 23:53"
+Version.COMPILACAO = "2026-09-09 00:24"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3923,14 +3923,27 @@ end
 function Lanes.hit(linha, tempo, escala)
   if not linha or linha.tipo ~= 'botao' then return nil end
 
+  -- A PEGA DA BORDA VALE UM POUCO PARA FORA DO BLOCO.
+  --
+  -- O teste era `tempo >= b.t0 and tempo <= b.t1`, e a borda é
+  -- justamente onde a mão mira para esticar: metade da pega — a metade
+  -- de fora — não pegava nada, e acertar o fio exato dependia de
+  -- arredondamento. Numa nota que termina no fim da música isso é o
+  -- caso comum, porque ali não há "um pouco mais para dentro" à vista.
+  --
+  -- A folga é a mesma dos quatro pixels do piso, para os dois lados, e
+  -- nunca chega a alcançar o bloco vizinho: no pior caso ela toma um
+  -- vão do tamanho de uma pega, que é onde ninguém mira.
+  local fora = math.max(Lanes.BORDA_MIN, (escala or 0) * 4)
+
   for _, b in ipairs(linha.blocos) do
-    if tempo >= b.t0 and tempo <= b.t1 then
+    if tempo >= b.t0 - fora and tempo <= b.t1 + fora then
       local dur = b.t1 - b.t0
       local borda = dur * Lanes.BORDA_FRACAO
       if borda > Lanes.BORDA_MAX then borda = Lanes.BORDA_MAX end
       -- O piso é em PIXELS convertidos para tempo: uma borda de 4px vale
       -- 4px em qualquer zoom, e é isso que o dedo espera.
-      local piso = math.max(Lanes.BORDA_MIN, (escala or 0) * 4)
+      local piso = fora
       if borda < piso then borda = math.min(piso, dur * 0.5) end
 
       if tempo <= b.t0 + borda then return b, 'inicio' end
@@ -4192,10 +4205,20 @@ function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais,
     if t0 < 0 then t0 = 0 end
     t1 = t0 + dur
 
+    -- SÓ DESCONTA A RESERVA QUANDO ALGUÉM REALMENTE BARRA.
+    --
+    -- `Lanes.limiteAte` devolve o próprio `ate` quando nenhum rival
+    -- atrapalha — e a linha antiga subtraía a reserva DESSE valor. Com
+    -- a lista vazia (o caso comum: linha sem grupo), o trecho era
+    -- puxado para trás pela largura do próprio desligamento, todo
+    -- quadro. Quem tinha desligamento nunca parava onde a mão pedia.
     local limite = seguinte and (seguinte.t0 - reserva) or nil
     if rivais then
-      local r = Lanes.limiteAte(rivais, t0, t1) - reserva
-      if not limite or r < limite then limite = r end
+      local barra = Lanes.limiteAte(rivais, t0, t1)
+      if barra < t1 then
+        local r = barra - reserva
+        if not limite or r < limite then limite = r end
+      end
     end
     if limite and t1 > limite then
       t1 = limite
@@ -4227,8 +4250,11 @@ function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais,
     -- cima de outro do mesmo grupo — e na reprodução o Lumikit desliga
     -- um quando o outro entra, então a tela mostrava algo que a música
     -- não faz.
+    -- Idem: sem rival barrando, `limiteAte` devolve o próprio `t1`, e
+    -- descontar a reserva dali encolhia o trecho sozinho.
     if rivais then
-      t1 = Lanes.limiteAte(rivais, t0, t1) - reserva
+      local barra = Lanes.limiteAte(rivais, t0, t1)
+      if barra < t1 then t1 = barra - reserva end
     end
     if t1 < t0 + minimo then t1 = t0 + minimo end
   end
@@ -12798,6 +12824,17 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- Cada .form batiza os controles do seu jeito, então não existe número
   -- certo para todos: quem sabe é quem está olhando.
   local GUTTER = faixas.gutter or 112
+  -- RECUO DA DIREITA: a borda de redimensionar da janela come os
+  -- últimos pixels.
+  --
+  -- Sem ele, o instante final da música caía EM CIMA da moldura: o
+  -- ponteiro virava a seta de esticar a janela e o clique ia para o
+  -- ImGui, não para nós. Dava para ver o último ponto de CC e não
+  -- havia jeito de pegá-lo — o gesto redimensionava a janela.
+  --
+  -- A tira sobra vazia à direita, do tamanho da moldura, e é ela que
+  -- devolve o fim da música para dentro da área clicável.
+  local RECUO = 12
   local ALTURA_BOTAO = 18
   local ALTURA_FADER = 34
   local PEGA = 5
@@ -13117,7 +13154,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- depois da coluna de nomes, então uma onda que começasse na borda
   -- mostraria o mesmo instante 112px à esquerda do bloco gravado dele.
   if aoLado then
-    drawTimeline(x0 + GUTTER, yc, largura - GUTTER)
+    drawTimeline(x0 + GUTTER, yc, largura - GUTTER - RECUO)
     yc = yc + ONDA
   end
 
@@ -13144,7 +13181,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   local de, ate = vistaDaMusica()
   local duracao = ate - de
   if duracao <= 0 then return CABECALHO + corpo + PEGA end
-  local areaW = largura - GUTTER
+  local areaW = largura - GUTTER - RECUO
   local escala = duracao / math.max(1, areaW)   -- segundos por pixel
 
   local function xDe(t)
@@ -13534,10 +13571,10 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- traço no meio da faixa não diz sozinho se é 50% ou 90%.
         local yCheio = yLinha + 4
         local yZero  = yLinha + h - 4
-        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yCheio, x0 + largura,
-                               yCheio, 0x1E2128FF, 1)
-        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yZero, x0 + largura,
-                               yZero, 0x1E2128FF, 1)
+        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yCheio,
+                               x0 + GUTTER + areaW, yCheio, 0x1E2128FF, 1)
+        ImGui.DrawList_AddLine(dl, x0 + GUTTER, yZero,
+                               x0 + GUTTER + areaW, yZero, 0x1E2128FF, 1)
 
         local function yDoValor(v)
           return yZero - (v / 127) * (yZero - yCheio)
