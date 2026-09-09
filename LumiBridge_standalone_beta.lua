@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b15  (compilado em 2026-09-09 14:17)
+-- LumiBridge 1.5.0b16  (compilado em 2026-09-09 14:28)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 15
+Version.BETA = 16
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 14:17"
+Version.COMPILACAO = "2026-09-09 14:28"
 
 --- Onde o programa procura por versão nova.
 --
@@ -14276,7 +14276,12 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     -- vertical sobe e desce o trecho inteiro, mão só marca posição.
     if ImGui.SetMouseCursor then
       local nome = 'MouseCursor_Hand'
-      if noFader.ponto then nome = 'MouseCursor_ResizeAll'
+      -- A BOLINHA DO FIM SOBE E DESCE, e é só isso que ela faz: o fim
+      -- da música não muda de lugar. Cursor vertical, portanto — e o
+      -- ponteiro tem de dizer a verdade sobre o gesto ANTES dele.
+      if noFader.ponto and noFader.ponto.novo then
+        nome = 'MouseCursor_ResizeNS'
+      elseif noFader.ponto then nome = 'MouseCursor_ResizeAll'
       elseif noSegmento then nome = 'MouseCursor_ResizeNS' end
       -- ZERO QUER DIZER "não existe nesta versão", e não "cursor 0".
       -- Compat.const devolve o padrão quando a constante falta, e zero
@@ -14288,9 +14293,14 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
     end
 
     dicaSe( noFader.ponto
-      and ('%s  ·  %s  ·  %d%%\n\nArraste para mover.  Duplo clique apaga.')
+      and (noFader.ponto.novo
+        and ('%s  ·  fim da música  ·  %d%%\n\nArraste para subir ou descer '
+             .. 'o fim.  Duplo clique fixa um ponto aqui.')
+            :format(noFader.linha.nome,
+                    math.floor(noFader.ponto.valor / 127 * 100 + 0.5))
+        or ('%s  ·  %s  ·  %d%%\n\nArraste para mover.  Duplo clique apaga.')
           :format(noFader.linha.nome, Transport.formatTime(noFader.ponto.t),
-                  math.floor(noFader.ponto.valor / 127 * 100 + 0.5))
+                  math.floor(noFader.ponto.valor / 127 * 100 + 0.5)))
       or (noSegmento
         and ('%s\n\nArraste para subir ou descer este trecho inteiro.\n'
              .. 'Duplo clique cria um ponto aqui.'):format(noFader.linha.nome)
@@ -14343,6 +14353,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
           } })
         end)
         noFader.ponto.novo = nil
+        noFader.pegouFim = true
         noFader.linha.pontos[#noFader.linha.pontos + 1] = noFader.ponto
         noFader.indice = #noFader.linha.pontos
         log(('%s: ponto criado no fim da música a %d%%')
@@ -14358,6 +14369,16 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       if not naSelecao then faixas.selCC = {} end
       faixas.arrastePonto = {
         emGrupo = naSelecao and true or nil,
+        -- SÓ O VALOR, quando o que foi pego é a bolinha do fim.
+        --
+        -- Arrastá-la no tempo criava um ponto no fim e o levava embora
+        -- dali — e, como o fim voltava a não ter ponto, a marca do fim
+        -- era desenhada de novo no lugar. Ele viu dois onde mexeu em um:
+        -- "quando eu arrasto o ponto das extremidades, ele cria um outro
+        -- ponto". Não era engano de desenho: o gesto oferecia mover o
+        -- fim da música de lugar, o que não quer dizer nada. Ele sobe e
+        -- desce, e para isso serve.
+        soValor = noFader.pegouFim or nil,
         linha = noFader.linha, indice = noFader.indice,
         origem = noFader.ponto.t, origemValor = noFader.ponto.valor,
         ponto = noFader.ponto,
@@ -14453,6 +14474,7 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- dela era o que travava o arrasto assim que o cursor saía da faixa.
       local bruto = (a.yZero - my) / math.max(1, a.yZero - a.yCheio) * 127
       local t, v = Lanes.moverPonto(a.linha, a.indice, tDe(mx), bruto)
+      if a.soValor then t = a.origem end
       a.t, a.valor = t, v
       a.ponto.t, a.ponto.valor = t, v
 

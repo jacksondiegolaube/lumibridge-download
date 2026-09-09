@@ -1,4 +1,4 @@
-1.5.0b15
+1.5.0b16
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-A bolinha do fim da música fica onde a música acaba, e se pega como qualquer ponto.
+A bolinha do fim da música sobe e desce sem sair do lugar, e o fim da faixa deixou de duplicar ponto.
 ID-7171-61AF
