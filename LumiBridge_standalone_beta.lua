@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b6  (compilado em 2026-09-04 17:20)
+-- LumiBridge 1.5.0b8  (compilado em 2026-09-08 23:53)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 6
+Version.BETA = 8
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-04 17:20"
+Version.COMPILACAO = "2026-09-08 23:53"
 
 --- Onde o programa procura por versão nova.
 --
@@ -3952,7 +3952,24 @@ end
 --  @param tempo       posição do mouse, em segundos
 --  @param tolerancia  em segundos (a UI converte de pixels)
 --  @return indice, ponto  ou nil
-function Lanes.hitPonto(linha, tempo, tolerancia)
+--  NAS BORDAS DA VISTA, O PRIMEIRO E O ÚLTIMO VALEM POR INTEIRO.
+--
+--  A tolerância é simétrica em volta do ponto, e a vista termina onde a
+--  música termina: um ponto no último instante só podia ser pego pela
+--  metade de dentro da zona dele — a outra metade cai fora da tela, onde
+--  o mouse não vai. Na prática o último ponto era inclicável, e é
+--  justamente onde a automação termina, que é onde mais se mexe.
+--
+--  `de` e `ate` são os limites da vista e `folga` a largura da faixa de
+--  borda, ambos no mesmo tempo dos pontos. Sem eles a função se comporta
+--  como sempre se comportou.
+--
+--  SÓ O PRIMEIRO E O ÚLTIMO, e só se eles próprios estiverem na borda:
+--  alargar a tolerância de todos faria um ponto roubar o clique do
+--  vizinho no meio da música.
+--
+--  @return índice, ponto
+function Lanes.hitPonto(linha, tempo, tolerancia, de, ate, folga)
   if not linha or linha.tipo ~= 'fader' then return nil end
   local melhor, dist
   for i, p in ipairs(linha.pontos) do
@@ -3962,7 +3979,48 @@ function Lanes.hitPonto(linha, tempo, tolerancia)
     end
   end
   if melhor then return melhor, linha.pontos[melhor] end
+
+  local n = #linha.pontos
+  if folga and folga > 0 and n > 0 then
+    if ate and tempo >= ate - folga
+       and linha.pontos[n].t >= ate - folga then
+      return n, linha.pontos[n]
+    end
+    if de and tempo <= de + folga
+       and linha.pontos[1].t <= de + folga then
+      return 1, linha.pontos[1]
+    end
+  end
   return nil
+end
+
+--- Quanto um trecho pode subir ou descer sem deformar.
+--
+--  Pegar a linha entre dois pontos e arrastá-la levanta ou baixa os DOIS
+--  extremos — é isso que preserva a forma da rampa. Se cada um fosse
+--  limitado por conta própria, o que chegasse ao teto primeiro pararia e
+--  o outro continuaria: a inclinação mudaria no meio do gesto, e o
+--  trecho sairia diferente do que a mão desenhou.
+--
+--  Então o deslocamento é UM SÓ, limitado pelo extremo que chega antes.
+--  Vale também para o trecho de uma ponta só (antes do primeiro ponto e
+--  depois do último): aí `vB` é nil e a conta é a do valor sozinho.
+--
+--  @return dv já limitado, inteiro
+function Lanes.moverTrecho(vA, vB, dv)
+  -- ARREDONDA ANTES DE LIMITAR. Ao contrário, o limite devolve um
+  -- inteiro exato e o arredondamento o empurra um a mais: descer 40 a
+  -- partir de 15 dava -16, e o extremo de baixo furava o zero.
+  dv = math.floor(dv + 0.5)
+
+  local menor, maior = vA, vA
+  if vB then
+    if vB < menor then menor = vB end
+    if vB > maior then maior = vB end
+  end
+  if dv > 127 - maior then dv = 127 - maior end
+  if dv < -menor then dv = -menor end
+  return dv
 end
 
 --- Onde um ponto pode ir, sem passar pelos vizinhos.
@@ -4071,19 +4129,42 @@ function Lanes.marcada(sel, tag, t0)
   return false
 end
 
-function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais)
+--- Onde o trecho pode parar, arrastado pela borda ou pelo meio.
+--
+--  @param origem, origemT1  onde o bloco estava quando o GESTO COMEÇOU.
+--
+--  OS VIZINHOS SAEM DAÍ, e não de `bloco.t0`/`bloco.t1`. A janela grava
+--  a prévia no próprio bloco a cada quadro, então `bloco.t0` durante um
+--  arrasto é a última posição JÁ LIMITADA — usá-la para escolher os
+--  vizinhos fazia a regra depender do caminho que o mouse fez, e não de
+--  onde ele está.
+--
+--  Dava o defeito que ele descreveu como "fica bem maluco": levando uma
+--  nota para outra linha, ela chega POR CIMA de uma nota de lá. Nessa
+--  posição a de lá não é anterior nem seguinte, nada limita, e o
+--  fantasma segue o ponteiro solto. Bastava passar da borda direita dela
+--  uma vez para a de lá virar "anterior" — e a partir daí a nota ficava
+--  presa àquele lado, sem conseguir voltar, com o ponteiro metros à
+--  esquerda dela.
+--
+--  Com a posição de partida como referência, o resultado é função só do
+--  ponteiro: a nota atravessa a vizinha e vai parar onde a mão pediu.
+function Lanes.arrastar(linha, bloco, parte, destino, minimo, rivais,
+                        origem, origemT1)
   minimo = minimo or 0.05
   local t0, t1 = bloco.t0, bloco.t1
   local reserva = bloco.fecho and (bloco.fecho.t1 - bloco.fecho.t0) or 0
+  local ref0 = origem or bloco.t0
+  local ref1 = origemT1 or bloco.t1
 
   -- Vizinhos imediatos, para não invadir.
   local anterior, seguinte = nil, nil
   for _, b in ipairs(linha.blocos) do
     if b ~= bloco then
-      if b.t1 <= bloco.t0 and (not anterior or b.t1 > anterior.t1) then
+      if b.t1 <= ref0 and (not anterior or b.t1 > anterior.t1) then
         anterior = b
       end
-      if b.t0 >= bloco.t1 and (not seguinte or b.t0 < seguinte.t0) then
+      if b.t0 >= ref1 and (not seguinte or b.t0 < seguinte.t0) then
         seguinte = b
       end
     end
@@ -12475,8 +12556,14 @@ local function drawConfirmacao(px, py, pw, ph)
 
   ImGui.DrawList_AddRectFilled(dl, cx, cy, cx + W, cy + H, Theme.UI.panel, 8)
   ImGui.DrawList_AddRect(dl, cx, cy, cx + W, cy + H, 0x3A4150FF, 8, 0, 1)
-  -- Faixa vermelha no topo: isto joga trabalho fora.
-  ImGui.DrawList_AddRectFilled(dl, cx, cy, cx + W, cy + 3, Theme.UI.rec, 3)
+  -- HAVIA UMA FAIXA VERMELHA AQUI, no topo do cartão, para dizer "isto
+  -- joga trabalho fora". Saiu na 1.5.0 por parecer defeito: era um
+  -- retângulo de 3px com canto arredondado de 3, desenhado sobre um
+  -- cartão de canto 8 — as pontas escapavam da curva e o resultado era
+  -- um risco vermelho torto atravessado no cartão.
+  --
+  -- E ela não fazia falta: o botão da ação já é vermelho, e é nele que o
+  -- olho está quando a pergunta aparece.
 
   ImGui.SetCursorScreenPos(ctx, cx + 18, cy + 18)
   ImGui.TextColored(ctx, Theme.UI.text, confirmar.titulo)
@@ -12507,6 +12594,36 @@ local function drawConfirmacao(px, py, pw, ph)
 
   local cancelou = botao('##confCancelar', 'Cancelar', cx + W - 226, false)
   local aceitou  = botao('##confOk', confirmar.rotulo, cx + W - 118, true)
+
+  -- ENTER CONFIRMA, ESC CANCELA.
+  --
+  -- É a pergunta que o programa mais faz, e a mão de quem opera está no
+  -- teclado, não no mouse. Sem isto, uma caixa que aparece por causa de
+  -- um clique obriga um segundo clique só para sair do caminho.
+  --
+  -- O ENTER TAMBÉM É O PLAY/PAUSA do programa. Por isso handleShortcuts
+  -- passa a tratar a confirmação aberta como campo de texto em edição:
+  -- sem essa guarda, confirmar o fechamento tocaria a música junto.
+  --
+  -- Tudo por Compat: o shim do ReaImGui LANÇA ERRO ao acessar um campo
+  -- que não existe, e uma tecla que uma geração não tem não pode
+  -- derrubar a janela.
+  do
+    local pressionou = Compat.get(ImGui, 'IsKeyPressed')
+    if pressionou then
+      local function apertou(nome)
+        local k = Compat.const(ImGui, nome, 0)
+        if k == 0 then return false end
+        local ok, v = pcall(pressionou, ctx, k)
+        return ok and v == true
+      end
+      if apertou('Key_Enter') or apertou('Key_KeypadEnter') then
+        aceitou = true
+      elseif apertou('Key_Escape') then
+        cancelou = true
+      end
+    end
+  end
 
   -- O EndChild TEM DE ACONTECER, aconteça o que acontecer com os botões.
   -- Um `return` no meio deixaria o filho aberto e o ImGui perderia o
@@ -13103,6 +13220,12 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   local alturaTotal = 0
   local acertou = nil          -- { linha, bloco, parte } sob o mouse
   local noFader = nil          -- { linha, indice, ponto, valor } sob o mouse
+  local noSegmento = nil       -- { linha, ia, ib } do trecho sob o mouse
+
+  -- O QUE ESTÁ SOB O MOUSE, para o teste ver. Zerado a cada quadro:
+  -- guardado sem limpar, o teste leria o alvo do quadro anterior e
+  -- passaria com o mouse em qualquer lugar. Ver Window.__sobPonto.
+  faixas.sobPonto, faixas.sobSegmento = nil, nil
 
   for _, linha in ipairs(faixas.linhas) do
     local h = math.floor(((linha.tipo == 'fader') and ALTURA_FADER
@@ -13482,11 +13605,65 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- refazer a conta, com duas chances de discordar do desenho.
         if sobreCorpo and my >= yLinha and my < yLinha + h
            and mx > x0 + GUTTER then
-          local i, ponto = Lanes.hitPonto(linha, tDe(mx), escala * 6)
+          -- A FOLGA DE BORDA É DEZ PIXELS, em tempo. Ver Lanes.hitPonto:
+          -- é ela que devolve o último ponto da música, que a tolerância
+          -- simétrica deixava fora de alcance.
+          local tol = escala * 6
+          local i, ponto = Lanes.hitPonto(linha, tDe(mx), tol,
+                                          de, ate, escala * 10)
+          local pts = linha.pontos or {}
+
           local v = (yZero - my) / math.max(1, yZero - yCheio) * 127
           if v < 0 then v = 0 elseif v > 127 then v = 127 end
           noFader = { linha = linha, indice = i, ponto = ponto, valor = v,
                       yZero = yZero, yCheio = yCheio }
+
+          -- A LINHA ENTRE DOIS PONTOS TAMBÉM SE PEGA.
+          --
+          -- Mover os dois extremos de uma rampa junto era o gesto que
+          -- faltava: dava para mover um ponto de cada vez, e subir um
+          -- trecho inteiro exigia arrastar um, arrastar o outro e torcer
+          -- para os dois terem andado o mesmo tanto.
+          --
+          -- SÓ QUANDO NÃO HÁ PONTO SOB O MOUSE. Ponto é alvo mais
+          -- preciso e mais usado; deixar o trecho competir com ele
+          -- tornaria o gesto do ponto uma loteria perto das quinas.
+          --
+          -- A CURVA AQUI É A MESMA DO DESENHO (suavizada, não reta): a
+          -- conta do `suave` é copiada de propósito do laço que desenha,
+          -- logo acima. Se as duas discordarem, o cursor muda de forma
+          -- num lugar e a linha está em outro.
+          if not ponto and #pts > 0 then
+            local ia, ib, yNa
+            local xPri, xUlt = xDe(pts[1].t), xDe(pts[#pts].t)
+            if mx <= xPri then
+              -- Antes do primeiro: o valor já valia desde o começo.
+              ia, yNa = 1, yDoValor(pts[1].valor)
+            elseif mx >= xUlt then
+              -- Depois do último: ele vale até o fim.
+              ia, yNa = #pts, yDoValor(pts[#pts].valor)
+            else
+              for k = 1, #pts - 1 do
+                local xA, xB = xDe(pts[k].t), xDe(pts[k + 1].t)
+                if mx >= xA and mx <= xB then
+                  local yA = yDoValor(pts[k].valor)
+                  local yB = yDoValor(pts[k + 1].valor)
+                  local f = (xB > xA) and ((mx - xA) / (xB - xA)) or 0
+                  local suave = f * f * (3 - 2 * f)
+                  ia, ib, yNa = k, k + 1, yA + (yB - yA) * suave
+                  break
+                end
+              end
+            end
+            if yNa and math.abs(my - yNa) <= 5 then
+              noSegmento = { linha = linha, ia = ia, ib = ib,
+                             yZero = yZero, yCheio = yCheio }
+            end
+          end
+
+          faixas.sobPonto = ponto and i or nil
+          faixas.sobSegmento = noSegmento
+            and { ia = noSegmento.ia, ib = noSegmento.ib } or nil
           if ponto then
             ImGui.DrawList_AddCircle(dl, xDe(ponto.t), yDoValor(ponto.valor),
                                      4.5, 0xFFFFFFFF, 0, 1.4)
@@ -13885,20 +14062,34 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- interpolado, então mover um muda a rampa inteira que chega e a que
   -- sai dele. É por isso que arrastar (e ver a curva mudar) é o gesto
   -- certo aqui, e não digitar um número numa caixa.
-  if noFader and not faixas.arrastePonto and not faixas.arraste then
+  if noFader and not faixas.arrastePonto and not faixas.arrasteSegmento
+     and not faixas.arraste then
+    -- O CURSOR DIZ O QUE O GESTO FAZ, antes de o gesto começar. Três
+    -- formas, três coisas: cruz move o ponto nos dois eixos, seta dupla
+    -- vertical sobe e desce o trecho inteiro, mão só marca posição.
     if ImGui.SetMouseCursor then
-      local c = Compat.const(ImGui,
-        noFader.ponto and 'MouseCursor_ResizeAll' or 'MouseCursor_Hand', nil)
-      if c then pcall(ImGui.SetMouseCursor, ctx, c) end
+      local nome = 'MouseCursor_Hand'
+      if noFader.ponto then nome = 'MouseCursor_ResizeAll'
+      elseif noSegmento then nome = 'MouseCursor_ResizeNS' end
+      -- ZERO QUER DIZER "não existe nesta versão", e não "cursor 0".
+      -- Compat.const devolve o padrão quando a constante falta, e zero
+      -- em Lua é verdadeiro: `if c then` mandava desenhar o cursor 0,
+      -- que no ImGui é MouseCursor_None — o ponteiro sumia da tela numa
+      -- geração que não tivesse a forma pedida.
+      local c = Compat.const(ImGui, nome, 0)
+      if c ~= 0 then pcall(ImGui.SetMouseCursor, ctx, c) end
     end
 
     dicaSe( noFader.ponto
       and ('%s  ·  %s  ·  %d%%\n\nArraste para mover.  Duplo clique apaga.')
           :format(noFader.linha.nome, Transport.formatTime(noFader.ponto.t),
                   math.floor(noFader.ponto.valor / 127 * 100 + 0.5))
-      or ('%s  ·  %d%%\n\nDuplo clique cria um ponto aqui.')
-          :format(noFader.linha.nome,
-                  math.floor(noFader.valor / 127 * 100 + 0.5)))
+      or (noSegmento
+        and ('%s\n\nArraste para subir ou descer este trecho inteiro.\n'
+             .. 'Duplo clique cria um ponto aqui.'):format(noFader.linha.nome)
+        or ('%s  ·  %d%%\n\nDuplo clique cria um ponto aqui.')
+            :format(noFader.linha.nome,
+                    math.floor(noFader.valor / 127 * 100 + 0.5))))
   end
 
   if noFader and sobreCorpo and not faixas.arraste and not faixas.arrastePonto then
@@ -13949,6 +14140,74 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
         -- travado.
         yZero = noFader.yZero, yCheio = noFader.yCheio,
       }
+
+    elseif ativoCorpo and noSegmento then
+      -- ARRASTAR O TRECHO. Guarda os valores de origem dos extremos: o
+      -- movimento é por DELTA, e ler os valores já movidos a cada quadro
+      -- acumularia o deslocamento — a rampa fugiria da mão.
+      --
+      -- A seleção sai do caminho: este gesto é do trecho, e deixar uma
+      -- seleção de outro lugar viva daria a entender que ela vem junto.
+      faixas.selCC = {}
+      local pts = noSegmento.linha.pontos
+      faixas.arrasteSegmento = {
+        linha = noSegmento.linha,
+        ia = noSegmento.ia, ib = noSegmento.ib,
+        vA = pts[noSegmento.ia].valor,
+        vB = noSegmento.ib and pts[noSegmento.ib].valor or nil,
+        myInicial = my,
+        yZero = noSegmento.yZero, yCheio = noSegmento.yCheio,
+      }
+    end
+  end
+
+  -- ---------------------------------- arrasto do trecho entre pontos
+  --
+  --  O TEMPO NÃO MUDA, só o valor. Um trecho que anda no tempo mudaria a
+  --  duração da rampa e atropelaria os vizinhos; o que se quer ao pegar
+  --  a linha é levantá-la ou baixá-la, mantendo a forma.
+  --
+  --  E OS DOIS EXTREMOS ANDAM O MESMO TANTO. Se um batesse no teto antes
+  --  do outro, a rampa mudaria de inclinação no meio do gesto — o
+  --  deslocamento é limitado pelo extremo que chega primeiro, e a forma
+  --  se preserva.
+  if faixas.arrasteSegmento then
+    local s = faixas.arrasteSegmento
+    local porPixel = 127 / math.max(1, s.yZero - s.yCheio)
+    local dv = Lanes.moverTrecho(s.vA, s.vB, (s.myInicial - my) * porPixel)
+
+    local pts = s.linha.pontos
+    if ativoCorpo then
+      -- PRÉVIA, como no arrasto de ponto: ver a rampa subir antes de
+      -- confirmar é o que dá sentido ao gesto.
+      if pts[s.ia] then pts[s.ia].valor = s.vA + dv end
+      if s.ib and pts[s.ib] then pts[s.ib].valor = s.vB + dv end
+    else
+      faixas.arrasteSegmento = nil
+      -- Devolve os valores de origem antes de escrever: a prévia já
+      -- mexeu nos pontos da tela, e escrever a partir deles somaria o
+      -- deslocamento duas vezes.
+      if pts[s.ia] then pts[s.ia].valor = s.vA end
+      if s.ib and pts[s.ib] then pts[s.ib].valor = s.vB end
+
+      if dv ~= 0 then
+        local ok = false
+        Timeline.editar('LumiBridge: mover trecho', function()
+          local pA = pts[s.ia]
+          ok = Timeline.setCCPoint(s.linha.cc, s.linha.canal,
+                                   pA.t, pA.t, s.vA + dv)
+          if s.ib and pts[s.ib] then
+            local pB = pts[s.ib]
+            local ok2 = Timeline.setCCPoint(s.linha.cc, s.linha.canal,
+                                            pB.t, pB.t, s.vB + dv)
+            ok = ok and ok2
+          end
+        end)
+        log(ok and ('%s: trecho movido %+d%%'):format(s.linha.nome,
+              math.floor(dv / 127 * 100 + (dv < 0 and -0.5 or 0.5)))
+            or 'não movi o trecho: os pontos não estão mais onde estavam')
+        faixas.at = 0
+      end
     end
   end
 
@@ -14349,9 +14608,15 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
       -- que é exatamente a regra certa. Os rivais de grupo idem: valem os
       -- do grupo para onde a nota está indo.
       local linhaLim = faixas.arraste.destino or faixas.arraste.linha
+      -- A POSIÇÃO DE PARTIDA VAI JUNTO: as duas linhas abaixo gravam a
+      -- prévia no próprio bloco, então `bloco.t0` aqui já é o resultado
+      -- limitado do quadro anterior. Escolher os vizinhos por ele fazia
+      -- a nota grudar num lado da vizinha e não voltar mais.
       local t0, t1 = Lanes.arrastar(linhaLim, faixas.arraste.bloco,
                                     faixas.arraste.parte, puxado, minimo,
-                                    Lanes.rivais(faixas.linhas, linhaLim))
+                                    Lanes.rivais(faixas.linhas, linhaLim),
+                                    faixas.arraste.origem,
+                                    faixas.arraste.origemT1)
       faixas.arraste.t0, faixas.arraste.t1 = t0, t1
       faixas.arraste.bloco.t0, faixas.arraste.bloco.t1 = t0, t1
 
@@ -14759,10 +15024,15 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   -- rótulo isso passava despercebido; agora que ele é um BOTÃO, apertá-lo
   -- mandava o cursor junto para o começo da vista — acionar um controle
   -- virava um salto na música, e o que se gravava saía no lugar errado.
+  -- E NÃO COMEÇA SOBRE UM TRECHO. Pegar a linha entre dois pontos é
+  -- arrastá-la para cima ou para baixo (ver arrasteSegmento); sem esta
+  -- guarda o mesmo aperto abria um laço de seleção por cima do gesto, e
+  -- os dois disputavam o mesmo movimento.
   if sobreCorpo and apertou(simples) and not acertou
      and mx >= x0 + GUTTER
-     and not (noFader and noFader.ponto)
-     and not faixas.arraste and not faixas.arrastePonto then
+     and not (noFader and noFader.ponto) and not noSegmento
+     and not faixas.arraste and not faixas.arrastePonto
+     and not faixas.arrasteSegmento then
     -- O ESQUERDO É O CURSOR, de novo.
     --
     -- Ele chegou a começar o laço nas linhas de botão, e era disputa: o
@@ -17677,30 +17947,52 @@ function maxi.alternar()
   return true
 end
 
---- Acende ou apaga o botão desta ação na barra de ferramentas.
+--- Acende ou apaga o botão do LumiBridge na barra de ferramentas.
 --
---  É O QUE SUBSTITUI A PASTILHA. Minimizada, a janela some inteira; sem
---  nada aceso, não haveria sinal nenhum de que o programa continua
---  rodando, e o caminho de volta seria adivinhação. Com o botão aceso,
---  a barra de ferramentas do REAPER faz o papel da barra de tarefas do
---  Windows: o ícone aceso diz "está aberto", e clicar nele traz de volta
---  (a guarda de instância única em Window.start manda restaurar).
+--  É O ÚNICO SINAL DE QUE O PROGRAMA ESTÁ DE PÉ quando a janela está
+--  minimizada — ela some da tela inteira, e sem o botão aceso não
+--  haveria como diferenciar "minimizado" de "fechado". O REAPER desenha
+--  a ação acesa com o realce do tema, então o botão muda de aparência
+--  sozinho: apagado com o programa fechado, aceso com ele aberto ou
+--  minimizado.
+--
+--  ACENDE A AÇÃO DO ABRIDOR, e não a nossa. É ele que está no botão da
+--  barra desde a 1.5.0 (ver LumiBridge_abrir.lua e o instalador), e o
+--  REAPER acende o botão pelo estado da ação QUE O BOTÃO EXECUTA. Acender
+--  a nossa deixava o botão apagado o tempo todo — o estado ia para uma
+--  ação que não está em barra nenhuma.
+--
+--  O identificador é o mesmo que o instalador grava no reaper-kb.ini.
+--  Fixo dos dois lados; ver o comentário lá.
+--
+--  E A NOSSA TAMBÉM, logo depois: quem instalou antes da 1.5.0 ainda tem
+--  o botão apontando para o programa, e para essa pessoa é a nossa ação
+--  que precisa acender. Marcar as duas custa nada e cobre os dois mundos.
 --
 --  RefreshToolbar2 é o que faz o botão REDESENHAR: sem ele o estado
 --  muda e a tela não, que na prática é o mesmo que não ter feito nada.
 --
---  Tudo por pcall e sob `if`: nem toda execução é por ação registrada
---  (aí não há cmdID), e um enfeite de barra de ferramentas não pode
---  derrubar o programa.
+--  Tudo por pcall: nem toda execução é por ação registrada, e um enfeite
+--  de barra de ferramentas não pode derrubar o programa.
 function chrome.acenderBotao(aceso)
-  if not chrome.cmdID or chrome.cmdID == 0 then return end
   local sec = chrome.secID or 0
-  pcall(function()
-    reaper.SetToggleCommandState(sec, chrome.cmdID, aceso and 1 or 0)
-    if reaper.RefreshToolbar2 then
-      reaper.RefreshToolbar2(sec, chrome.cmdID)
-    end
-  end)
+
+  local function marcar(cmd)
+    if not cmd or cmd == 0 then return end
+    pcall(function()
+      reaper.SetToggleCommandState(sec, cmd, aceso and 1 or 0)
+      if reaper.RefreshToolbar2 then reaper.RefreshToolbar2(sec, cmd) end
+    end)
+  end
+
+  if chrome.cmdAbrir == nil then
+    local ok, v = pcall(reaper.NamedCommandLookup,
+      '_RS2fd8c1ba5e3f5d7f9b4c6e8a0d2f4b6c8e0a1b22')
+    chrome.cmdAbrir = (ok and tonumber(v)) or false
+  end
+
+  marcar(chrome.cmdAbrir or nil)
+  marcar(chrome.cmdID)
 end
 
 
@@ -18194,13 +18486,13 @@ local function drawBarraTitulo()
     confirmar = {
       titulo = recording and 'Fechar com a gravação ligada?'
                           or 'Fechar o LumiBridge?',
+      -- CURTO DE PROPÓSITO. A primeira versão explicava o minimizar em
+      -- quatro linhas, dentro de uma caixa que se lê com o dedo já no
+      -- botão: ninguém termina de ler. Uma linha que diz o que se perde,
+      -- e outra que aponta a alternativa, é o que sobra de útil.
       texto  = recording
-        and 'A gravação está ligada. Fechar agora encerra o programa e a\n'
-            .. 'gravação em curso se perde.'
-        or  'O programa será encerrado.\n\n'
-            .. 'Para só tirar a janela da frente, use o minimizar: o\n'
-            .. 'LumiBridge continua rodando e volta pelo botão da barra\n'
-            .. 'de ferramentas do REAPER.',
+        and 'A gravação em curso se perde.'
+        or  'Para só tirar a janela da frente, use o minimizar.',
       rotulo = 'Fechar',
       acao   = function() chrome.fechar = true end,
     }
@@ -18916,7 +19208,10 @@ local function handleShortcuts()
   -- Campos de texto no LumiBridge são só dois (a busca de músicas e a
   -- de faders), e cada um se marca ao ser desenhado. É uma condição
   -- estreita e verdadeira, em vez de uma ampla e aproximada.
-  digitando = campoTextoAtivo
+  -- E A CONFIRMAÇÃO ABERTA CALA OS ATALHOS, pelo mesmo motivo que um
+  -- campo de texto os cala: o Enter que responde a pergunta é o mesmo
+  -- que toca a música. Sem isto, confirmar o fechamento dava play junto.
+  digitando = campoTextoAtivo or (confirmar ~= nil)
 
   -- Ctrl pressionado? Todo atalho do LumiBridge usa modificador, para
   -- não disputar teclas com os mapeamentos do .form.
@@ -21792,6 +22087,13 @@ function Window.__setAbrirFiltro(v) opcoes.abrirFiltro = v; faixas.modoPosto = n
 function Window.__faixasSemCC() return not faixas.comCC end
 function Window.__faixasComCC() return faixas.comCC end
 function Window.__confirmando() return confirmar ~= nil end
+--- O que está sob o mouse na faixa de fader, para o teste.
+--
+--  `__sobPonto` devolve o ÍNDICE do ponto (não um booleano): é ele que
+--  diz se o alvo alcançado na borda é mesmo o último, e não um vizinho
+--  qualquer que calhou de estar perto.
+function Window.__sobPonto() return faixas.sobPonto end
+function Window.__sobSegmento() return faixas.sobSegmento end
 --- O X foi confirmado? Para o teste do fechar — sem isto, um X que
 --  encerrasse o programa DIRETO, sem passar pela confirmação, passaria
 --  verde: `__confirmando` sozinho não distingue "perguntou" de "fez".
