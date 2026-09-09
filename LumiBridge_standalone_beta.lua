@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b12  (compilado em 2026-09-09 12:17)
+-- LumiBridge 1.5.0b13  (compilado em 2026-09-09 13:49)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 12
+Version.BETA = 13
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 12:17"
+Version.COMPILACAO = "2026-09-09 13:49"
 
 --- Onde o programa procura por versão nova.
 --
@@ -13255,7 +13255,24 @@ local function drawFaixas(alturaDisponivel, larguraForcada)
   local function tDe(x)
     local f = (x - (x0 + GUTTER)) / math.max(1, areaW)
     if f < 0 then f = 0 elseif f > 1 then f = 1 end
-    return de + f * duracao
+    local t = de + f * duracao
+    -- A SOBRA DO FIM É ESPAÇO DE DESENHO, NÃO DE MÚSICA.
+    --
+    -- A vista devolve um dedo a mais depois do fim (SOBRA_DO_FIM), para
+    -- a última bolinha de automação não ficar colada na moldura. Mas a
+    -- lista de eventos é lida de `region.startTime` a `region.endTime`:
+    -- o que for escrito depois disso não volta para a tela.
+    --
+    -- Sem esta trava, um duplo clique naquela tira criava o ponto de CC
+    -- num instante fora da região — ele era escrito, sumia, e o gesto
+    -- não fazia nada visível. Foi assim que a sonda pegou: cinco duplos
+    -- cliques no fim, zero pontos novos.
+    --
+    -- Travado aqui, e não em cada gesto: `tDe` é por onde TODOS eles
+    -- perguntam "que instante é este pixel", e a resposta certa para a
+    -- tira do fim é "o fim da música".
+    if region and t > region.endTime then t = region.endTime end
+    return t
   end
 
   -- Linhas verticais nos mesmos pontos da régua da forma de onda: é o
@@ -22202,8 +22219,12 @@ function Window.__confirmando() return confirmar ~= nil end
 --  diz se o alvo alcançado na borda é mesmo o último, e não um vizinho
 --  qualquer que calhou de estar perto.
 function Window.__sobPonto() return faixas.sobPonto end
+--- Os instantes dos pontos de automa��o de uma linha de fader.
+--  Para o teste medir em PIXELS onde a �ltima bolinha cai: � nessa
+--  unidade que ela chegava colada na moldura da janela.
 function Window.__pontos(i)
-  local l = faixas.linhas[i]; local o = {}
+  local l = faixas.linhas[i]
+  local o = {}
   for k, p in ipairs((l and l.pontos) or {}) do o[k] = p.t end
   return o
 end

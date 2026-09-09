@@ -1,4 +1,4 @@
-1.5.0b12
+1.5.0b13
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone_beta.lua
-O fim da música ganhou espaço: a última bolinha de automação aparece inteira e dá para pegar.
+O fim da faixa agora responde: a última bolinha de automação se pega de qualquer ponto da ponta.
 ID-7171-61AF
