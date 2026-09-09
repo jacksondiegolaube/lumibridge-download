@@ -4,6 +4,12 @@ Cada versão do LumiBridge e o que mudou nela, a mais nova em cima.
 
 A atualização chega pelo próprio programa, em **Configurações › Sobre**.
 
+## 1.5.1
+
+_setembro/2026_
+
+Fechar o programa devolve a track como ela estava, sem deixar o REC ligado.
+
 ## 1.5.0
 
 _setembro/2026_

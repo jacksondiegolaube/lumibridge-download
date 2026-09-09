@@ -1,3 +1,3 @@
-1.5.0
+1.5.1
 https://raw.githubusercontent.com/jacksondiegolaube/lumibridge-download/main/LumiBridge_standalone.lua
-Minimizar esconde a janela, e a curva dos faders ganhou gestos novos para editar o fim da música.
+Fechar o programa devolve a track como ela estava, sem deixar o REC ligado.

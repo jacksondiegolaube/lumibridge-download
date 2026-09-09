@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0  (compilado em 2026-09-09 16:48)
+-- LumiBridge 1.5.1  (compilado em 2026-09-09 17:16)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -50,7 +50,7 @@ local Version = {}
 
 Version.MAIOR    = 1
 Version.MENOR    = 5
-Version.CORRECAO = 0
+Version.CORRECAO = 1
 
 --- Qual rodada de teste esta é. Zero quer dizer "versão oficial".
 --
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 16:48"
+Version.COMPILACAO = "2026-09-09 17:16"
 
 --- Onde o programa procura por versão nova.
 --
@@ -5924,6 +5924,36 @@ end
 
 -- ------------------------------------------------- preparo da track
 
+--- O que a track era antes de o programa mexer nela. Ver adiante.
+Timeline.antesDoArmar = nil
+
+--- Devolve a track como ela estava antes do primeiro armar.
+--
+--  GRAVAR NÃO PRECISA DISTO. As notas são escritas direto no item, com
+--  MIDI_InsertNote: o armar existe só para a rota "pela track", em que
+--  o MIDI sai pelo teclado virtual e atravessa a track até a saída de
+--  hardware. Fora do ar o programa, o fio não serve para nada.
+--
+--  SÓ DESFAZ O QUE FIZEMOS: os valores devolvidos são os que estavam lá
+--  antes do nosso primeiro ajuste. Numa track que o usuário já tinha
+--  armado para as gravações dele, ela continua armada.
+--
+--  @return boolean devolveu alguma coisa?
+function Timeline.devolverTrack()
+  local antes = Timeline.antesDoArmar
+  if not antes then return false end
+  Timeline.antesDoArmar = nil
+
+  local r = api()
+  if not r.SetMediaTrackInfo_Value then return false end
+  for _, chave in ipairs({ 'I_RECARM', 'I_RECINPUT', 'I_RECMON' }) do
+    if antes[chave] ~= nil then
+      pcall(r.SetMediaTrackInfo_Value, antes.track, chave, antes[chave])
+    end
+  end
+  return true
+end
+
 --- Deixa a track pronta para receber o MIDI do teclado virtual.
 --
 --  São três ajustes que o usuário teria de fazer à mão toda vez:
@@ -5943,6 +5973,31 @@ function Timeline.armForVirtualKeyboard()
 
   local r = api()
   if not r.SetMediaTrackInfo_Value then return false, 'API indisponível' end
+
+  -- COMO A TRACK ESTAVA ANTES DE MEXERMOS, para devolvê-la ao sair.
+  --
+  -- O REC aceso é o fio da rota "pela track", e só enquanto o programa
+  -- está aberto: fechado, ele fica uma track armada à toa no projeto de
+  -- quem só queria a luz. Ele reparou: "quando não abro o LumiBridge ele
+  -- não precisa ficar com rec ligado, né?".
+  --
+  -- Guardado UMA VEZ, no primeiro armar — esta função é chamada de dois
+  -- em dois segundos, e reler a cada volta guardaria o nosso próprio
+  -- ajuste como se fosse o estado do usuário.
+  --
+  -- Trocar de track no meio devolve a anterior antes de pegar a nova:
+  -- senão a primeira ficaria armada para sempre.
+  if Timeline.antesDoArmar and Timeline.antesDoArmar.track ~= track then
+    Timeline.devolverTrack()
+  end
+  if not Timeline.antesDoArmar and r.GetMediaTrackInfo_Value then
+    Timeline.antesDoArmar = {
+      track    = track,
+      I_RECARM   = r.GetMediaTrackInfo_Value(track, 'I_RECARM'),
+      I_RECINPUT = r.GetMediaTrackInfo_Value(track, 'I_RECINPUT'),
+      I_RECMON   = r.GetMediaTrackInfo_Value(track, 'I_RECMON'),
+    }
+  end
 
   -- Armar para gravação.
   r.SetMediaTrackInfo_Value(track, 'I_RECARM', 1)
@@ -22800,7 +22855,21 @@ function Window.start()
   -- apontando para um programa que não existe mais. Aí o clique seguinte
   -- pareceria não fazer nada (na verdade abriria, mas com o ícone já
   -- aceso ninguém entende o que aconteceu).
-  pcall(reaper.atexit, function() chrome.acenderBotao(false) end)
+  pcall(reaper.atexit, function()
+    chrome.acenderBotao(false)
+    -- E A TRACK VOLTA COMO ESTAVA.
+    --
+    -- O REC aceso é o fio da rota "pela track" — e só enquanto o
+    -- programa está aberto. Fechado, sobrava uma track armada à toa no
+    -- projeto: "quando não abro o LumiBridge ele não precisa ficar com
+    -- rec ligado, né?". Não precisa.
+    --
+    -- Aqui dentro pelo mesmo motivo que o botão: uma saída suja — erro
+    -- no quadro, "terminate all instances", o REAPER fechando — não
+    -- passa pela saída limpa, e é justamente aí que a sobra ficaria
+    -- para trás sem ninguém para desfazê-la.
+    pcall(Timeline.devolverTrack)
+  end)
 
   -- O download da atualização sem a janela preta do cmd.exe.
   chrome.instalarDownloader()
