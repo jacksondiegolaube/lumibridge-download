@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b19  (compilado em 2026-09-09 15:49)
+-- LumiBridge 1.5.0b20  (compilado em 2026-09-09 15:59)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 19
+Version.BETA = 20
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 15:49"
+Version.COMPILACAO = "2026-09-09 15:59"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4802,10 +4802,60 @@ Atualizacao.MINIMO = 100000
 --  --speed-time para a transferência que empaca (abaixo de 1 KB/s por
 --  dez segundos), e --max-time como teto de tudo. Um teto só, curto o
 --  bastante para o primeiro caso, cortava o download honesto de um mega.
-function Atualizacao.comando(url, destino)
+function Atualizacao.comando(url, destino, cabecalho)
   return ('curl -L -f -s --retry 2 --retry-delay 1 --connect-timeout %d '
-          .. '--speed-limit 1000 --speed-time 10 --max-time %d -o "%s" "%s"')
-    :format(Atualizacao.ESPERA, Atualizacao.PACIENCIA, destino, url)
+          .. '--speed-limit 1000 --speed-time 10 --max-time %d%s -o "%s" "%s"')
+    :format(Atualizacao.ESPERA, Atualizacao.PACIENCIA,
+            cabecalho and (' -H "' .. cabecalho .. '"') or '', destino, url)
+end
+
+--- O MESMO ARQUIVO, PELO OUTRO CAMINHO.
+--
+--  O raw.githubusercontent.com é servido por uma rede de cache, e ela
+--  cai. Ele mandou a tela dizendo "o servidor recusou o pedido (curl
+--  22)"; medindo na hora, o que vinha era `503 Backend.max_conn
+--  reached` — saturação do lado deles, três vezes seguidas, com as
+--  tentativas do curl acontecendo e falhando todas. Não havia nada de
+--  errado com a máquina dele nem com o repositório.
+--
+--  A API do GitHub serve o MESMO conteúdo por outra infraestrutura, e
+--  não passa pelo mesmo cache. Isto já estava escrito no CLAUDE.md
+--  deste projeto como o jeito de conferir uma publicação quando o raw
+--  ainda mostra a versão velha — só que o programa não sabia disso, e
+--  quem sofria era o cliente.
+--
+--  Medido no mesmo minuto do 503: a API devolveu 200 para o manifesto e
+--  para o programa de um mega.
+--
+--  @return a URL espelho, ou nil se esta não for uma URL do raw
+function Atualizacao.espelho(url)
+  local dono, repo, ramo, caminho = tostring(url or '')
+    :match('^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/([^/]+)/(.+)$')
+  if not dono then return nil end
+  return ('https://api.github.com/repos/%s/%s/contents/%s?ref=%s')
+    :format(dono, repo, caminho, ramo)
+end
+
+--- O cabeçalho que faz a API devolver o arquivo, e não a ficha dele.
+Atualizacao.CRU = 'Accept: application/vnd.github.raw'
+
+--- Baixa tentando o caminho normal e, se ele falhar, o espelho.
+--
+--  @return boolean, codigo do curl, usou o espelho?
+function Atualizacao.buscar(url, destino)
+  local ok, codigo = Atualizacao.baixar(url, destino)
+  if ok then return true, 0, false end
+
+  local outro = Atualizacao.espelho(url)
+  if not outro then return false, codigo, false end
+
+  -- O CÓDIGO RELATADO É O DO CAMINHO NORMAL, e não o do espelho: é o
+  -- primeiro que descreve o que houve com o endereço que o programa
+  -- usa. O espelho é a segunda chance, não o assunto.
+  if Atualizacao.baixar(outro, destino, Atualizacao.CRU) then
+    return true, 0, true
+  end
+  return false, codigo, false
 end
 
 --- O que o número que o curl devolveu quer dizer, em português.
@@ -4847,9 +4897,9 @@ end
 --  outra é a que funciona bonito no lugar que importa.
 --  @return boolean
 --  @return boolean, codigo do curl (nil quando nem rodou)
-function Atualizacao.baixar(url, destino)
+function Atualizacao.baixar(url, destino, cabecalho)
   if not url or url == '' or not destino then return false, nil end
-  local ok = os.execute(Atualizacao.comando(url, destino))
+  local ok = os.execute(Atualizacao.comando(url, destino, cabecalho))
   local certo = (ok == true or ok == 0)
   return certo, certo and 0 or nil
 end
@@ -4956,7 +5006,7 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
   if not manifestoURL or manifestoURL == '' then
     return nil, 'a procura por atualizações não está configurada'
   end
-  local certo, codigo = Atualizacao.baixar(manifestoURL, temp)
+  local certo, codigo = Atualizacao.buscar(manifestoURL, temp)
   if not certo then
     return nil, 'não consegui falar com o servidor: '
                 .. (Atualizacao.explicar(codigo) or 'tente de novo')
@@ -4974,7 +5024,7 @@ function Atualizacao.procurar(manifestoURL, instalada, temp, Version,
   if idDaMaquina and idDaMaquina ~= '' then
     local urlB = Atualizacao.urlBeta(manifestoURL)
     if urlB ~= '' and urlB ~= manifestoURL
-       and Atualizacao.baixar(urlB, temp) then
+       and Atualizacao.buscar(urlB, temp) then
       local b = Atualizacao.lerManifesto(Atualizacao.ler(temp))
       if b and Atualizacao.liberadoPara(b, idDaMaquina)
          and Version.maisNovaQue(b.versao, instalada)
@@ -5029,7 +5079,7 @@ function Atualizacao.instalar(url, destino, versao, Version)
   if not url or url == '' then return false, 'sem endereço para baixar' end
 
   local novo = destino .. '.novo'
-  local certo, codigo = Atualizacao.baixar(url, novo)
+  local certo, codigo = Atualizacao.buscar(url, novo)
   if not certo then
     return false, 'não consegui baixar: '
                   .. (Atualizacao.explicar(codigo) or 'tente de novo')
@@ -18442,12 +18492,13 @@ end
 function chrome.instalarDownloader()
   if not reaper.ExecProcess then return end
   local Atualizacao = require('core.atualizacao')
-  Atualizacao.baixar = function(url, destino)
+  Atualizacao.baixar = function(url, destino, cabecalho)
     if not url or url == '' or not destino then return false end
     -- O limite daqui é folgado de propósito: quem decide desistir é o
     -- curl, pelos limites que já estão no comando. Este é só a rede de
     -- segurança para o processo que trava e não morre.
-    local saida = reaper.ExecProcess(Atualizacao.comando(url, destino),
+    local saida = reaper.ExecProcess(Atualizacao.comando(url, destino,
+                                                        cabecalho),
                                      (Atualizacao.PACIENCIA + 5) * 1000)
     -- O CÓDIGO DO CURL VAI JUNTO, e não só o sim/não: é a única
     -- testemunha do que deu errado, e a tela dizia apenas "não consegui
