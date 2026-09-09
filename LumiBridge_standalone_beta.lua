@@ -1,4 +1,4 @@
--- LumiBridge 1.5.0b21  (compilado em 2026-09-09 16:14)
+-- LumiBridge 1.5.0b22  (compilado em 2026-09-09 16:35)
 --[==[--------------------------------------------------------------------
   LumiBridge — versão de arquivo único
   GERADO AUTOMATICAMENTE por tools/build_standalone.lua. Não edite à mão.
@@ -70,7 +70,7 @@ Version.CORRECAO = 0
 --      1.1.1b1  <  1.1.1b2  <  1.1.1  <  1.1.2b1
 --  A oficial ganha do beta de MESMO número, senão quem testou a 1.1.1b2
 --  ficaria preso nela para sempre — a 1.1.1 pareceria velha.
-Version.BETA = 21
+Version.BETA = 22
 
 Version.NOME  = 'LumiBridge'
 Version.AUTOR = 'Jackson Diego Laube'
@@ -87,7 +87,7 @@ Version.AUTOR = 'Jackson Diego Laube'
 --  tools/build_standalone.lua reescreve esta linha ao gerar o arquivo
 --  único. Rodando pelos módulos soltos, ela fica em 'desenvolvimento',
 --  que é a verdade: ali não há compilação nenhuma.
-Version.COMPILACAO = "2026-09-09 16:14"
+Version.COMPILACAO = "2026-09-09 16:35"
 
 --- Onde o programa procura por versão nova.
 --
@@ -4827,13 +4827,52 @@ end
 --  Medido no mesmo minuto do 503: a API devolveu 200 para o manifesto e
 --  para o programa de um mega.
 --
---  @return a URL espelho, ou nil se esta não for uma URL do raw
-function Atualizacao.espelho(url)
+--  PELA ÁRVORE E PELO BLOB, e não pelo endereço de conteúdo.
+--
+--  A primeira versão disto usava /contents/ARQUIVO com o cabeçalho de
+--  arquivo cru, e o resultado foi um estrago: a API RECODIFICA o que ela
+--  julga ser texto. O programa de 966.873 bytes voltava com 995.843, com
+--  cada acento codificado duas vezes — "Programação" virava
+--  "ProgramaÃ§Ã£o" na tela dele. Passou por todas as conferências: o
+--  tamanho mínimo, o `load` (continua sendo Lua válido) e a versão (são
+--  algarismos). Instalou e estragou.
+--
+--  O endereço do BLOB devolve os bytes como estão: medido no mesmo
+--  minuto, 966.873 dos dois lados. Ele custa uma consulta a mais — a
+--  árvore do repositório, para descobrir o `sha` do arquivo —, e essa
+--  consulta traz de brinde o TAMANHO, que vira a conferência que faltava.
+--
+--  @return a URL da árvore e o nome do arquivo, ou nil
+function Atualizacao.arvore(url)
   local dono, repo, ramo, caminho = tostring(url or '')
     :match('^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/([^/]+)/(.+)$')
   if not dono then return nil end
-  return ('https://api.github.com/repos/%s/%s/contents/%s?ref=%s')
-    :format(dono, repo, caminho, ramo)
+  return ('https://api.github.com/repos/%s/%s/git/trees/%s')
+    :format(dono, repo, ramo), caminho
+end
+
+--- O `sha` e o tamanho de um arquivo na resposta da árvore.
+--
+--  Vai objeto por objeto e compara o campo `path`, em vez de procurar o
+--  `sha` mais próximo do nome: assim a ordem dos campos no JSON não
+--  importa, e um arquivo com nome parecido não entrega o sha do vizinho.
+function Atualizacao.naArvore(texto, arquivo)
+  for pedaco in tostring(texto or ''):gmatch('{[^{}]*}') do
+    if pedaco:match('"path"%s*:%s*"([^"]*)"') == arquivo then
+      return pedaco:match('"sha"%s*:%s*"(%x+)"'),
+             tonumber(pedaco:match('"size"%s*:%s*(%d+)'))
+    end
+  end
+  return nil
+end
+
+--- O endereço do blob, que devolve os bytes como estão.
+function Atualizacao.espelho(url, sha)
+  local dono, repo = tostring(url or '')
+    :match('^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/')
+  if not dono or not sha then return nil end
+  return ('https://api.github.com/repos/%s/%s/git/blobs/%s')
+    :format(dono, repo, sha)
 end
 
 --- O cabeçalho que faz a API devolver o arquivo, e não a ficha dele.
@@ -4846,16 +4885,38 @@ function Atualizacao.buscar(url, destino)
   local ok, codigo = Atualizacao.baixar(url, destino)
   if ok then return true, 0, false end
 
-  local outro = Atualizacao.espelho(url)
-  if not outro then return false, codigo, false end
+  -- O CÓDIGO RELATADO É O DO CAMINHO NORMAL em qualquer saída daqui
+  -- para baixo: é ele que descreve o que houve com o endereço que o
+  -- programa usa. O espelho é a segunda chance, não o assunto.
+  local urlArvore, arquivo = Atualizacao.arvore(url)
+  if not urlArvore then return false, codigo, false end
 
-  -- O CÓDIGO RELATADO É O DO CAMINHO NORMAL, e não o do espelho: é o
-  -- primeiro que descreve o que houve com o endereço que o programa
-  -- usa. O espelho é a segunda chance, não o assunto.
-  if Atualizacao.baixar(outro, destino, Atualizacao.CRU) then
-    return true, 0, true
+  local indice = destino .. '.indice'
+  if not Atualizacao.baixar(urlArvore, indice) then
+    return false, codigo, false
   end
-  return false, codigo, false
+  local sha, tamanho = Atualizacao.naArvore(Atualizacao.ler(indice), arquivo)
+  Atualizacao.apagar(indice)
+  if not sha then return false, codigo, false end
+
+  local urlBlob = Atualizacao.espelho(url, sha)
+  if not urlBlob
+     or not Atualizacao.baixar(urlBlob, destino, Atualizacao.CRU) then
+    return false, codigo, false
+  end
+
+  -- E O QUE CHEGOU TEM DE TER O TAMANHO QUE O REPOSITÓRIO DECLARA.
+  --
+  -- É a conferência que faltava quando o espelho antigo devolveu o
+  -- programa recodificado: vinte e nove mil bytes a mais, e nenhuma das
+  -- outras barreiras percebeu. Tamanho diferente é arquivo diferente,
+  -- não importa por qual motivo — e um espelho que entrega outra coisa
+  -- é o mesmo que um espelho que não respondeu.
+  local veio = Atualizacao.ler(destino)
+  if tamanho and (not veio or #veio ~= tamanho) then
+    return false, codigo, false
+  end
+  return true, 0, true
 end
 
 --- O que o número que o curl devolveu quer dizer, em português.
@@ -4902,6 +4963,16 @@ function Atualizacao.baixar(url, destino, cabecalho)
   local ok = os.execute(Atualizacao.comando(url, destino, cabecalho))
   local certo = (ok == true or ok == 0)
   return certo, certo and 0 or nil
+end
+
+--- Apaga um arquivo. Trocável nos testes, como ler e escrever.
+--
+--  PELA MESMA PORTA que o resto do io deste módulo: com `os.remove`
+--  direto, o disco de mentira dos testes não via nada acontecer, e a
+--  limpeza do rascunho ficaria sem como ser verificada.
+function Atualizacao.apagar(caminho)
+  if not caminho then return false end
+  return (pcall(os.remove, caminho))
 end
 
 --- Lê um arquivo inteiro. Trocável nos testes.
@@ -5179,6 +5250,16 @@ function Atualizacao.instalar(url, destino, versao, Version)
   if not Atualizacao.escrever(destino, conteudo) then
     return false, 'não consegui escrever no lugar do programa'
   end
+
+  -- E O RASCUNHO SAI. Ele é o arquivo baixado, já copiado para o lugar
+  -- definitivo: deixá-lo ali é uma cópia idêntica do programa
+  -- acumulando na pasta de Scripts a cada atualização. Inofensivo e
+  -- errado — a pasta é do REAPER, não nossa.
+  --
+  -- SÓ DEPOIS DA ESCRITA DAR CERTO: falhando ela, o rascunho é a única
+  -- cópia do que foi baixado, e apagá-lo obrigaria a baixar de novo.
+  Atualizacao.apagar(novo)
+
   return true, 'atualizado — feche e abra o LumiBridge'
 end
 
